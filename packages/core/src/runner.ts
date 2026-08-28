@@ -2,15 +2,18 @@ import { randomUUID } from 'node:crypto'
 import type { TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome } from '@speq/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
+import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
 import { resolveDeep, resolveString } from './interpolate.js'
 
 export interface TestOutcome {
   name: string
   source?: string
+  suite: string
   status: StepStatus
   durationMs: number
   steps: StepRecord[]
   assertions: (AssertOutcome & { type: string })[]
+  artifacts: ArtifactRecord[]
 }
 
 export interface RunOutcome {
@@ -18,16 +21,32 @@ export interface RunOutcome {
   status: StepStatus
   durationMs: number
   tests: TestOutcome[]
+  artifacts: readonly ArtifactRecord[]
   passed: number
   failed: number
   errored: number
   skipped: number
 }
 
-export async function runTests(registry: Registry, tests: TestDef[]): Promise<RunOutcome> {
-  const runId = randomUUID()
+export interface RunOptions {
+  /**
+   * Where attached artifacts are written, one subdirectory per run. Without
+   * it nothing touches the disk and bodies stay in memory — which is what a
+   * library caller or a unit test wants.
+   */
+  artifactDir?: string
+  runId?: string
+}
+
+export async function runTests(
+  registry: Registry,
+  tests: TestDef[],
+  options: RunOptions = {}
+): Promise<RunOutcome> {
+  const runId = options.runId ?? randomUUID()
   const startedAt = Date.now()
   const configFor = (plugin: string) => registry.configFor(plugin)
+  const artifacts = new ArtifactStore(options.artifactDir, runId)
 
   registry.events.emit({ type: 'run.started', runId, tests: tests.length, at: startedAt })
   await registry.runHooks('run:before', {})
@@ -36,8 +55,22 @@ export async function runTests(registry: Registry, tests: TestDef[]): Promise<Ru
   const outcomes: TestOutcome[] = []
 
   try {
-    for (const test of tests) {
-      outcomes.push(await runOne(registry, test))
+    // Suites are the middle scope, and they are real: a resource declared
+    // `suite` is set up once for the group and torn down when it ends. The
+    // grouping is by source file and consecutive, so nothing is reordered.
+    for (const group of groupIntoSuites(tests)) {
+      registry.events.emit({ type: 'suite.started', suite: group.suite })
+      await registry.runHooks('suite:before', { suite: group.suite })
+      registry.resources.open('suite')
+      try {
+        for (const test of group.tests) {
+          outcomes.push(await runOne(registry, test, group.suite, artifacts))
+        }
+      } finally {
+        await registry.resources.close('suite', configFor)
+      }
+      await registry.runHooks('suite:after', { suite: group.suite })
+      registry.events.emit({ type: 'suite.finished', suite: group.suite })
     }
   } finally {
     await registry.resources.close('run', configFor)
@@ -51,10 +84,31 @@ export async function runTests(registry: Registry, tests: TestDef[]): Promise<Ru
   await registry.runHooks('run:after', {})
   registry.events.emit({ type: 'run.finished', runId, status, durationMs, ...counts })
 
-  return { runId, status, durationMs, tests: outcomes, ...counts }
+  return { runId, status, durationMs, tests: outcomes, artifacts: artifacts.all(), ...counts }
 }
 
-async function runOne(registry: Registry, test: TestDef): Promise<TestOutcome> {
+interface SuiteGroup {
+  suite: string
+  tests: TestDef[]
+}
+
+function groupIntoSuites(tests: TestDef[]): SuiteGroup[] {
+  const groups: SuiteGroup[] = []
+  for (const test of tests) {
+    const suite = test.source ?? '(inline)'
+    const current = groups.at(-1)
+    if (current?.suite === suite) current.tests.push(test)
+    else groups.push({ suite, tests: [test] })
+  }
+  return groups
+}
+
+async function runOne(
+  registry: Registry,
+  test: TestDef,
+  suite: string,
+  artifacts: ArtifactStore
+): Promise<TestOutcome> {
   const startedAt = Date.now()
   const configFor = (plugin: string) => registry.configFor(plugin)
 
@@ -65,12 +119,14 @@ async function runOne(registry: Registry, test: TestDef): Promise<TestOutcome> {
     registry,
     test: test.name,
     attach: (name, body, contentType) => {
+      const record = artifacts.put(test.name, name, body, contentType)
       registry.events.emit({
         type: 'artifact.attached',
         test: test.name,
         name,
         contentType,
-        bytes: typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength
+        bytes: record.bytes,
+        path: record.path
       })
     }
   })
@@ -131,7 +187,16 @@ async function runOne(registry: Registry, test: TestDef): Promise<TestOutcome> {
   await registry.runHooks('test:after', { test: test.name })
   registry.events.emit({ type: 'test.finished', test: test.name, status, durationMs })
 
-  return { name: test.name, source: test.source, status, durationMs, steps, assertions }
+  return {
+    name: test.name,
+    source: test.source,
+    suite,
+    status,
+    durationMs,
+    steps,
+    assertions,
+    artifacts: artifacts.forTest(test.name)
+  }
 }
 
 function assertContext(registry: Registry, executor: Executor, steps: StepRecord[]): AssertContext {

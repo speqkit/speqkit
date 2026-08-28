@@ -139,7 +139,7 @@ export type RunEvent =
   | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number }
   | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string }
   | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string }
-  | { type: 'artifact.attached'; test: string; name: string; contentType: string; bytes: number }
+  | { type: 'artifact.attached'; test: string; name: string; contentType: string; bytes: number; path?: string }
   | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number }
   | { type: 'suite.finished'; suite: string }
   | { type: 'run.finished'; runId: string; status: StepStatus; passed: number; failed: number; errored: number; skipped: number; durationMs: number }

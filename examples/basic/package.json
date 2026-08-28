@@ -8,6 +8,7 @@
     "@speq/plugin-yaml": "workspace:*",
     "@speq/plugin-http": "workspace:*",
     "@speq/plugin-cli": "workspace:*",
-    "@speq/plugin-loop": "workspace:*"
+    "@speq/plugin-loop": "workspace:*",
+    "@speq/plugin-playwright": "workspace:*"
   }
 }

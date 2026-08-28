@@ -1,0 +1,46 @@
+# What this file proves: a UI capability is an ordinary plugin.
+#
+# The kernel has never heard of a browser. It knows only that some plugin
+# declared resources with lifetimes and that a step handed it some bytes:
+# one browser process is launched for the whole run, a fresh context and page
+# per test, and both are closed in reverse order whatever the test does.
+name: the browser reaches the page
+tags: [ui]
+
+steps:
+  - id: home
+    type: browser.open
+    url: /
+
+  - id: shot
+    type: browser.screenshot
+    name: home.png
+    fullPage: true
+
+assert:
+  - type: title_is
+    expected: Example Domain
+  - type: url_contains
+    expected: example.com
+  - type: visible
+    selector: h1
+
+---
+# A second test in the same file gets a brand new context and page, while the
+# browser it runs in is the same process. That is the whole reason resource
+# scopes exist, and it is why a UI suite does not take twenty minutes.
+name: the page can be read into variables
+tags: [ui]
+
+steps:
+  - id: home
+    type: browser.open
+    url: /
+
+  - id: heading
+    type: browser.text
+    selector: h1
+
+assert:
+  - type: text_contains
+    expected: Example Domain

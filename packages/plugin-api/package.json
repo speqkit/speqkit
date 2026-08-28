@@ -1,8 +1,13 @@
 {
   "name": "@speq/plugin-api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Public contract for speq plugins. Types only — no runtime.",
-  "exports": { ".": "./src/index.ts" },
-  "files": ["src", "dist"]
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "dist"
+  ]
 }

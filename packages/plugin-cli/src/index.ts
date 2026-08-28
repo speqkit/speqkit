@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { definePlugin, type CommandDef, type CommandHost, type RunEvent } from '@speq/plugin-api'
 import { bootstrap, discoverTests, runTests, validateTests } from '@speq/core'
 import type { Registry, Diagnostic } from '@speq/core'
@@ -50,7 +51,9 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        const outcome = await runTests(session.registry, tests)
+        const outcome = await runTests(session.registry, tests, {
+          artifactDir: join(session.root.root, 'reports')
+        })
         return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
       }
     })
@@ -112,6 +115,9 @@ function attachConsoleReporter(registry: Registry): void {
         if (event.message) process.stdout.write(`  ${indent}  ${red(event.message)}\n`)
         break
       }
+      case 'artifact.attached':
+        process.stdout.write(`    ${dim('+')} ${event.name} ${dim(`${event.bytes}b${event.path ? ` -> ${event.path}` : ''}`)}\n`)
+        break
       case 'assertion.evaluated': {
         const mark = event.passed ? green('✓') : red('✗')
         process.stdout.write(`    ${mark} ${dim(event.assertionType)} ${event.message}\n`)

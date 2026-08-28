@@ -5,6 +5,13 @@ plugins:
   - http          # the smoke set that ships in the box
   - cli           # the terminal surface
   - loop          # control flow, contributed rather than built in
+  - playwright    # a UI capability, added without the kernel learning what a browser is
 
 http:
   baseUrl: https://jsonplaceholder.typicode.com
+
+playwright:
+  browser: chromium
+  headless: true
+  baseUrl: https://example.com
+  viewport: { width: 1280, height: 720 }

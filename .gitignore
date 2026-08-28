@@ -1,4 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
-.speq/reports/
+
+# Run output. The pattern needs the ** because a .speq root can be at any
+# depth: one per service repository, not one per checkout.
+**/.speq/reports/

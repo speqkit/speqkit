@@ -29,3 +29,10 @@ still being proven against real plugins.
 **1.0 will freeze this package for the whole major**, with at least a twelve
 month window on the previous one. Until that line is in this README, do not
 build anything you cannot afford to rewrite.
+
+## Changes
+
+**0.2.0** — `artifact.attached` gained `path`, set when the run wrote the body
+somewhere. Added field, so plugins built against 0.1.0 keep working and
+`PLUGIN_API_VERSION` stays at `1`. This is the versioning rule doing its job on
+its first real occasion, rather than a rule we only wrote down.

@@ -12,8 +12,16 @@ it and publishes it; nothing needs to be agreed with us first.
 
 ## Status
 
-M0 and M1 are built. `plugin-loop` was written against the published API with
-**no kernel changes**, which is the gate the design set for itself.
+M0 and M1 are built, and the architecture gate is closed.
+
+`plugin-loop` was written against the published API with **no kernel changes**
+— control flow is genuinely a plugin. `plugin-playwright` then exercised the
+two parts of the spine the loop never touched, scoped resources and binary
+artifacts, and found exactly one thing missing: `attach` took bytes and dropped
+them. The plugin-facing call did not change; the kernel now writes the file and
+the event carries a `path`. What the gate could *not* produce — screenshot on
+failure — is written down in `packages/plugin-playwright/README.md` rather than
+worked around.
 
 ## Try it
 
@@ -24,6 +32,9 @@ cd examples/basic
 node --import tsx ../../packages/core/src/bin.ts plugins   # what is loaded
 node --import tsx ../../packages/core/src/bin.ts validate  # catches typos, no network
 node --import tsx ../../packages/core/src/bin.ts run --test suites/loop.yaml
+
+# UI, once a browser exists: pnpm exec playwright install chromium
+node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 ```
 
 ## Layout
@@ -36,6 +47,7 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/loop.yaml
 | `@speq/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speq/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speq/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
+| `@speq/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 
 ## What the kernel owns
 
@@ -49,8 +61,9 @@ control construct anywhere in `packages/core`.
 
 ## The invariants
 
-They are pinned by `packages/core/test/kernel.test.ts`. If one starts failing,
-the spine moved and the fix belongs in the kernel, not in the test.
+They are pinned by `packages/core/test/kernel.test.ts` and `gate.test.ts`. If
+one starts failing, the spine moved and the fix belongs in the kernel, not in
+the test.
 
 - A step type the kernel has never heard of runs, contributed at load time.
 - A plugin nests steps through `ctx.runSteps` in a child variable scope, and
@@ -61,6 +74,10 @@ the spine moved and the fix belongs in the kernel, not in the test.
 - Two plugins cannot claim the same step type.
 - A plugin built against a different `plugin-api` major is refused at load.
 - A crash inside a plugin is `error`, never `failed`.
+- All three resource scopes are real: `run` outlives the suite, `suite` outlives
+  the test, and the outer ones tear down even when a test blows up.
+- Bytes handed to `attach` come back out of the run byte-for-byte, and every
+  reporter is told where they went.
 
 ## Development
 
