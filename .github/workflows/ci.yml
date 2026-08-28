@@ -22,13 +22,13 @@ jobs:
         node: ['20', '22', '24']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
+      # No `version:` — it reads `packageManager` from the root package.json,
+      # so the pinned pnpm lives in one place instead of two that can drift.
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
