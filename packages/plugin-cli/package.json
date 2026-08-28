@@ -15,9 +15,6 @@
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^"
   },
-  "dependencies": {
-    "@speqkit/core": "workspace:*"
-  },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*"
   },

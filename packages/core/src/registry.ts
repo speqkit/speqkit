@@ -1,11 +1,12 @@
 import type {
   PluginSpec, PluginContext, StepTypeDef, AssertionTypeDef, ResourceDef,
   ReporterDef, ValueProviderDef, LoaderDef, HookName, HookPayload,
-  EventListener, InputSchema
+  EventListener, InputSchema, Host
 } from '@speqkit/plugin-api'
 import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speqkit/plugin-api'
 import { EventBus } from './events.js'
 import { ResourceManager } from './resources.js'
+import { detachedHost } from './host.js'
 
 /**
  * Composition is behind this facade on purpose.
@@ -37,6 +38,13 @@ export class Registry {
   /** Where each loaded plugin came from: link, store or node_modules. */
   readonly sources = new Map<string, { spec: string; name: string; origin: string; path: string; version?: string }>()
 
+  /**
+   * What every plugin sees as `ctx.host`. Attached by `loadPlugins`, because
+   * only then is there a project root and a config to answer with; until
+   * then it is a stand-in that throws on use rather than on construction.
+   */
+  #host: Host = detachedHost()
+
   readonly #services = new Map<string, unknown>()
   readonly #pending: { plugin: string; services: string[]; fn: (r: Record<string, unknown>) => void }[] = []
   readonly #loaded: string[] = []
@@ -45,6 +53,10 @@ export class Registry {
 
   setConfig(config: Record<string, unknown>): void {
     this.#config = config
+  }
+
+  setHost(host: Host): void {
+    this.#host = host
   }
 
   configFor(plugin: string): Record<string, unknown> {
@@ -98,6 +110,9 @@ export class Registry {
   }
 
   #context(pluginName: string): PluginContext {
+    // An arrow, because the getter below is not one and would otherwise see
+    // the object literal's `this` rather than the registry's.
+    const host = () => this.#host
     const claim = <T>(map: Map<string, Registered<T>>, kind: string, key: string, def: T) => {
       const existing = map.get(key)
       if (existing) {
@@ -111,6 +126,11 @@ export class Registry {
 
     return {
       pluginName,
+      // A getter, so a plugin that captures `ctx` during setup() still sees
+      // whatever host the session attaches afterwards.
+      get host() {
+        return host()
+      },
       config: () => this.configFor(pluginName) as never,
 
       defineStepType: (type, def) => claim(this.stepTypes, 'step type', type, def),

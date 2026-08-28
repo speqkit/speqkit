@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome } from '@speqkit/plugin-api'
+import type {
+  TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome, RunOutcome, TestOutcome
+} from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
@@ -7,28 +9,7 @@ import { RunLog } from './run-log.js'
 import { startReporters, runDirFor } from './reporters.js'
 import { resolveDeep, resolveString } from './interpolate.js'
 
-export interface TestOutcome {
-  name: string
-  source?: string
-  suite: string
-  status: StepStatus
-  durationMs: number
-  steps: StepRecord[]
-  assertions: (AssertOutcome & { type: string })[]
-  artifacts: ArtifactRecord[]
-}
-
-export interface RunOutcome {
-  runId: string
-  status: StepStatus
-  durationMs: number
-  tests: TestOutcome[]
-  artifacts: readonly ArtifactRecord[]
-  passed: number
-  failed: number
-  errored: number
-  skipped: number
-}
+export type { RunOutcome, TestOutcome }
 
 export interface RunOptions {
   /**

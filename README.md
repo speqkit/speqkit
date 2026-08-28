@@ -88,6 +88,14 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
 | `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 
+Every `plugin-*` above depends on `@speqkit/plugin-api` and on nothing else of
+ours — never on the kernel. A plugin runs *inside* a kernel and reaches it as
+`ctx.host`; one that imports `@speqkit/core` instead ships a second kernel in
+its `dependencies`, which the installer will faithfully put in the store and
+the plugin will faithfully boot. `packages/core/test/host.test.ts` fails if any
+manifest here names the kernel, and `scripts/verify-publish.mjs` fails if one
+ever reaches the store.
+
 ## Using it in a repository that is not a Node project
 
 ```bash

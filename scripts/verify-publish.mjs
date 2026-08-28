@@ -149,6 +149,24 @@ console.log(install.out.split('\n').map((l) => `  ${l}`).join('\n').trimEnd())
 if (install.code !== 0) bad('speq install exits 0', install.out)
 else ok('speq install exits 0')
 
+/**
+ * The kernel must not be in the store.
+ *
+ * `plugin-cli` used to declare `@speqkit/core` as an ordinary dependency, and
+ * the installer did exactly as told: it put a second kernel in here, linked it
+ * under the plugin, and pinned it in speq.lock. The plugin then booted it —
+ * so `speq run` loaded every plugin twice, into two registries, and the kernel
+ * that answered was the locked one rather than the one the user installed.
+ * Plugins reach the kernel through `ctx.host`; nothing they publish may name
+ * it. This is the check at the boundary that actually matters, because it is
+ * the graph a stranger installs rather than the one we build.
+ */
+const installed = readdirSync(join(store, 'store'))
+const kernels = installed.filter((n) => n.startsWith('@speqkit+core@') || n.startsWith('@speqkit+installer@'))
+kernels.length === 0
+  ? ok('the store holds plugins only, no kernel')
+  : bad('the store holds plugins only, no kernel', `found ${kernels.join(', ')}`)
+
 const plugins = await speq(['plugins'])
 if (plugins.code !== 0) {
   bad('speq plugins loads them back', plugins.out)

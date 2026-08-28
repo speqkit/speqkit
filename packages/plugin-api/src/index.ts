@@ -259,8 +259,122 @@ export interface ValueProviderDef {
   resolve(key: string): unknown | Promise<unknown>
 }
 
+/* ------------------------------------------------------------------ */
+/* The kernel, as a plugin sees it                                     */
+/* ------------------------------------------------------------------ */
+
+export interface Diagnostic {
+  /** The test file the problem is in, relative to the project root. */
+  file: string
+  /** Where inside it, e.g. `steps[2].type`. */
+  path: string
+  message: string
+  hint?: string
+}
+
+export interface ArtifactRecord {
+  test: string
+  name: string
+  contentType: string
+  bytes: number
+  /** Where it was written. Absent when the run has no artifact directory. */
+  path?: string
+  /** Retained only when nothing was written, so a caller can still read it. */
+  body?: string | Uint8Array
+}
+
+export interface TestOutcome {
+  name: string
+  source?: string
+  suite: string
+  status: StepStatus
+  durationMs: number
+  steps: StepRecord[]
+  assertions: (AssertOutcome & { type: string })[]
+  artifacts: ArtifactRecord[]
+}
+
+export interface RunOutcome {
+  runId: string
+  status: StepStatus
+  durationMs: number
+  tests: TestOutcome[]
+  artifacts: readonly ArtifactRecord[]
+  passed: number
+  failed: number
+  errored: number
+  skipped: number
+}
+
+export interface DiscoverQuery {
+  /** A single file, relative to the project root. */
+  test?: string
+  /** A single directory, relative to the project root. Defaults to `suites`. */
+  suite?: string
+  /** Keep only tests carrying at least one of these tags. */
+  tags?: string[]
+}
+
+export interface RunRequest {
+  /** Reporters to drive, by the name their plugin registered. */
+  reporters?: readonly string[]
+}
+
+export interface RecordedRun {
+  runId: string
+  dir: string
+  at: number
+}
+
+/**
+ * The running kernel, handed to every plugin as `ctx.host`.
+ *
+ * It exists so that a plugin never imports the kernel. `plugin-cli` used to
+ * open with `import { bootstrap, runTests } from '@speqkit/core'`, and that
+ * one line cost two things. It put the kernel in the plugin's published
+ * `dependencies`, so the installer dutifully materialised a second copy of it
+ * into the store; and it meant the plugin called `bootstrap()` inside a
+ * process that had already booted — so every plugin was loaded twice per
+ * invocation, into two registries that knew nothing about each other, and the
+ * kernel the user installed was quietly replaced by whatever speq.lock pinned.
+ *
+ * A plugin is contributed *into* a kernel that is already running. It cannot
+ * bring its own, and there is deliberately nothing here to construct one
+ * with: this is the session the plugin is executing inside, not a way to
+ * start another. What a plugin and a kernel must agree on is the major of
+ * this package, checked as `apiVersion` — and nothing else.
+ */
+export interface Host {
+  /** The project root: the directory holding speq.yaml. */
+  readonly root: string
+  /** `<root>/reports` — where run logs, artifacts and reports are written. */
+  readonly reportDir: string
+  /** The environment layer in effect, when `--env` or SPEQ_ENV asked for one. */
+  readonly env: string | undefined
+
+  /** Ask the registered loaders which tests exist. */
+  discover(query?: DiscoverQuery): Promise<TestDef[]>
+  /** Check tests against the grammar the loaded plugins define. */
+  validate(tests: TestDef[]): Diagnostic[]
+  /** Execute tests in this session. */
+  run(tests: TestDef[], options?: RunRequest): Promise<RunOutcome>
+  /** Runs already recorded under `reportDir`, newest first. */
+  runs(): RecordedRun[]
+  /** Re-emit a recorded run's events, so reporters render it without rerunning it. */
+  replay(run: RecordedRun, reporters: readonly string[]): Promise<readonly RunEvent[]>
+}
+
 export interface PluginContext {
   readonly pluginName: string
+
+  /**
+   * The kernel this plugin is running inside — see `Host`.
+   *
+   * A plugin *uses* the kernel; it does not depend on it. Everything a plugin
+   * needs from the kernel comes through here, which is why no plugin in this
+   * repository has `@speqkit/core` in its package.json.
+   */
+  readonly host: Host
   /** This plugin's slice of speq.yaml, already validated against its schema. */
   config<T = Record<string, unknown>>(): T
 

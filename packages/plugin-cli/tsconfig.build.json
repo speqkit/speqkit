@@ -16,9 +16,6 @@
   "references": [
     {
       "path": "../plugin-api/tsconfig.build.json"
-    },
-    {
-      "path": "../core/tsconfig.build.json"
     }
   ]
 }

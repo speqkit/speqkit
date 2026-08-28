@@ -1,7 +1,4 @@
-import { join } from 'node:path'
-import { definePlugin, type CommandDef, type CommandHost, type RunEvent } from '@speqkit/plugin-api'
-import { bootstrap, discoverTests, listRuns, replayRun, runTests, validateTests } from '@speqkit/core'
-import type { Diagnostic } from '@speqkit/core'
+import { definePlugin, type CommandDef, type CommandHost, type Diagnostic, type RunEvent } from '@speqkit/plugin-api'
 
 const EXIT_OK = 0
 const EXIT_FAILED = 1
@@ -14,20 +11,28 @@ const DEFAULT_REPORTERS = ['console']
  * Code extension, from a TUI, from someone's own harness. It publishes the
  * `cli` service, which is how any other plugin contributes a command without
  * depending on the terminal existing at all.
+ *
+ * Note what it does not import. Every command below drives the kernel through
+ * `ctx.host`, and the package.json next to this file names no kernel at all —
+ * only `@speqkit/plugin-api`, as a peer. It used to import `@speqkit/core`,
+ * and that had the installer place a second kernel in the store and had this
+ * file call `bootstrap()` inside a process that had already booted one. This
+ * plugin is the reference for every plugin anyone else writes; whatever it
+ * does, the ecosystem will do.
  */
 export default definePlugin({
   name: '@speqkit/plugin-cli',
 
   setup(ctx) {
     const commands = new Map<string, CommandDef>()
-    const host: CommandHost = {
+    const cli: CommandHost = {
       commands,
       register: (name, def) => {
         if (commands.has(name)) throw new Error(`command '${name}' is already registered`)
         commands.set(name, def)
       }
     }
-    ctx.provide('cli', host)
+    ctx.provide('cli', cli)
 
     /**
      * The terminal output is an ordinary reporter, not a private subscription.
@@ -39,14 +44,11 @@ export default definePlugin({
      */
     ctx.defineReporter('console', { on: printEvent })
 
-    host.register('run', {
+    cli.register('run', {
       summary: 'run the tests',
       usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b]',
       async run(argv) {
-        const session = await bootstrap(sessionOptions(argv))
-
-        const tests = await discoverTests(session.registry, {
-          root: session.root.root,
+        const tests = await ctx.host.discover({
           test: flag(argv, '--test'),
           suite: flag(argv, '--suite'),
           tags: list(flag(argv, '--tags'))
@@ -56,32 +58,29 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        const diagnostics = validateTests(session.registry, tests)
+        const diagnostics = ctx.host.validate(tests)
         if (diagnostics.length > 0) {
           printDiagnostics(diagnostics)
           return EXIT_CONFIG
         }
 
-        if (session.config.env) process.stdout.write(dim(`environment: ${session.config.env}\n`))
+        if (ctx.host.env) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
 
-        const outcome = await runTests(session.registry, tests, {
-          artifactDir: join(session.root.root, 'reports'),
+        const outcome = await ctx.host.run(tests, {
           reporters: list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS
         })
         return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
       }
     })
 
-    host.register('report', {
+    cli.register('report', {
       summary: 'render a run that already happened, without running it again',
       usage: 'speq report [--run <id>] [--reporter a,b] [--list]',
       async run(argv) {
-        const session = await bootstrap(sessionOptions(argv))
-        const reportDir = join(session.root.root, 'reports')
-        const runs = listRuns(reportDir)
+        const runs = ctx.host.runs()
 
         if (runs.length === 0) {
-          process.stderr.write(`no recorded runs in ${reportDir}; run 'speq run' first\n`)
+          process.stderr.write(`no recorded runs in ${ctx.host.reportDir}; run 'speq run' first\n`)
           return EXIT_CONFIG
         }
         if (argv.includes('--list')) {
@@ -101,23 +100,20 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        const { events } = await replayRun(
-          session.registry,
-          chosen.dir,
-          list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS,
-          reportDir
+        const events = await ctx.host.replay(
+          chosen,
+          list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS
         )
         const finished = events.find((e) => e.type === 'run.finished')
         return finished?.type === 'run.finished' && finished.status !== 'passed' ? EXIT_FAILED : EXIT_OK
       }
     })
 
-    host.register('validate', {
+    cli.register('validate', {
       summary: 'check every test against the grammar the loaded plugins define',
-      async run(argv) {
-        const session = await bootstrap(sessionOptions(argv))
-        const tests = await discoverTests(session.registry, { root: session.root.root })
-        const diagnostics = validateTests(session.registry, tests)
+      async run() {
+        const tests = await ctx.host.discover()
+        const diagnostics = ctx.host.validate(tests)
 
         if (diagnostics.length === 0) {
           process.stdout.write(`${tests.length} test(s) valid\n`)
@@ -128,11 +124,10 @@ export default definePlugin({
       }
     })
 
-    host.register('list', {
+    cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      async run(argv) {
-        const session = await bootstrap(sessionOptions(argv))
-        const tests = await discoverTests(session.registry, { root: session.root.root })
+      async run() {
+        const tests = await ctx.host.discover()
         for (const test of tests) {
           const tags = test.tags?.length ? `  [${test.tags.join(', ')}]` : ''
           process.stdout.write(`${test.source ?? '?'}  ${test.name}${tags}\n`)
@@ -198,10 +193,6 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
     process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ?? ''}\n`)
   }
   process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
-}
-
-function sessionOptions(argv: string[]): { root?: string; env?: string } {
-  return { root: flag(argv, '--speq-root'), env: flag(argv, '--env') }
 }
 
 function list(value: string | undefined): string[] | undefined {

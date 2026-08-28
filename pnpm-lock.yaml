@@ -76,10 +76,6 @@ importers:
   packages/plugin-api: {}
 
   packages/plugin-cli:
-    dependencies:
-      '@speqkit/core':
-        specifier: workspace:*
-        version: link:../core
     devDependencies:
       '@speqkit/plugin-api':
         specifier: workspace:*

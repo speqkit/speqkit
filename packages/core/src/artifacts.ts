@@ -1,16 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ArtifactRecord } from '@speqkit/plugin-api'
 
-export interface ArtifactRecord {
-  test: string
-  name: string
-  contentType: string
-  bytes: number
-  /** Where it was written. Absent when the run has no artifact directory. */
-  path?: string
-  /** Retained only when nothing was written, so a library caller can read it. */
-  body?: string | Uint8Array
-}
+// Declared on the contract, not here: a run outcome crosses to plugins
+// through `Host`, and a shape only the kernel can name would not cross.
+export type { ArtifactRecord }
 
 /**
  * `ctx.attach` was on the published contract from day one, but the body went

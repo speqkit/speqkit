@@ -1,12 +1,7 @@
-import type { StepDef, TestDef, InputSchema } from '@speqkit/plugin-api'
+import type { StepDef, TestDef, InputSchema, Diagnostic } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 
-export interface Diagnostic {
-  file: string
-  path: string
-  message: string
-  hint?: string
-}
+export type { Diagnostic }
 
 /**
  * Validation runs before a single network call, because the kernel knows the

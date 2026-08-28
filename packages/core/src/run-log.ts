@@ -1,6 +1,6 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
-import type { RunEvent } from '@speqkit/plugin-api'
+import type { RunEvent, RecordedRun } from '@speqkit/plugin-api'
 
 const FILE = 'events.jsonl'
 
@@ -39,11 +39,7 @@ export class RunLog {
   }
 }
 
-export interface RecordedRun {
-  runId: string
-  dir: string
-  at: number
-}
+export type { RecordedRun }
 
 /** Reads a run log back. Malformed lines are skipped, not fatal — a crashed
  *  run can leave a half-written last line, and that is the run worth reading. */

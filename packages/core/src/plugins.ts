@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import type { PluginSpec as PluginModule } from '@speqkit/plugin-api'
 import { Store, parseSpec, candidates, readLinks, readLock } from '@speqkit/installer'
 import { Registry } from './registry.js'
+import { createHost } from './host.js'
 import type { SpeqConfig } from './config.js'
 
 export type PluginOrigin = 'path' | 'link' | 'store' | 'node_modules'
@@ -32,6 +33,10 @@ export interface PluginSource {
 export async function loadPlugins(config: SpeqConfig, root: string): Promise<Registry> {
   const registry = new Registry()
   registry.setConfig(config.settings)
+  // Attached before the first setup() runs: `ctx.host` is how a plugin reaches
+  // the kernel, and a plugin that had to import it instead would drag a second
+  // copy of the kernel into the store behind it.
+  registry.setHost(createHost(registry, { root, env: config.env }))
 
   for (const spec of config.plugins) {
     const source = resolvePlugin(spec, root)
