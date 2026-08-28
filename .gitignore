@@ -5,3 +5,7 @@ dist/
 # Run output. The pattern needs the ** because a .speq root can be at any
 # depth: one per service repository, not one per checkout.
 **/.speq/reports/
+
+# npm auth. The file itself only names an env var, but it is the file people
+# paste a token into by mistake, so it never goes near a commit.
+.npmrc
