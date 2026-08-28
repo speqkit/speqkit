@@ -1,0 +1,10 @@
+version: 1
+
+plugins:
+  - yaml          # the authoring format is itself a plugin
+  - http          # the smoke set that ships in the box
+  - cli           # the terminal surface
+  - loop          # control flow, contributed rather than built in
+
+http:
+  baseUrl: https://jsonplaceholder.typicode.com

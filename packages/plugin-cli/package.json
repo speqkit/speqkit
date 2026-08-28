@@ -1,0 +1,21 @@
+{
+  "name": "@speq/plugin-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The terminal surface: run, validate, list. One surface among several, not the framework.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "keywords": [
+    "speq-plugin"
+  ],
+  "peerDependencies": {
+    "@speq/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "@speq/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@speq/plugin-api": "workspace:*"
+  }
+}

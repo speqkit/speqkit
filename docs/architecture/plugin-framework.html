@@ -1,0 +1,902 @@
+<title>Плагинный фреймворк speq</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+:root{
+  --bg:#EEF2F4;
+  --surface:#FFFFFF;
+  --surface-2:#E4EAEE;
+  --ink:#16222C;
+  --ink-soft:#3A4C58;
+  --muted:#63757F;
+  --rule:#CFDAE0;
+  --rule-soft:#E1E8EC;
+  --accent:#0F5C7A;
+  --accent-ink:#0A4258;
+  --accent-wash:#DCEAF0;
+  --flag:#9C5A22;
+  --flag-wash:#F4E7DA;
+  --good:#2B6A50;
+  --code-bg:#1A2830;
+  --code-ink:#D7E3E9;
+  --shadow:0 1px 2px rgba(22,34,44,.06), 0 8px 24px -18px rgba(22,34,44,.5);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1418;
+    --surface:#141E23;
+    --surface-2:#1B282E;
+    --ink:#DDE7EB;
+    --ink-soft:#B4C4CB;
+    --muted:#8496A0;
+    --rule:#26363E;
+    --rule-soft:#1E2C33;
+    --accent:#63B6D6;
+    --accent-ink:#8FCDE6;
+    --accent-wash:#152D39;
+    --flag:#D69A62;
+    --flag-wash:#2E2317;
+    --good:#6FB894;
+    --code-bg:#0A1115;
+    --code-ink:#C6D6DE;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1418;
+  --surface:#141E23;
+  --surface-2:#1B282E;
+  --ink:#DDE7EB;
+  --ink-soft:#B4C4CB;
+  --muted:#8496A0;
+  --rule:#26363E;
+  --rule-soft:#1E2C33;
+  --accent:#63B6D6;
+  --accent-ink:#8FCDE6;
+  --accent-wash:#152D39;
+  --flag:#D69A62;
+  --flag-wash:#2E2317;
+  --good:#6FB894;
+  --code-bg:#0A1115;
+  --code-ink:#C6D6DE;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"IBM Plex Serif","Georgia",serif;
+  font-size:16.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-wash);color:var(--ink)}
+
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding:0 28px 120px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+}
+@media(min-width:1080px){
+  .wrap{grid-template-columns:210px minmax(0,1fr);column-gap:56px;padding-right:40px}
+  .masthead{grid-column:1/-1}
+}
+
+/* ---------- masthead ---------- */
+.masthead{
+  border-bottom:1px solid var(--rule);
+  padding:64px 0 40px;
+  margin-bottom:52px;
+}
+.eyebrow{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11.5px;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--accent);
+}
+.masthead h1{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:800;
+  font-size:clamp(34px,5.4vw,58px);
+  line-height:1.02;
+  letter-spacing:-.025em;
+  margin:16px 0 0;
+  text-wrap:balance;
+  max-width:15ch;
+}
+.masthead .lede{
+  margin:22px 0 0;
+  max-width:60ch;
+  font-size:19px;
+  line-height:1.6;
+  color:var(--ink-soft);
+}
+.meta{
+  display:flex;flex-wrap:wrap;gap:10px 28px;
+  margin-top:30px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:12.5px;
+  color:var(--muted);
+}
+.meta b{color:var(--ink);font-weight:600}
+
+/* ---------- side nav ---------- */
+nav.toc{display:none}
+@media(min-width:1080px){
+  nav.toc{
+    display:block;
+    position:sticky;
+    top:32px;
+    align-self:start;
+    font-family:"Golos Text",system-ui,sans-serif;
+    font-size:13px;
+    line-height:1.45;
+  }
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+  nav.toc a{
+    color:var(--muted);text-decoration:none;
+    display:block;
+    border-left:2px solid var(--rule-soft);
+    padding-left:12px;
+    transition:color .15s, border-color .15s;
+  }
+  nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-left-color:var(--accent)}
+}
+
+/* ---------- sections ---------- */
+main{min-width:0}
+section{margin:0 0 68px;scroll-margin-top:24px}
+h2{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:700;
+  font-size:clamp(24px,3vw,31px);
+  letter-spacing:-.018em;
+  line-height:1.14;
+  margin:0 0 6px;
+  text-wrap:balance;
+}
+.sect-label{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);
+  display:block;margin-bottom:14px;
+}
+h3{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:600;font-size:18px;letter-spacing:-.01em;
+  margin:38px 0 10px;
+}
+h4{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);
+  margin:26px 0 10px;
+}
+p{margin:0 0 16px;max-width:66ch}
+ul,ol{max-width:66ch;padding-left:22px;margin:0 0 16px}
+li{margin-bottom:7px}
+a{color:var(--accent);text-underline-offset:2px}
+strong{font-weight:600}
+hr.rule{border:0;border-top:1px solid var(--rule);margin:52px 0}
+
+code{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.87em;
+  background:var(--surface-2);
+  padding:1px 5px;
+  border-radius:3px;
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;
+  line-height:1.66;
+  padding:20px 22px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  box-shadow:var(--shadow);
+}
+pre code{background:none;padding:0;font-size:inherit;color:inherit}
+pre .c{color:#7F98A4}
+pre .k{color:#8FCDE6}
+pre .s{color:#B7CE9C}
+pre .p{color:#E0AF7C}
+
+/* ---------- decision table ---------- */
+.tablewrap{overflow-x:auto;margin:0 0 22px;-webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse;
+  width:100%;
+  min-width:560px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:14.5px;
+  line-height:1.5;
+}
+th{
+  text-align:left;
+  font-weight:600;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  padding:0 16px 9px 0;
+  border-bottom:1px solid var(--rule);
+  vertical-align:bottom;
+}
+td{
+  padding:13px 16px 13px 0;
+  border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;
+}
+td:first-child{font-weight:600;color:var(--ink)}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+
+.chip{
+  display:inline-block;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;white-space:nowrap;
+}
+.chip.fixed{background:var(--accent-wash);color:var(--accent-ink)}
+.chip.open{background:var(--flag-wash);color:var(--flag)}
+
+/* ---------- callout ---------- */
+.note{
+  border-left:3px solid var(--accent);
+  background:var(--surface);
+  padding:18px 22px;
+  margin:0 0 22px;
+  border-radius:0 5px 5px 0;
+  box-shadow:var(--shadow);
+}
+.note.warn{border-left-color:var(--flag)}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:7px;
+}
+.note.warn .tag{color:var(--flag)}
+
+/* ---------- lifecycle ---------- */
+.steps{list-style:none;margin:0;padding:0;max-width:none}
+.step{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  column-gap:22px;
+  padding-bottom:30px;
+  position:relative;
+}
+.step:not(:last-child)::before{
+  content:"";
+  position:absolute;
+  left:15px;top:36px;bottom:0;
+  width:1px;background:var(--rule);
+}
+.step .num{
+  width:31px;height:31px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1px solid var(--rule);
+  color:var(--accent);
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;z-index:1;
+  font-variant-numeric:tabular-nums;
+}
+.step .body{padding-top:2px;min-width:0}
+.step h3{margin:0 0 8px;font-size:17px}
+.step p{margin-bottom:12px}
+.step pre{margin-bottom:12px}
+.under{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;
+  color:var(--muted);
+  border-top:1px dashed var(--rule);
+  padding-top:9px;
+  max-width:66ch;
+}
+.under b{color:var(--ink-soft);font-weight:600}
+
+/* ---------- point list ---------- */
+.points{list-style:none;padding:0;max-width:none;display:grid;gap:0}
+.points li{
+  display:grid;
+  grid-template-columns:minmax(150px,190px) minmax(0,1fr);
+  gap:6px 24px;
+  padding:14px 0;
+  border-bottom:1px solid var(--rule-soft);
+  margin:0;
+}
+.points li:first-child{border-top:1px solid var(--rule)}
+.points .name{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13.5px;
+  font-weight:500;
+  color:var(--accent-ink);
+}
+.points .what{font-size:15.5px;color:var(--ink-soft)}
+@media(max-width:620px){
+  .points li{grid-template-columns:1fr}
+}
+
+footer{
+  border-top:1px solid var(--rule);
+  padding-top:22px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;
+  color:var(--muted);
+  max-width:66ch;
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Консолидация решений · M1 собран · август 2026</span>
+  <h1>Плагинный тестовый фреймворк</h1>
+  <p class="lede">Ядро — только загрузчик плагинов. HTTP, CLI, UI-тесты, отчёты, TUI и даже управляющие конструкции вроде цикла — всё это плагины. Новый продукт без монетизации — фреймворк для комьюнити тестировщиков от тестировщиков. <code>speq-cli</code> продолжает жить своим циклом, его v1.4 и v1.5 заморожены.</p>
+  <div class="meta">
+    <span><b>Стек</b> &nbsp;TypeScript · Node 20+ · pnpm</span>
+    <span><b>Реестр</b> &nbsp;npm</span>
+    <span><b>Установка</b> &nbsp;свой installer + глобальный кэш</span>
+    <span><b>Раскладка</b> &nbsp;in-repo по умолчанию</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Содержание">
+  <ol>
+    <li><a href="#decisions">Зафиксировано</a></li>
+    <li><a href="#spine">Хребет</a></li>
+    <li><a href="#freedom">Свобода плагина</a></li>
+    <li><a href="#lifecycle">Жизненный цикл</a></li>
+    <li><a href="#files">Файловая структура</a></li>
+    <li><a href="#org">Организация и репы</a></li>
+    <li><a href="#commands">Команды</a></li>
+    <li><a href="#versioning">Версионирование</a></li>
+    <li><a href="#open">Открытые вопросы</a></li>
+    <li><a href="#plan">Вехи</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============ 1 ============ -->
+<section id="decisions">
+  <span class="sect-label">Итог обсуждения</span>
+  <h2>Что зафиксировано</h2>
+  <p>Всё, к чему пришли, одной таблицей. Синим — принято, охрой — ждёт решения и упоминается ниже отдельно.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Вопрос</th><th>Решение</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>Форма продукта</td><td>Новый продукт, а не эволюция <code>speq-cli</code>. Ядро = загрузчик плагинов, всё остальное — плагины</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Язык ядра</td><td>TypeScript / Node 20+, ESM. Playwright Node-native, авторы плагинов пишут на TS, npm даёт реестр бесплатно</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Композиция плагинов</td><td>Фасад <code>PluginContext</code>. Реестр, сервисы и опциональная инъекция — свои ~170 строк; Cordis внутрь фасада можно вложить позже, <code>plugin-api</code> этого не заметит</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Реестр плагинов</td><td>npm. Свой реестр не пишем. Соглашение об имени <code>speq-plugin-*</code> + keyword</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Установка</td><td>Свой installer: <code>speq.lock</code> + глобальный кэш <code>~/.speq</code>. В репозитории сервиса — ноль артефактов Node</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Раскладка тестов</td><td><code>in-repo</code> по умолчанию: <code>.speq/</code> внутри репозитория сервиса. Переносится из нынешнего speq как есть</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Управляющие конструкции</td><td>Цикл, условие, retry, parallel — плагины. Исполнитель ядра реентрантный и доступен плагину</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Репозиторий</td><td>Монорепа pnpm в новой организации GitHub. Отдельный каталог локально</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Формат тестов</td><td>YAML по умолчанию, <code>defineLoader</code> в хребте с первого дня → TS-тесты возможны как плагин</td><td><span class="chip open">подтвердить</span></td></tr>
+      <tr><td>Название и npm-скоуп</td><td>Сохраняем бренд <code>speq</code> или новое имя. Скоуп <code>@speq</code> надо застолбить</td><td><span class="chip open">решить</span></td></tr>
+      <tr><td>Судьба v1.4 / v1.5</td><td><strong>Заморожены и в текущем проекте игнорируются.</strong> <code>--parallel</code> и ATDD-harness переделываются новым продуктом с нуля</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>Монетизация</td><td><strong>Отказ.</strong> Фреймворк для комьюнити тестировщиков от тестировщиков. Линии OSS / Pro нет, платного тира нет, plugin API открыт целиком</td><td><span class="chip fixed">принято</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="spine">
+  <span class="sect-label">Контракт ядра</span>
+  <h2>Хребет</h2>
+  <p>«Всё — плагин» никогда не бывает буквальным: в VS Code точки вклада зашиты, в pytest неизменен цикл <code>collect → fixture → runtest → report</code>. Если тестовая модель тоже плагин, два пользователя одного фреймворка пишут несовместимые тесты. Поэтому хребет фиксируется и не меняется.</p>
+
+  <h4>Что ядро содержит — исчерпывающий список</h4>
+<pre><code><span class="c">Plugin registry + lifecycle</span>   загрузка, порядок, зависимости между плагинами
+<span class="c">Config</span>                        speq.yaml, extends, профили окружений
+<span class="c">Test model</span>                    Suite → Test → Step → Assertion, адресуемые id
+<span class="c">Execution</span>                     порядок, контекст, привязка результатов по id,
+                              интерполяция ${...}, бюджет таймаутов,
+                              <span class="p">реентрантный runSteps() — доступен плагинам</span>
+<span class="c">Resource lifecycle</span>            объекты со сроком жизни run | suite | test
+<span class="c">Event bus</span>                     поток событий прогона, версионированный
+<span class="c">Result + artifacts</span>            модель исхода и вложений (включая бинарные)
+<span class="c">Validation</span>                    плагин отдаёт схему, ядро проверяет тест до запуска
+<span class="c">Installer</span>                     резолв версий, lock, кэш плагинов</code></pre>
+
+  <p>Ядро <strong>не содержит</strong>: ни одного протокола, ни одной команды CLI, ни одного формата отчёта, ни одной управляющей конструкции, ни одного UI.</p>
+
+  <h4>Восемь точек вклада — и больше в v1 не открывать</h4>
+  <p>Каждая открытая точка становится контрактом навсегда: закрыть обратно нельзя. Восьми достаточно, чтобы написать <code>http</code>, <code>playwright</code>, <code>postgres</code>, <code>loop</code>, <code>tui</code> и <code>vscode</code>.</p>
+
+  <ul class="points">
+    <li><span class="name">defineStepType</span><span class="what">id, схема входа, <code>execute(ctx, input)</code> → результат, привязываемый по id</span></li>
+    <li><span class="name">defineAssertion</span><span class="what">id, вид цели, схема, <code>evaluate(target, expected)</code></span></li>
+    <li><span class="name">defineResource</span><span class="what">scope <code>run | suite | test</code>, setup/teardown. Браузер, пул коннектов, транзакция</span></li>
+    <li><span class="name">defineReporter</span><span class="what">подписка на шину событий → вывод в любом формате</span></li>
+    <li><span class="name">defineValueProvider</span><span class="what">резолверы <code>${...}</code>: env, vault, faker, свои источники</span></li>
+    <li><span class="name">defineLoader</span><span class="what">как находятся и парсятся файлы тестов. YAML — реализация по умолчанию</span></li>
+    <li><span class="name">defineCommand</span><span class="what">вклад в CLI-поверхность через опциональную зависимость от сервиса <code>cli</code></span></li>
+    <li><span class="name">defineHook</span><span class="what">before/after на уровне run, suite, test, step — для трейсинга, скриншотов при падении, очистки</span></li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">Опциональные зависимости — работает</span>
+    <p>Плагин <code>postgres</code> хочет добавить команду <code>speq db:seed</code>, но CLI может быть не загружен — в VS Code его нет. Плагин объявляет <em>опциональную</em> зависимость через <code>ctx.inject(['cli'], …)</code>: команда регистрируется, только если сервис поднят, и плагин остаётся полностью работоспособным, если нет. Это шаблон <code>inject</code> из Cordis, реализованный за фасадом двухфазной загрузкой — оба случая закрыты тестами.</p>
+  </div>
+
+  <h4>Поток событий</h4>
+<pre><code>run.started → suite.started → test.started → step.started
+  → step.finished → assertion.evaluated → artifact.attached
+  → test.finished → suite.finished → run.finished
+  ⊥ diagnostic
+
+step.started несёт parentId → вложенные шаги рисуются деревом</code></pre>
+  <p>На этом контракте стоят CLI, TUI, VS Code, будущий агрегатор и любой сторонний репортер — одинаково. Если сделать правильно только это, «много поверхностей» получается само.</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="freedom">
+  <span class="sect-label">Требование</span>
+  <h2>Автор плагина не ограничен</h2>
+  <p>Проверка требования на самом жёстком случае: не хватает <strong>цикла</strong>. Цикл — не тип шага в обычном смысле, он оборачивает <em>другие</em> шаги. Если это выражается плагином, выражается всё.</p>
+
+  <h4>Что пишет автор</h4>
+<pre><code><span class="k">export default</span> definePlugin({
+  name: <span class="s">'loop'</span>,
+  setup(ctx) {
+    ctx.defineStepType(<span class="s">'loop'</span>, {
+      schema: z.object({
+        over:  z.string().optional(),    <span class="c">// ${users}</span>
+        times: z.number().optional(),
+        as:    z.string().default(<span class="s">'item'</span>),
+        steps: ctx.schema.steps           <span class="c">// дочерние шаги — тип из хребта</span>
+      }),
+      <span class="k">async</span> execute(ctx, input) {
+        <span class="k">const</span> items = input.over ? ctx.resolve(input.over) : range(input.times)
+        <span class="k">const</span> out = []
+        <span class="k">for</span> (<span class="k">const</span> item <span class="k">of</span> items) {
+          out.push(<span class="k">await</span> ctx.runSteps(input.steps, { vars: { [input.as]: item } }))
+        }
+        <span class="k">return</span> { iterations: out.length, results: out }
+      }
+    })
+  }
+})</code></pre>
+
+  <h4>Что получает пользователь</h4>
+<pre><code>steps:
+  - id: seed
+    type: loop              <span class="c"># из speq-plugin-loop</span>
+    over: ${users}
+    as: user
+    steps:
+      - id: create
+        type: http          <span class="c"># из plugin-http</span>
+        method: POST
+        url: /users
+        body: { name: <span class="s">"${user.name}"</span> }</code></pre>
+
+  <p>Чего это требует от хребта — и почему решение принять надо сейчас, а не потом:</p>
+  <ul>
+    <li><strong><code>steps</code> — рекурсивный тип первого класса.</strong> Дочерние шаги парсит и валидирует ядро, а не плагин. Плагин получает их уже разобранными.</li>
+    <li><strong><code>ctx.runSteps(steps, { vars })</code> — реентрантный исполнитель</strong> с дочерней областью переменных.</li>
+    <li><strong>События вкладываются.</strong> <code>parentId</code> в <code>step.started</code>, иначе TUI и отчёты не нарисуют дерево.</li>
+  </ul>
+
+  <p>Следствие: <code>if</code>, <code>retry</code>, <code>parallel</code>, <code>try/catch</code>, <code>repeat-until</code>, <code>foreach-file</code> — всё это плагины. В ядре нет ни одной управляющей конструкции, и добавлять их туда никогда не понадобится.</p>
+
+  <div class="note warn">
+    <span class="tag">Открытый вопрос</span>
+    <p>Адресация результатов внутри вложенных шагов. <code>${seed.results[0].create.body.id}</code> — рабочий, но громоздкий вариант; альтернатива — плоские алиасы, которые плагин объявляет сам. Решить до M1, потому что это часть публичного DSL.</p>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="lifecycle">
+  <span class="sect-label">Главный сценарий</span>
+  <h2>От «хочу писать тесты» до зелёного CI</h2>
+  <p>Микросервис <code>payments-service</code> на Go. Node в репозитории не появляется ни на одном шаге.</p>
+
+  <ol class="steps">
+
+    <li class="step">
+      <div class="num">0</div>
+      <div class="body">
+        <h3>Поставить фреймворк</h3>
+<pre><code>brew install speq          <span class="c"># или curl … | sh, или Docker-образ</span></code></pre>
+        <p class="under"><b>Под капотом:</b> один исполняемый файл со встроенным рантаймом (~60–90 МБ). Умеет он ровно четыре вещи: прочитать конфиг, поставить плагины, поднять их, отдать им управление.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">1</div>
+      <div class="body">
+        <h3>Инициализировать в репозитории сервиса</h3>
+<pre><code>cd payments-service
+speq init
+
+<span class="c">? Режим …………… in-repo (тесты рядом с кодом)</span>
+<span class="c">? Пресет ………… @acme/speq-preset</span>
+<span class="c">? Плагины ……… http, cli  (+ из пресета: postgres, allure)</span>
+✔ создано .speq/ · speq.yaml · speq.lock · suites/health.yaml</code></pre>
+        <p class="under"><b>Под капотом:</b> <code>init</code> живёт в загрузчике, а не в плагине — иначе его неоткуда было бы вызвать до установки плагинов.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">2</div>
+      <div class="body">
+        <h3>Подтянуть плагины</h3>
+<pre><code>speq install
+
+  resolving 4 plugins …
+  ✔ @speq/plugin-http        2.1.4   cached
+  ✔ @speq/plugin-cli         2.1.0   downloaded
+  ✔ @speq/plugin-postgres    1.3.2   downloaded
+  ✔ @acme/speq-plugin-kafka  0.4.1   downloaded
+  → speq.lock updated</code></pre>
+        <p class="under"><b>Под капотом:</b> реестр — npm, установщик — свой. Плагины ложатся в <code>~/.speq/plugins/</code>, а не в репозиторий. Коммитится только <code>speq.lock</code> с точными версиями и хешами.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">3</div>
+      <div class="body">
+        <h3>Написать тест</h3>
+<pre><code><span class="c"># .speq/suites/checkout.yaml</span>
+name: checkout
+steps:
+  - id: login
+    type: http
+    method: POST
+    url: /auth
+  - id: order
+    type: sql               <span class="c"># появился вместе с plugin-postgres</span>
+    query: <span class="s">"select status from orders where id = ${login.body.orderId}"</span>
+assert:
+  - type: status
+    expected: 200
+  - type: row_equals
+    path: status
+    expected: PAID</code></pre>
+        <p class="under"><b>Под капотом:</b> схемы плагинов уезжают в yaml-language-server, поэтому автодополнение <code>type: sql</code> и его полей появляется в редакторе само, без правок расширения.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">4</div>
+      <div class="body">
+        <h3>Проверить, ничего не запуская</h3>
+<pre><code>speq validate
+
+  .speq/suites/checkout.yaml:8  unknown step type 'ui'
+    ↳ не найден среди загруженных плагинов
+    ↳ возможно: speq add @speq/plugin-playwright</code></pre>
+        <p class="under"><b>Под капотом:</b> ядро собирает полную грамматику DSL из загруженных плагинов до первого сетевого вызова. Опечатка ловится за миллисекунды, а не в середине прогона.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">5</div>
+      <div class="body">
+        <h3>Прогнать локально</h3>
+<pre><code>speq run --env local
+speq run --test suites/checkout.yaml
+speq tui                     <span class="c"># если поставлен plugin-tui</span></code></pre>
+        <p class="under"><b>Под капотом:</b> открываются ресурсы scope <code>run</code> (пул коннектов), на каждый тест — scope <code>test</code> (транзакция), после теста транзакция откатывается. Изоляция данных при параллельном прогоне получается из этой же модели.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">6</div>
+      <div class="body">
+        <h3>Понадобился ещё плагин</h3>
+<pre><code>speq add @speq/plugin-playwright
+speq add github:acme/speq-plugin-legacy   <span class="c"># из git</span>
+speq plugins                              <span class="c"># что загружено и что вносит</span></code></pre>
+        <p class="under"><b>Под капотом:</b> <code>add</code> правит <code>speq.yaml</code>, пересчитывает <code>speq.lock</code> и обновляет кэш. Приватный скоуп компании, git-URL и локальный путь работают одинаково — это всё умеет npm-резолв.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">7</div>
+      <div class="body">
+        <h3>Возможности не хватило — пишем свой плагин</h3>
+<pre><code>npm create speq-plugin loop     <span class="c"># скаффолд: src, схема, тесты, CI</span>
+cd speq-plugin-loop &amp;&amp; npm run dev
+
+cd ../payments-service
+speq link ../speq-plugin-loop   <span class="c"># подключить без публикации</span>
+speq run                        <span class="c"># сразу видно в тестах</span>
+
+cd ../speq-plugin-loop
+npx speq-test-kit               <span class="c"># конформанс: таймауты, error, артефакты</span>
+npm publish                     <span class="c"># → доступно всем</span></code></pre>
+        <p class="under"><b>Под капотом:</b> <code>speq link</code> — единственное, что отличает разработку плагина от его использования. Публикация — обычный <code>npm publish</code>; ничего согласовывать с вами автору не нужно.</p>
+      </div>
+    </li>
+
+    <li class="step">
+      <div class="num">8</div>
+      <div class="body">
+        <h3>Поставить в CI</h3>
+<pre><code><span class="c"># .github/workflows/tests.yml</span>
+- uses: acme/setup-speq@v1
+  with: { version: <span class="s">'2.1.0'</span> }
+- run: speq install --frozen        <span class="c"># строго по lock, как npm ci</span>
+- run: speq run --env ci --reporter junit,allure</code></pre>
+        <p class="under"><b>Под капотом:</b> <code>--frozen</code> падает, если <code>speq.lock</code> разошёлся с <code>speq.yaml</code>. Exit code — из хребта; репортеры — плагины. Побитовая воспроизводимость набора плагинов, чего у нынешнего <code>brew install speq</code> нет в принципе.</p>
+      </div>
+    </li>
+
+  </ol>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="files">
+  <span class="sect-label">Раскладка</span>
+  <h2>Файловая структура</h2>
+  <p>Три разных репозитория, три разные раскладки. Локально — новый каталог рядом с текущим, <code>~/speq-next/</code>; в нынешнем <code>~/speq/</code> ничего не трогаем.</p>
+
+  <h3>А. Монорепа фреймворка</h3>
+<pre><code>speq-next/                        <span class="c"># новая организация GitHub</span>
+├── packages/
+│   ├── core/           <span class="p">@speq/core</span>              ядро + bin `speq`
+│   ├── plugin-api/     <span class="p">@speq/plugin-api</span>        только типы — публичный контракт
+│   ├── installer/      <span class="p">@speq/installer</span>         резолв, lock, кэш
+│   ├── plugin-http/    <span class="p">@speq/plugin-http</span>       смоук-набор из коробки
+│   ├── plugin-cli/     <span class="p">@speq/plugin-cli</span>        run · validate · list · report
+│   ├── plugin-tui/     <span class="p">@speq/plugin-tui</span>
+│   ├── create-plugin/  <span class="p">@speq/create-plugin</span>     скаффолд для авторов
+│   └── test-kit/       <span class="p">@speq/plugin-test-kit</span>   конформанс-тесты
+├── examples/                     эталонные проекты, e2e
+├── docs/                         спека хребта, гайд автора плагина
+├── pnpm-workspace.yaml
+└── .changeset/                   версионирование пакетов</code></pre>
+  <p>Монорепа — сознательный разворот относительно нынешнего speq. Мультирепа правильна для стабильного продукта и убийственна для нового: первый год <code>plugin-api</code> будет меняться постоянно, и нужны атомарные правки ядра и пяти плагинов одним коммитом. Сторонние плагины живут в своих репозиториях с первого дня.</p>
+
+  <h3>Б. Репозиторий сервиса</h3>
+<pre><code>payments-service/                 <span class="c"># Go. Ни package.json, ни node_modules</span>
+├── go.mod  cmd/  internal/
+├── .github/workflows/tests.yml
+└── .speq/
+    ├── speq.yaml                 extends пресета + что специфично сервису
+    ├── speq.lock                 точные версии + хеши · коммитится
+    ├── environments/
+    │   ├── local.yaml
+    │   └── ci.yaml
+    ├── suites/
+    │   ├── health.yaml
+    │   └── checkout.yaml
+    ├── fixtures/
+    ├── schemas/
+    └── reports/                  .gitignore</code></pre>
+
+<pre><code><span class="c"># .speq/speq.yaml — всё, что пишет команда сервиса</span>
+version: 1
+extends: <span class="s">"@acme/speq-preset"</span>       <span class="c"># плагины и их версии — одной строкой</span>
+
+http:
+  baseUrl: http://localhost:8080</code></pre>
+
+  <div class="note">
+    <span class="tag">Пресет организации решает проблему тридцати репозиториев</span>
+    <p>Без него через полгода в тридцати сервисах тридцать разных версий плагинов и никакой возможности обновить централизованно. Пресет — обычный npm-пакет во внутреннем скоупе: платформенная команда бампает его, обновляются все сервисы. Это же естественная точка, где компания навязывает стандарты — обязательные репортеры, аллоулист плагинов, общие фикстуры. <code>extends</code> надо заложить в хребет сразу: прикручивать его потом к плоскому конфигу больно.</p>
+  </div>
+
+  <h3>В. Репозиторий стороннего плагина</h3>
+<pre><code>speq-plugin-kafka/
+├── package.json         name: speq-plugin-kafka
+│                        keywords: [<span class="s">"speq-plugin"</span>]
+│                        peerDependencies: { <span class="s">"@speq/plugin-api"</span>: <span class="s">"^1"</span> }
+├── src/index.ts         definePlugin({ … })
+├── schema/              JSON Schema — генерится из zod при сборке
+├── tests/               прогон @speq/plugin-test-kit
+├── examples/            рабочий пример для доков
+└── README.md</code></pre>
+
+  <h3>Где какие тесты живут</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Уровень</th><th>Где лежит</th><th>Против чего бежит</th><th>Кто запускает</th></tr></thead>
+    <tbody>
+      <tr><td>Компонентные</td><td><code>.speq/</code> сервиса</td><td>сервис локально, зависимости замоканы</td><td>CI сервиса, каждый PR</td></tr>
+      <tr><td>Контрактные</td><td><code>.speq/</code> сервиса</td><td>схема/спека, без сети</td><td>CI сервиса, каждый PR</td></tr>
+      <tr><td>Сквозные E2E</td><td>отдельный репозиторий</td><td>развёрнутый стенд</td><td>CI стенда, после деплоя</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Сквозные E2E в репозиторий одного сервиса класть нельзя — они не принадлежат ни одному из них, и владелец быстро находится по принципу «кто последний сломал». Это то место, где режим <code>test-repo</code> остаётся нужен.</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="org">
+  <span class="sect-label">Инфраструктура</span>
+  <h2>Организация и репозитории</h2>
+  <p>Новая организация GitHub. Текущая <code>speq-tms</code> продолжает жить: там <code>speq-cli</code>, его issues и его пользователи.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Репозиторий</th><th>Что внутри</th></tr></thead>
+    <tbody>
+      <tr><td><code>speq</code></td><td>Монорепа: ядро, plugin-api, installer, официальные плагины, доки</td></tr>
+      <tr><td><code>setup-speq</code></td><td>GitHub Action: ставит бинарник нужной версии, кэширует <code>~/.speq</code></td></tr>
+      <tr><td><code>homebrew-tap</code></td><td>Формула для brew</td></tr>
+      <tr><td><code>awesome-speq</code></td><td>Курируемый список плагинов комьюнити — пока нет реестра, это и есть discovery</td></tr>
+      <tr><td><code>&lt;org&gt;.github.io</code></td><td>Документация, гайд автора плагина, спека хребта</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Проверено на месте</span>
+    <p>Имя <code>speq</code> в npm <strong>занято</strong>: заброшенный placeholder версии 0.0.0 без мейнтейнеров, описание «promise-happy test DSL». Отдельно существует чужой <code>@speq-ai/speq</code> — другой продукт под тем же словом. Свободны <code>@speq/*</code> и <code>create-speq-plugin</code>. Скоуп ещё нужно застолбить публикацией; до тех пор переименование стоит одну замену по репозиторию.</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="commands">
+  <span class="sect-label">Поверхность</span>
+  <h2>Команды</h2>
+  <p>Разделение принципиальное: загрузчик владеет тем, что должно работать <em>до</em> того, как плагины подняты. Всё остальное приходит из плагинов — и если <code>plugin-cli</code> не подключён, этих команд просто нет.</p>
+
+  <h4>Загрузчик — <code>@speq/core</code></h4>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <tbody>
+      <tr><td><code>speq init</code></td><td>Скаффолд <code>.speq/</code>; спрашивает режим, пресет, плагины</td></tr>
+      <tr><td><code>speq install [--frozen]</code></td><td>Резолвит плагины по <code>speq.yaml</code> → пишет <code>speq.lock</code> → кладёт в кэш</td></tr>
+      <tr><td><code>speq add / remove &lt;plugin&gt;</code></td><td>Правит <code>speq.yaml</code> и переустанавливает</td></tr>
+      <tr><td><code>speq link &lt;path&gt;</code></td><td>Подключить локальный плагин без публикации — режим разработки</td></tr>
+      <tr><td><code>speq plugins</code></td><td>Что загружено, какие версии, что каждый вносит</td></tr>
+      <tr><td><code>speq doctor</code></td><td>Окружение, состояние кэша, совместимость версий</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>Из <code>@speq/plugin-cli</code> — входит в дефолтный пресет</h4>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <tbody>
+      <tr><td><code>speq run</code></td><td><code>--env --test --suite --tags --reporter</code></td></tr>
+      <tr><td><code>speq validate</code></td><td>Проверка тестов по грамматике из плагинов, без сети</td></tr>
+      <tr><td><code>speq list</code></td><td>Какие тесты видны и как адресуются</td></tr>
+      <tr><td><code>speq report</code></td><td>Пересобрать отчёт из сохранённого результата</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>Для автора плагина</h4>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <tbody>
+      <tr><td><code>npm create speq-plugin &lt;name&gt;</code></td><td>Скаффолд: исходники, схема, тесты, CI, README. Пять минут до зелёного теста</td></tr>
+      <tr><td><code>npx speq-test-kit</code></td><td>Конформанс: соблюдён ли таймаут, маппится ли падение в <code>error</code>, валидны ли артефакты</td></tr>
+      <tr><td><code>npm publish</code></td><td>Публикация. Согласования ни с кем не требуется</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="versioning">
+  <span class="sect-label">Контракт</span>
+  <h2>Версионирование и совместимость</h2>
+  <p>Версионируются независимо три вещи. Путаница между ними — самая частая причина, по которой плагинные экосистемы становятся неподдерживаемыми.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Что</th><th>Правило</th><th>Кто ломает</th></tr></thead>
+    <tbody>
+      <tr><td><code>@speq/plugin-api</code></td><td>Строгий semver. Минор — только добавление, мажор — разрешённый слом</td><td>Вы, редко и осознанно</td></tr>
+      <tr><td><code>@speq/core</code></td><td>Своя версия. Может расти мажорами, не трогая плагины, пока <code>plugin-api</code> тот же</td><td>Вы, свободно</td></tr>
+      <tr><td>Каждый плагин</td><td>Своя версия. Объявляет <code>peerDependencies: @speq/plugin-api</code></td><td>Его автор</td></tr>
+      <tr><td>DSL</td><td><code>version: 1</code> в <code>speq.yaml</code>. Миграции с внятным сообщением</td><td>Вы, на мажорах</td></tr>
+      <tr><td>Схема событий</td><td>Версионируется отдельно — на ней стоят внешние потребители</td><td>Вы, аддитивно</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>Правила совместимости</h4>
+  <ul>
+    <li>Плагин совместим с ядром <strong>тогда и только тогда</strong>, когда совпадает мажор <code>plugin-api</code>.</li>
+    <li>Ядро сверяет это при загрузке и <strong>отказывается</strong> грузить несовместимый плагин с внятным сообщением — а не падает в середине прогона.</li>
+    <li>Ядро поддерживает <strong>N−1 мажор</strong> <code>plugin-api</code> минимум 12 месяцев. Без окна депрекации серьёзные авторы плагинов вкладываться не будут.</li>
+    <li><code>speq.lock</code> хранит точные версии и хеши; <code>--frozen</code> в CI даёт побитовую воспроизводимость.</li>
+    <li>Пресет организации пиннит версии для всех сервисов сразу.</li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">Обещание стабильности — объявить вслух</span>
+    <p><code>0.x</code> — ломаем что угодно и без предупреждения. <code>1.0</code> — <code>plugin-api</code> заморожен на мажор. Пока этой строчки нет в README, экосистемы не будет: никто не станет писать плагин против контракта, который может исчезнуть.</p>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="open">
+  <span class="sect-label">Требует решения</span>
+  <h2>Открытые вопросы</h2>
+  <p>Осталось три. Два прежних сняты: монетизации не будет, v1.4&nbsp;/&nbsp;v1.5 заморожены.</p>
+  <ol>
+    <li><strong>Название, GitHub-организация, npm-скоуп.</strong> Проверено на месте: <code>speq</code> в npm <em>занято</em> — заброшенный placeholder 0.0.0 без мейнтейнеров с описанием «promise-happy test DSL»; существует чужой <code>@speq-ai/speq</code> под другой «SpeQ». Свободны <code>@speq/*</code> и <code>create-speq-plugin</code>. Код собран под рабочим скоупом <code>@speq/*</code>; переименование пока стоит одну замену по репозиторию.</li>
+    <li><strong>Адресация результатов внутри вложенных шагов.</strong> Сейчас работает <code>${seed.results[0][0].body.id}</code> — точно, но громоздко. Альтернатива: плагин объявляет плоский алиас сам. Часть публичного DSL, поэтому до 1.0.</li>
+    <li><strong>Cordis — внутрь фасада или нет.</strong> Реестр реализован своими ~170 строками за интерфейсом <code>PluginContext</code>; сервисы и опциональная инъекция уже работают. Замена внутренностей на Cordis — правка одного файла, <code>plugin-api</code> её не увидит. Решать на M2, когда станет ясно, нужен ли HMR.</li>
+  </ol>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="plan">
+  <span class="sect-label">План</span>
+  <h2>Вехи</h2>
+
+  <ol class="steps">
+    <li class="step">
+      <div class="num">M0</div>
+      <div class="body">
+        <h3>Прототип хребта · <span style="color:var(--good)">сделано</span></h3>
+        <p>Ядро с реестром <code>type</code>, два фиктивных плагина, один YAML-тест. Цель — увидеть, держит ли хребет, до решений по названию и заморозке roadmap.</p>
+      </div>
+    </li>
+    <li class="step">
+      <div class="num">M1</div>
+      <div class="body">
+        <h3>Хребет стоит · <span style="color:var(--good)">сделано</span></h3>
+        <p><code>core</code> + <code>plugin-api</code> + <code>plugin-yaml</code> + <code>plugin-http</code> + <code>plugin-cli</code> + <code>plugin-loop</code>. YAML-тест проходит end-to-end против реального API; в ядре нет ни одного упоминания HTTP. 12 архитектурных тестов зелёные, типизация чистая.</p>
+      </div>
+    </li>
+    <li class="step">
+      <div class="num">M2</div>
+      <div class="body">
+        <h3>Установщик</h3>
+        <p><code>speq install</code>, <code>speq.lock</code>, глобальный кэш, <code>extends</code>, standalone-бинарник. <strong>Главный технический риск всей затеи</strong> — не ядро и не Cordis, а то, что здесь пишется обёртка над менеджером пакетов. Без неё фреймворк не ставится никуда, кроме Node-проектов.</p>
+      </div>
+    </li>
+    <li class="step">
+      <div class="num">M3</div>
+      <div class="body">
+        <h3>Гейт</h3>
+        <p><strong><code>plugin-loop</code> уже прошёл этот гейт</strong> — цикл и retry написаны против опубликованного API, ядро не менялось ни разу, вложенные шаги исполняются в дочернем скоупе. Остаётся <code>plugin-playwright</code>: ему нужны ресурсы со scope и бинарные артефакты, то есть части хребта, которые пока не проверены боем. Если ядро придётся тронуть — возвращаемся к хребту, без исключений «ну один маленький хук».</p>
+      </div>
+    </li>
+    <li class="step">
+      <div class="num">M4</div>
+      <div class="body">
+        <h3>Экосистема</h3>
+        <p><code>create-speq-plugin</code>, <code>test-kit</code>, доки, <code>awesome-speq</code>, заморозка <code>plugin-api</code> на 1.0. Дальше — репортеры, <code>plugin-vscode</code>, <code>plugin-tui</code>, TS-загрузчик.</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="note">
+    <span class="tag">Что переносится из нынешнего speq</span>
+    <p>Выбрасывается только Rust-реализация — ~5600 строк, самая дешёвая часть. Переносится всё дорогое: дизайн YAML-DSL, семантика семи типов ассертов, контракт отчётов, exit codes, Allure-вывод, режимы <code>in-repo</code>/<code>test-repo</code>, документация. Спека <code>plugin-http</code> — это на 80% нынешний <code>docs/cli/README.md</code>.</p>
+  </div>
+</section>
+
+<footer>
+  Документ фиксирует состояние на 28 августа 2026 года. M0 и M1 собраны и лежат в <code>~/speq-next/</code>: ядро, публичный контракт, четыре плагина, 12 архитектурных тестов. Осталось три открытых вопроса, ни один из которых не блокирует M2.
+</footer>
+
+</main>
+</div>

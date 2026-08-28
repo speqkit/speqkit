@@ -1,0 +1,17 @@
+name: service answers
+tags: [smoke]
+
+steps:
+  - id: post
+    type: http
+    method: GET
+    url: /posts/1
+
+assert:
+  - type: status
+    expected: 200
+  - type: jsonpath
+    path: id
+    expected: 1
+  - type: duration_under
+    ms: 5000

@@ -1,0 +1,18 @@
+{
+  "name": "@speq/plugin-http",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "HTTP steps and the smoke assertion set that ships in the box.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "keywords": [
+    "speq-plugin"
+  ],
+  "peerDependencies": {
+    "@speq/plugin-api": "workspace:^"
+  },
+  "devDependencies": {
+    "@speq/plugin-api": "workspace:*"
+  }
+}
