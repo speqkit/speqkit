@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@speqkit/core": "workspace:*",
+    "speqkit": "workspace:*",
     "@speqkit/plugin-cli": "workspace:*",
     "@speqkit/plugin-http": "workspace:*",
     "@speqkit/plugin-junit": "workspace:*",

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 import { Store, install, readLock, type Packument, type RegistryClient } from '@speqkit/installer'
-import { Registry, addPluginToConfig, removePluginFromConfig, resolvePlugin, runTests } from '@speqkit/core'
+import { Registry, addPluginToConfig, removePluginFromConfig, resolvePlugin, runTests } from 'speqkit'
 import type { PluginSpec } from '@speqkit/plugin-api'
 
 /**

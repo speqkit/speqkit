@@ -49,7 +49,7 @@ setup(ctx) {
 
 `ctx.host` is the session the plugin is already executing inside — not a way to
 start another, which is why there is no `bootstrap` on it. Reaching for
-`@speqkit/core` instead costs two things, both of them silent: the installer
+`speqkit` instead costs two things, both of them silent: the installer
 sees a kernel in your `dependencies` and materialises a second copy of it into
 the store, and `bootstrap()` inside an already-booted process loads every
 plugin a second time into a registry nobody else can see. Whichever kernel then
@@ -73,7 +73,7 @@ build anything you cannot afford to rewrite.
 **0.4.0** — `PluginContext` gained `host`, and with it `Host`, `Diagnostic`,
 `ArtifactRecord`, `RunOutcome`, `TestOutcome`, `RecordedRun`, `DiscoverQuery`
 and `RunRequest`. A plugin that needed to discover, validate, run or replay
-had no way to ask the kernel and so imported `@speqkit/core` — which put the
+had no way to ask the kernel and so imported `speqkit` — which put the
 kernel in the plugin's published `dependencies` and had the installer place a
 second copy of it in the store, while the plugin called `bootstrap()` inside a
 process that had already booted one. Added members only, so every 0.3.0 plugin

@@ -1,8 +1,17 @@
 {
   "name": "@speqkit/plugin-http",
   "version": "0.1.0",
-  "type": "module",
   "description": "HTTP steps and the smoke assertion set that ships in the box.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-http"
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,5 +30,11 @@
   "files": [
     "dist",
     "src"
-  ]
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

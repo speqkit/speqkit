@@ -26,9 +26,6 @@ importers:
 
   examples/basic:
     dependencies:
-      '@speqkit/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@speqkit/plugin-cli':
         specifier: workspace:*
         version: link:../../packages/plugin-cli
@@ -47,6 +44,9 @@ importers:
       '@speqkit/plugin-yaml':
         specifier: workspace:*
         version: link:../../packages/plugin-yaml
+      speqkit:
+        specifier: workspace:*
+        version: link:../../packages/core
 
   packages/core:
     dependencies:

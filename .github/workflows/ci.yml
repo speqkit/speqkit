@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch cancels the first: nobody reads the CI of a
+# commit that has already been replaced.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor stated in every package's `engines`, and current. A test
+        # framework that only runs on the maintainer's Node is not one.
+        node: ['20', '22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
+
+      - run: pnpm test
+
+      # The one that matters. Everything above resolves `speqkit` and
+      # `@speqkit/*` through a bundler alias to `src`; this packs the real
+      # tarballs, serves them from a throwaway registry and runs the CLI out
+      # of `dist` with plain node, in a directory with no node_modules. It is
+      # the only step here that tests what a stranger would actually install.
+      - run: node scripts/verify-publish.mjs

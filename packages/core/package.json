@@ -1,8 +1,17 @@
 {
-  "name": "@speqkit/core",
+  "name": "speqkit",
   "version": "0.1.0",
-  "type": "module",
   "description": "The kernel: loads plugins and gets out of the way.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
   "bin": {
     "speq": "./dist/bin.js"
   },
@@ -20,5 +29,11 @@
   "files": [
     "dist",
     "src"
-  ]
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -2,14 +2,14 @@ import { describe, expect, it, afterAll } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Registry, bootstrap } from '@speqkit/core'
+import { Registry, bootstrap } from 'speqkit'
 import type { Host } from '@speqkit/plugin-api'
 
 /**
  * A plugin uses the kernel; it does not depend on it.
  *
  * `plugin-cli` used to open with `import { bootstrap, runTests } from
- * '@speqkit/core'`. That put the kernel in a plugin's published
+ * 'speqkit'`. That put the kernel in a plugin's published
  * `dependencies`, so the installer materialised a second copy of it into the
  * store, and it made the plugin call `bootstrap()` inside a process that had
  * already booted one — two registries, every plugin loaded twice, and the
@@ -144,7 +144,7 @@ describe('no plugin depends on the kernel', () => {
    * every third-party plugin is copied from, so a kernel dependency here
    * would not stay here.
    */
-  it('names @speqkit/core in no plugin manifest', () => {
+  it('names the kernel in no plugin manifest', () => {
     const offenders: string[] = []
 
     for (const dir of readdirSync('packages')) {
@@ -158,7 +158,12 @@ describe('no plugin depends on the kernel', () => {
       if (!manifest.keywords?.includes('speqkit-plugin')) continue
 
       for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
-        if (manifest[field]?.['@speqkit/core']) offenders.push(`${manifest.name} ${field}`)
+        // Both names: the kernel was published as `@speqkit/core` in the
+        // working tree before it became `speqkit`, and a plugin copied from
+        // anything written back then would name the old one.
+        for (const kernel of ['speqkit', '@speqkit/core']) {
+          if (manifest[field]?.[kernel]) offenders.push(`${manifest.name} ${field} ${kernel}`)
+        }
       }
     }
 

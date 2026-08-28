@@ -1,8 +1,17 @@
 {
   "name": "@speqkit/plugin-api",
   "version": "0.4.0",
-  "type": "module",
   "description": "Public contract for speq plugins. Types only \u2014 no runtime.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-api"
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,5 +21,11 @@
   "files": [
     "dist",
     "src"
-  ]
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

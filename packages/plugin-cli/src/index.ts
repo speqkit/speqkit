@@ -14,7 +14,7 @@ const DEFAULT_REPORTERS = ['console']
  *
  * Note what it does not import. Every command below drives the kernel through
  * `ctx.host`, and the package.json next to this file names no kernel at all —
- * only `@speqkit/plugin-api`, as a peer. It used to import `@speqkit/core`,
+ * only `@speqkit/plugin-api`, as a peer. It used to import `speqkit`,
  * and that had the installer place a second kernel in the store and had this
  * file call `bootstrap()` inside a process that had already booted one. This
  * plugin is the reference for every plugin anyone else writes; whatever it

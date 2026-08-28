@@ -1,8 +1,17 @@
 {
   "name": "@speqkit/plugin-junit",
   "version": "0.1.0",
-  "type": "module",
   "description": "JUnit XML from the run's event stream. What CI reads.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-junit"
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,5 +30,11 @@
   "files": [
     "dist",
     "src"
-  ]
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

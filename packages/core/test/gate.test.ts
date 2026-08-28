@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { definePlugin, type RunEvent, type ResourceScope } from '@speqkit/plugin-api'
-import { Registry, runTests } from '@speqkit/core'
+import { Registry, runTests } from 'speqkit'
 
 /**
  * The second half of the architecture gate. `@speqkit/plugin-playwright` is a

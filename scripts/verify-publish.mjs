@@ -24,7 +24,13 @@ import { fileURLToPath } from 'node:url'
 
 const run_ = promisify(execFile)
 const repo = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const PACKAGES = ['plugin-api', 'installer', 'core', 'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-junit']
+// Every package we would publish. `plugin-http` and `plugin-playwright` were
+// missing here, and `speq init` scaffolds a config that names `http` — so the
+// plugin a new project loads first was the one this never checked.
+const PACKAGES = [
+  'plugin-api', 'installer', 'core',
+  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-junit', 'plugin-http', 'plugin-playwright'
+]
 
 const scratch = mkdtempSync(join(tmpdir(), 'speqkit-verify-'))
 const tarballs = join(scratch, 'tarballs')
@@ -106,18 +112,36 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const base = `http://127.0.0.1:${server.address().port}`
 
 /* ------------------------------------------------------------------ */
-/* 3. A project with no node_modules at all                            */
+/* 3. A system under test, and a project with no node_modules at all   */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Local on purpose. `plugin-http` needs something to talk to, and pointing the
+ * release smoke test at a public API would make our build fail whenever
+ * someone else's went down.
+ */
+const sut = createServer((req, res) => {
+  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: 1, ok: true }))
+})
+await new Promise((r) => sut.listen(0, '127.0.0.1', r))
+const sutBase = `http://127.0.0.1:${sut.address().port}`
 
 mkdirSync(join(project, 'suites'), { recursive: true })
 writeFileSync(
   join(project, 'speq.yaml'),
-  'version: 1\n\nplugins:\n  - yaml\n  - cli\n  - loop\n  - junit\n'
+  'version: 1\n\nplugins:\n  - yaml\n  - cli\n  - loop\n  - junit\n  - http\n  - playwright\n\n' +
+    `http:\n  baseUrl: ${sutBase}\n`
 )
 writeFileSync(
   join(project, 'suites', 'smoke.yaml'),
   'name: the loop runs\n\nsteps:\n' +
     '  - id: three\n    type: loop\n    times: 3\n    steps:\n      - type: loop\n        times: 1\n        steps: []\n'
+)
+writeFileSync(
+  join(project, 'suites', 'http.yaml'),
+  'name: http reaches the service\n\nsteps:\n' +
+    '  - id: root\n    type: http\n    method: GET\n    url: /health\n\n' +
+    'assert:\n  - type: status\n    expected: 200\n  - type: jsonpath\n    path: id\n    expected: 1\n'
 )
 
 /**
@@ -152,7 +176,7 @@ else ok('speq install exits 0')
 /**
  * The kernel must not be in the store.
  *
- * `plugin-cli` used to declare `@speqkit/core` as an ordinary dependency, and
+ * `plugin-cli` used to declare `speqkit` as an ordinary dependency, and
  * the installer did exactly as told: it put a second kernel in here, linked it
  * under the plugin, and pinned it in speq.lock. The plugin then booted it —
  * so `speq run` loaded every plugin twice, into two registries, and the kernel
@@ -162,10 +186,22 @@ else ok('speq install exits 0')
  * the graph a stranger installs rather than the one we build.
  */
 const installed = readdirSync(join(store, 'store'))
-const kernels = installed.filter((n) => n.startsWith('@speqkit+core@') || n.startsWith('@speqkit+installer@'))
+const kernels = installed.filter((n) => n.startsWith('speqkit@') || n.startsWith('@speqkit+installer@'))
 kernels.length === 0
   ? ok('the store holds plugins only, no kernel')
   : bad('the store holds plugins only, no kernel', `found ${kernels.join(', ')}`)
+
+/**
+ * An optional peer is skipped, not installed.
+ *
+ * `plugin-playwright` declares `playwright` as an optional peer, and the
+ * branch in the installer that honours that had never been walked by anything
+ * end to end. If it regressed, every project that so much as lists the plugin
+ * would start pulling a browser driver it may not want.
+ */
+installed.some((n) => n.startsWith('playwright@'))
+  ? bad('the optional playwright peer stays out of the store', `store: ${installed.join(', ')}`)
+  : ok('the optional playwright peer stays out of the store')
 
 const plugins = await speq(['plugins'])
 if (plugins.code !== 0) {
@@ -190,6 +226,7 @@ frozen.code === 0
 /* ------------------------------------------------------------------ */
 
 server.close()
+sut.close()
 console.log(failures === 0 ? '\n\x1b[32mall good\x1b[0m — what we publish installs and runs\n' : `\n\x1b[31m${failures} failure(s)\x1b[0m\n`)
 if (failures === 0 && !process.env.KEEP) rmSync(scratch, { recursive: true, force: true })
 else console.log(`scratch kept at ${scratch}\n`)

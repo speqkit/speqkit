@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { definePlugin, type RunEvent, type ReporterContext } from '@speqkit/plugin-api'
-import { Registry, loadConfig, runTests, replayRun, listRuns, readRunLog } from '@speqkit/core'
+import { Registry, loadConfig, runTests, replayRun, listRuns, readRunLog } from 'speqkit'
 import junit from '@speqkit/plugin-junit'
 
 /**

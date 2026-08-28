@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { definePlugin, type StepDef } from '@speqkit/plugin-api'
-import { Registry, runTests, validateTests } from '@speqkit/core'
+import { Registry, runTests, validateTests } from 'speqkit'
 
 /**
  * These are architecture tests, not feature tests. Each one pins an invariant

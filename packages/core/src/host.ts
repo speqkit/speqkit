@@ -22,7 +22,7 @@ export interface HostSession {
  * Everything here already existed as a free function taking a `Registry`.
  * What is new is that the registry no longer crosses the boundary: a plugin
  * gets verbs, not the kernel's internals, and so has nothing to import from
- * `@speqkit/core`. That is the whole of the fix — the second copy of the
+ * `speqkit`. That is the whole of the fix — the second copy of the
  * kernel in the store, and the second `bootstrap()` inside one process, were
  * both consequences of `plugin-cli` reaching for the implementation because
  * the contract offered it no way to reach for the running session instead.

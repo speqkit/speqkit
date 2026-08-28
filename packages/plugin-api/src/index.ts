@@ -330,7 +330,7 @@ export interface RecordedRun {
  * The running kernel, handed to every plugin as `ctx.host`.
  *
  * It exists so that a plugin never imports the kernel. `plugin-cli` used to
- * open with `import { bootstrap, runTests } from '@speqkit/core'`, and that
+ * open with `import { bootstrap, runTests } from 'speqkit'`, and that
  * one line cost two things. It put the kernel in the plugin's published
  * `dependencies`, so the installer dutifully materialised a second copy of it
  * into the store; and it meant the plugin called `bootstrap()` inside a
@@ -372,7 +372,7 @@ export interface PluginContext {
    *
    * A plugin *uses* the kernel; it does not depend on it. Everything a plugin
    * needs from the kernel comes through here, which is why no plugin in this
-   * repository has `@speqkit/core` in its package.json.
+   * repository has `speqkit` in its package.json.
    */
   readonly host: Host
   /** This plugin's slice of speq.yaml, already validated against its schema. */

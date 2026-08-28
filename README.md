@@ -79,7 +79,7 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | Package | What it is |
 | --- | --- |
 | `@speqkit/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
-| `@speqkit/core` | The kernel and the `speq` bootstrap. Knows no protocol and no UI. |
+| `speqkit` | The kernel and the `speq` bootstrap. Unscoped, because it is what you install. Knows no protocol and no UI. |
 | `@speqkit/installer` | Resolve, verify, store, lock. No npm CLI involved. |
 | `@speqkit/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
 | `@speqkit/plugin-http` | HTTP steps and the smoke assertion set. |
@@ -90,7 +90,7 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 
 Every `plugin-*` above depends on `@speqkit/plugin-api` and on nothing else of
 ours — never on the kernel. A plugin runs *inside* a kernel and reaches it as
-`ctx.host`; one that imports `@speqkit/core` instead ships a second kernel in
+`ctx.host`; one that imports `speqkit` instead ships a second kernel in
 its `dependencies`, which the installer will faithfully put in the store and
 the plugin will faithfully boot. `packages/core/test/host.test.ts` fails if any
 manifest here names the kernel, and `scripts/verify-publish.mjs` fails if one
@@ -99,6 +99,7 @@ ever reaches the store.
 ## Using it in a repository that is not a Node project
 
 ```bash
+npm i -g speqkit                 # the package is speqkit, the command is speq
 speq init                        # scaffold .speq/
 speq add @speqkit/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
 speq install --frozen            # CI: exactly the lock, or fail
