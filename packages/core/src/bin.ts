@@ -2,8 +2,11 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CommandHost } from '@speq/plugin-api'
+import { Store, addLink, readLinks, readLock, removeLink, install, type InstallEvent } from '@speq/installer'
 import { bootstrap } from './bootstrap.js'
 import { discoverRoot } from './discovery.js'
+import { loadConfig, readRawConfig } from './config.js'
+import { addPluginToConfig, removePluginFromConfig } from './edit-config.js'
 
 /**
  * The bootstrap owns exactly the commands that must work *before* plugins are
@@ -11,24 +14,29 @@ import { discoverRoot } from './discovery.js'
  * them. Everything else, `run` included, is contributed by a plugin and simply
  * does not exist when that plugin is not loaded.
  */
-const BOOTSTRAP_COMMANDS = new Set(['init', 'plugins', 'doctor', 'help', 'version'])
+const BOOTSTRAP_COMMANDS = new Set([
+  'init', 'install', 'add', 'remove', 'link', 'unlink', 'plugins', 'doctor', 'help', 'version'
+])
 
 const EXIT_OK = 0
-const EXIT_FAILED = 1
 const EXIT_CONFIG = 2
 
 async function main(argv: string[]): Promise<number> {
   const command = argv[0]
   const rest = argv.slice(1)
 
-  if (!command || command === 'help' || command === '--help' || command === '-h') {
-    return usage()
-  }
+  if (!command || command === 'help' || command === '--help' || command === '-h') return usage()
   if (command === 'version' || command === '--version' || command === '-V') {
     process.stdout.write('speq 0.1.0 (plugin-api v1)\n')
     return EXIT_OK
   }
+
   if (command === 'init') return commandInit(rest)
+  if (command === 'install') return commandInstall(rest)
+  if (command === 'add') return commandAdd(rest)
+  if (command === 'remove') return commandRemove(rest)
+  if (command === 'link') return commandLink(rest)
+  if (command === 'unlink') return commandUnlink(rest)
 
   const session = await bootstrap(flag(rest, '--speq-root'))
 
@@ -54,14 +62,23 @@ function usage(): number {
     `speq — a test framework that is mostly plugins\n\n` +
       `Bootstrap commands (always available):\n` +
       `  speq init [--mode in-repo|test-repo]   scaffold a project\n` +
+      `  speq install [--frozen]                fetch the plugins speq.yaml asks for\n` +
+      `  speq add <plugin>...                   add to speq.yaml and install\n` +
+      `  speq remove <plugin>...                remove from speq.yaml and install\n` +
+      `  speq link <path>                       use a plugin you are developing\n` +
+      `  speq unlink <name>                     stop using it\n` +
       `  speq plugins                           what is loaded and what it contributes\n` +
-      `  speq doctor                            environment and compatibility\n` +
+      `  speq doctor                            environment, store and compatibility\n` +
       `  speq version\n\n` +
       `Everything else comes from plugins. With '@speq/plugin-cli' loaded:\n` +
       `  speq run | speq validate | speq list\n`
   )
   return EXIT_OK
 }
+
+/* ------------------------------------------------------------------ */
+/* init                                                                */
+/* ------------------------------------------------------------------ */
 
 function commandInit(argv: string[]): number {
   const mode = flag(argv, '--mode') ?? 'in-repo'
@@ -91,13 +108,144 @@ function commandInit(argv: string[]): number {
       `steps:\n  - id: health\n    type: http\n    method: GET\n    url: /health\n\n` +
       `assert:\n  - type: status\n    expected: 200\n`
   )
+  writeFileSync(
+    join(root, '.gitignore'),
+    `# Run output and machine-local links. speq.lock is committed.\nreports/\nlinks.yaml\n`
+  )
 
   process.stdout.write(
     `created ${mode} project at ${root}\n` +
-      `  speq.yaml\n  suites/health.yaml\n\nNext: speq validate && speq run\n`
+      `  speq.yaml\n  suites/health.yaml\n  .gitignore\n\n` +
+      `Next: speq install && speq run\n`
   )
   return EXIT_OK
 }
+
+/* ------------------------------------------------------------------ */
+/* install, add, remove                                                */
+/* ------------------------------------------------------------------ */
+
+async function commandInstall(argv: string[]): Promise<number> {
+  const root = discoverRoot(flag(argv, '--speq-root')).root
+  const frozen = argv.includes('--frozen')
+
+  const result = await install({
+    root,
+    frozen,
+    presets: () => readRawConfig(root).extends,
+    // Read only once the presets are on disk: they decide what this returns.
+    plugins: () => loadConfig(root).plugins,
+    onEvent: printInstallEvent
+  })
+
+  const downloaded = result.packages.filter((p) => p.source === 'downloaded').length
+  process.stdout.write(
+    `\n${result.packages.length} package(s), ${downloaded} downloaded, ` +
+      `${result.packages.length - downloaded} from cache\n`
+  )
+  if (frozen) process.stdout.write(`lock verified, nothing written\n`)
+  return EXIT_OK
+}
+
+async function commandAdd(argv: string[]): Promise<number> {
+  const root = discoverRoot(flag(argv, '--speq-root')).root
+  const specs = argv.filter((a) => !a.startsWith('--') && a !== flag(argv, '--speq-root'))
+  if (specs.length === 0) {
+    process.stderr.write(`usage: speq add <plugin>[@version]...\n`)
+    return EXIT_CONFIG
+  }
+
+  for (const spec of specs) {
+    const { added, file } = addPluginToConfig(root, spec)
+    process.stdout.write(added ? `added ${spec} to ${file}\n` : `${spec} is already in ${file}\n`)
+  }
+  return commandInstall(argv.filter((a) => !specs.includes(a)))
+}
+
+async function commandRemove(argv: string[]): Promise<number> {
+  const root = discoverRoot(flag(argv, '--speq-root')).root
+  const specs = argv.filter((a) => !a.startsWith('--') && a !== flag(argv, '--speq-root'))
+  if (specs.length === 0) {
+    process.stderr.write(`usage: speq remove <plugin>...\n`)
+    return EXIT_CONFIG
+  }
+
+  let changed = false
+  for (const spec of specs) {
+    const { removed, file } = removePluginFromConfig(root, spec)
+    if (removed) {
+      changed = true
+      process.stdout.write(`removed ${removed} from ${file}\n`)
+    } else {
+      process.stdout.write(`${spec} is not in ${file}\n`)
+    }
+  }
+  // The store is shared and content-addressed: nothing is deleted here. A
+  // plugin removed from one project is still cached for the next one.
+  return changed ? commandInstall(argv.filter((a) => !specs.includes(a))) : EXIT_OK
+}
+
+function printInstallEvent(event: InstallEvent): void {
+  switch (event.type) {
+    case 'resolving':
+      process.stdout.write(`resolving ${event.specs} plugin(s)\n`)
+      break
+    case 'package':
+      process.stdout.write(`  ${event.name.padEnd(32)} ${event.version.padEnd(10)} ${event.source}\n`)
+      break
+    case 'linked':
+      process.stdout.write(`  ${event.name.padEnd(32)} ${'linked'.padEnd(10)} ${event.path}\n`)
+      break
+    case 'warning':
+      process.stderr.write(`  note: ${event.message}\n`)
+      break
+    case 'lock':
+      process.stdout.write(event.changed ? `  ${event.file} updated\n` : `  ${event.file} unchanged\n`)
+      break
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* link                                                                */
+/* ------------------------------------------------------------------ */
+
+function commandLink(argv: string[]): number {
+  const root = discoverRoot(flag(argv, '--speq-root')).root
+  const path = argv.find((a) => !a.startsWith('--') && a !== flag(argv, '--speq-root'))
+
+  if (!path) {
+    const links = readLinks(root)
+    if (Object.keys(links).length === 0) {
+      process.stdout.write(`nothing linked\n`)
+      return EXIT_OK
+    }
+    for (const [name, target] of Object.entries(links)) process.stdout.write(`${name}  ${target}\n`)
+    return EXIT_OK
+  }
+
+  const { name, path: target } = addLink(root, path)
+  process.stdout.write(
+    `linked ${name} -> ${target}\n` +
+      `It now wins over the store and over node_modules. 'speq unlink ${name}' to stop.\n`
+  )
+  return EXIT_OK
+}
+
+function commandUnlink(argv: string[]): number {
+  const root = discoverRoot(flag(argv, '--speq-root')).root
+  const name = argv.find((a) => !a.startsWith('--') && a !== flag(argv, '--speq-root'))
+  if (!name) {
+    process.stderr.write(`usage: speq unlink <plugin-name>\n`)
+    return EXIT_CONFIG
+  }
+  const removed = removeLink(root, name)
+  process.stdout.write(removed ? `unlinked ${name}\n` : `${name} was not linked\n`)
+  return EXIT_OK
+}
+
+/* ------------------------------------------------------------------ */
+/* plugins, doctor                                                     */
+/* ------------------------------------------------------------------ */
 
 function commandPlugins(session: Awaited<ReturnType<typeof bootstrap>>): number {
   const { registry } = session
@@ -115,7 +263,9 @@ function commandPlugins(session: Awaited<ReturnType<typeof bootstrap>>): number 
     collect('loaders', registry.loaders)
     collect('providers', registry.valueProviders)
 
-    process.stdout.write(`  ${name}\n`)
+    const source = registry.sources.get(name)
+    const origin = source ? `${source.origin}${source.version ? ` ${source.version}` : ''}` : ''
+    process.stdout.write(`  ${name.padEnd(30)} ${origin}\n`)
     for (const line of contributions) process.stdout.write(`      ${line}\n`)
     if (!contributions.length) process.stdout.write(`      (services only)\n`)
   }
@@ -124,10 +274,17 @@ function commandPlugins(session: Awaited<ReturnType<typeof bootstrap>>): number 
 
 function commandDoctor(session: Awaited<ReturnType<typeof bootstrap>>): number {
   const { registry, config, root } = session
+  const store = new Store()
+  const lock = readLock(root.root)
+  const links = readLinks(root.root)
+
   process.stdout.write(
     `node             ${process.version}\n` +
       `plugin-api       v1\n` +
       `root             ${root.root} (${root.mode})\n` +
+      `store            ${store.root} (${store.contents().length} package(s))\n` +
+      `lock             ${lock ? `${lock.plugins.length} plugin(s), ${Object.keys(lock.packages).length} package(s)` : 'none — run speq install'}\n` +
+      `links            ${Object.keys(links).length}\n` +
       `config sources   ${config.sources.length}\n`
   )
   for (const source of config.sources) process.stdout.write(`                 ${source}\n`)
@@ -137,6 +294,17 @@ function commandDoctor(session: Awaited<ReturnType<typeof bootstrap>>): number {
       `assertions       ${registry.assertions.size}\n` +
       `loaders          ${registry.loaders.size}\n`
   )
+
+  const unlocked = registry
+    .loadedPlugins()
+    .filter((name) => registry.sources.get(name)?.origin === 'node_modules')
+  if (unlocked.length > 0) {
+    process.stdout.write(
+      `\n  note: ${unlocked.length} plugin(s) came from node_modules, not from the lock:\n` +
+        unlocked.map((n) => `        ${n}\n`).join('') +
+        `        CI will not reproduce this. Run 'speq install'.\n`
+    )
+  }
   if (registry.loaders.size === 0) {
     process.stdout.write(`\n  warning: no loader registered — no test file can be read\n`)
   }

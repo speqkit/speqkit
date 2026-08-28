@@ -278,6 +278,15 @@ export interface PluginSpec {
   setup(ctx: PluginContext): void | Promise<void>
 }
 
+/**
+ * Stamps the plugin with the contract major it was *built against*, taken from
+ * this copy of the package rather than from the kernel's.
+ *
+ * That distinction is invisible until plugins start loading from the store,
+ * where a plugin brings its own `@speq/plugin-api` along. Without the stamp a
+ * plugin that omits `apiVersion` inherits the kernel's number and the
+ * compatibility check silently agrees with itself.
+ */
 export function definePlugin(spec: PluginSpec): PluginSpec {
-  return spec
+  return { ...spec, apiVersion: spec.apiVersion ?? PLUGIN_API_VERSION }
 }

@@ -34,6 +34,8 @@ export class Registry {
   readonly loaders = new Map<string, Registered<LoaderDef>>()
   readonly hooks = new Map<HookName, { owner: string; fn: (p: HookPayload) => unknown }[]>()
   readonly configSchemas = new Map<string, InputSchema>()
+  /** Where each loaded plugin came from: link, store or node_modules. */
+  readonly sources = new Map<string, { spec: string; name: string; origin: string; path: string; version?: string }>()
 
   readonly #services = new Map<string, unknown>()
   readonly #pending: { plugin: string; services: string[]; fn: (r: Record<string, unknown>) => void }[] = []

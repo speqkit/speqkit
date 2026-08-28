@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "description": "The kernel: loads plugins and gets out of the way.",
-  "bin": { "speq": "./src/bin.ts" },
-  "exports": { ".": "./src/index.ts" },
+  "bin": {
+    "speq": "./src/bin.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "@speq/plugin-api": "workspace:*",
-    "yaml": "^2.6.1"
+    "yaml": "^2.6.1",
+    "@speq/installer": "workspace:*"
   }
 }

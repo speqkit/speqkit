@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { parse as parseYaml } from 'yaml'
+import { Store, readLock, parseSpec } from '@speq/installer'
 
 export interface SpeqConfig {
   version: number
@@ -37,7 +38,7 @@ export function loadConfig(root: string): SpeqConfig {
 
   const merged: SpeqConfig = { version: 1, plugins: [], settings: {}, sources: [] }
   const seen = new Set<string>()
-  applyFile(file, merged, seen)
+  applyFile(file, merged, seen, root)
 
   if (merged.version !== 1) {
     throw new Error(`speq.yaml declares version ${merged.version}; this build understands version 1`)
@@ -45,7 +46,23 @@ export function loadConfig(root: string): SpeqConfig {
   return merged
 }
 
-function applyFile(file: string, out: SpeqConfig, seen: Set<string>): void {
+/**
+ * The local file only, with nothing flattened.
+ *
+ * `speq install` needs this: a preset is an npm package, so it has to be on
+ * disk before the config that names it can be read at all. The installer runs
+ * one pass over `extends` and then reads the real config.
+ */
+export function readRawConfig(root: string): { extends: string[]; plugins: string[] } {
+  const file = join(root, 'speq.yaml')
+  if (!existsSync(file)) throw new Error(`no speq.yaml in ${root}; run 'speq init'`)
+
+  const raw = (parseYaml(readFileSync(file, 'utf8')) ?? {}) as RawConfig
+  const presets = raw.extends ? (Array.isArray(raw.extends) ? raw.extends : [raw.extends]) : []
+  return { extends: presets.filter((p) => typeof p === 'string'), plugins: normalisePlugins(raw.plugins, file) }
+}
+
+function applyFile(file: string, out: SpeqConfig, seen: Set<string>, root: string): void {
   const key = resolve(file)
   if (seen.has(key)) {
     throw new Error(`circular 'extends' involving ${file}`)
@@ -62,7 +79,7 @@ function applyFile(file: string, out: SpeqConfig, seen: Set<string>): void {
   // Presets first, so the local file wins on conflicts.
   const parents = raw.extends ? (Array.isArray(raw.extends) ? raw.extends : [raw.extends]) : []
   for (const parent of parents) {
-    applyFile(resolvePreset(parent, dirname(file)), out, seen)
+    applyFile(resolvePreset(parent, dirname(file), root), out, seen, root)
   }
 
   if (typeof raw.version === 'number') out.version = raw.version
@@ -92,17 +109,39 @@ function normalisePlugins(value: unknown, file: string): string[] {
 }
 
 /** A preset is an ordinary package, a relative path, or an absolute path. */
-function resolvePreset(spec: string, from: string): string {
+function resolvePreset(spec: string, from: string, root: string): string {
   if (spec.startsWith('.') || isAbsolute(spec)) {
     const path = isAbsolute(spec) ? spec : resolve(from, spec)
     return existsSync(path) && !path.endsWith('.yaml') ? join(path, 'speq.yaml') : path
   }
+
+  const fromStore = presetInStore(spec, root)
+  if (fromStore) return fromStore
+
   const require = createRequire(join(from, 'noop.js'))
   try {
     return require.resolve(`${spec}/speq.yaml`)
   } catch {
-    throw new Error(`cannot resolve preset '${spec}' from ${from}; is it installed?`)
+    throw new Error(
+      `cannot resolve preset '${spec}' from ${from}. ` +
+        `Run 'speq install' — a preset is an ordinary package and has to be fetched like one.`
+    )
   }
+}
+
+function presetInStore(spec: string, root: string): string | undefined {
+  let lock
+  try {
+    lock = readLock(root)
+  } catch {
+    return undefined
+  }
+  const name = parseSpec(spec).name
+  const entry = lock?.presets.find((p) => p.spec === spec || p.name === name)
+  if (!entry) return undefined
+
+  const file = join(new Store().pathFor(entry.name, entry.version), 'speq.yaml')
+  return existsSync(file) ? file : undefined
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -1,0 +1,16 @@
+{
+  "name": "@speq/installer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Resolves plugins against the npm registry, verifies them, and puts them in the store. No npm CLI involved.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "semver": "^7.6.3",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.5.8"
+  }
+}

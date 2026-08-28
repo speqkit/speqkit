@@ -12,7 +12,7 @@ it and publishes it; nothing needs to be agreed with us first.
 
 ## Status
 
-M0 and M1 are built, and the architecture gate is closed.
+M0, M1 and the architecture gate are done; M2 is most of the way there.
 
 `plugin-loop` was written against the published API with **no kernel changes**
 — control flow is genuinely a plugin. `plugin-playwright` then exercised the
@@ -22,6 +22,12 @@ them. The plugin-facing call did not change; the kernel now writes the file and
 the event carries a `path`. What the gate could *not* produce — screenshot on
 failure — is written down in `packages/plugin-playwright/README.md` rather than
 worked around.
+
+M2 is the installer: `speq install` resolves against the npm registry over
+HTTP, verifies hashes, extracts into `~/.speq` and writes `speq.lock` — without
+`npm`, `pnpm` or a `node_modules` in the project. `--frozen`, `add`, `remove`
+and `link` work. The standalone binary and `github:` specs do not yet; see
+`packages/installer/README.md`.
 
 ## Try it
 
@@ -43,11 +49,25 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | --- | --- |
 | `@speq/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
 | `@speq/core` | The kernel and the `speq` bootstrap. Knows no protocol and no UI. |
+| `@speq/installer` | Resolve, verify, store, lock. No npm CLI involved. |
 | `@speq/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
 | `@speq/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speq/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speq/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
 | `@speq/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
+
+## Using it in a repository that is not a Node project
+
+```bash
+speq init                        # scaffold .speq/
+speq add @speq/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
+speq install --frozen            # CI: exactly the lock, or fail
+speq link ../speq-plugin-mine    # a plugin you are writing, no publish needed
+speq doctor                      # environment, store, and what came from where
+```
+
+Nothing lands in the repository except `.speq/` and `speq.lock`. The plugins
+live in `~/.speq`, shared across every project on the machine.
 
 ## What the kernel owns
 
@@ -78,6 +98,8 @@ the test.
   the test, and the outer ones tear down even when a test blows up.
 - Bytes handed to `attach` come back out of the run byte-for-byte, and every
   reporter is told where they went.
+- A plugin installed from a registry loads out of the store, with its own
+  dependencies resolvable, and `--frozen` reproduces it without a network.
 
 ## Development
 
