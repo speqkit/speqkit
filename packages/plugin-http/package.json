@@ -4,15 +4,22 @@
   "type": "module",
   "description": "HTTP steps and the smoke assertion set that ships in the box.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "keywords": [
-    "speq-plugin"
+    "speqkit-plugin"
   ],
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

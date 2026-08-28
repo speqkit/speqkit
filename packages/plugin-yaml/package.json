@@ -4,10 +4,13 @@
   "type": "module",
   "description": "YAML loader. The default authoring format \u2014 and proof that the format is a plugin.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "keywords": [
-    "speq-plugin"
+    "speqkit-plugin"
   ],
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^"
@@ -17,5 +20,9 @@
   },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

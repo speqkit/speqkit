@@ -1,0 +1,32 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/plugin-api/tsconfig.build.json"
+    },
+    {
+      "path": "packages/installer/tsconfig.build.json"
+    },
+    {
+      "path": "packages/core/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-yaml/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-http/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-loop/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-junit/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-playwright/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-cli/tsconfig.build.json"
+    }
+  ]
+}

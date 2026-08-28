@@ -4,10 +4,13 @@
   "type": "module",
   "description": "Browser steps, scoped browser/context/page resources and screenshot artifacts.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "keywords": [
-    "speq-plugin"
+    "speqkit-plugin"
   ],
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^",
@@ -20,5 +23,9 @@
   },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

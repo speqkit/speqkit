@@ -620,7 +620,7 @@ speq plugins                              <span class="c"># что загруж�
       <div class="num">7</div>
       <div class="body">
         <h3>Возможности не хватило — пишем свой плагин</h3>
-<pre><code>npm create speq-plugin loop     <span class="c"># скаффолд: src, схема, тесты, CI</span>
+<pre><code>npm create speqkit-plugin loop     <span class="c"># скаффолд: src, схема, тесты, CI</span>
 cd speqkit-plugin-loop &amp;&amp; npm run dev
 
 cd ../payments-service
@@ -706,7 +706,7 @@ http:
   <h3>В. Репозиторий стороннего плагина</h3>
 <pre><code>speqkit-plugin-kafka/
 ├── package.json         name: speqkit-plugin-kafka
-│                        keywords: [<span class="s">"speq-plugin"</span>]
+│                        keywords: [<span class="s">"speqkit-plugin"</span>]
 │                        peerDependencies: { <span class="s">"@speqkit/plugin-api"</span>: <span class="s">"^1"</span> }
 ├── src/index.ts         definePlugin({ … })
 ├── schema/              JSON Schema — генерится из zod при сборке
@@ -793,7 +793,7 @@ http:
   <table>
     <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
     <tbody>
-      <tr><td><code>npm create speq-plugin &lt;name&gt;</code></td><td>Скаффолд: исходники, схема, тесты, CI, README. Пять минут до зелёного теста</td></tr>
+      <tr><td><code>npm create speqkit-plugin &lt;name&gt;</code></td><td>Скаффолд: исходники, схема, тесты, CI, README. Пять минут до зелёного теста</td></tr>
       <tr><td><code>npx speq-test-kit</code></td><td>Конформанс: соблюдён ли таймаут, маппится ли падение в <code>error</code>, валидны ли артефакты</td></tr>
       <tr><td><code>npm publish</code></td><td>Публикация. Согласования ни с кем не требуется</td></tr>
     </tbody>

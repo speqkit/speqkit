@@ -4,7 +4,10 @@
   "type": "module",
   "description": "Resolves plugins against the npm registry, verifies them, and puts them in the store. No npm CLI involved.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "semver": "^7.6.3",
@@ -12,5 +15,9 @@
   },
   "devDependencies": {
     "@types/semver": "^7.5.8"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

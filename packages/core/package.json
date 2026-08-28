@@ -4,14 +4,21 @@
   "type": "module",
   "description": "The kernel: loads plugins and gets out of the way.",
   "bin": {
-    "speq": "./src/bin.ts"
+    "speq": "./dist/bin.js"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@speqkit/plugin-api": "workspace:*",
     "yaml": "^2.6.1",
     "@speqkit/installer": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

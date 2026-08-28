@@ -51,7 +51,15 @@ and the default one.
 ## Try it
 
 ```bash
-corepack enable && pnpm install
+corepack enable && pnpm install && pnpm build
+cd examples/basic
+
+./node_modules/.bin/speq plugins    # the built binary, plain node, no tsx
+```
+
+Or against the sources, which is the faster loop while developing:
+
+```bash
 cd examples/basic
 
 node --import tsx ../../packages/core/src/bin.ts plugins   # what is loaded
@@ -148,9 +156,26 @@ in the kernel, not in the test.
 
 ```bash
 pnpm install
+pnpm build          # tsc project references -> dist, with .d.ts and maps
 npx tsc --noEmit    # typecheck
 npx vitest run      # architecture tests
 ```
+
+### Before publishing
+
+```bash
+pnpm build && node scripts/verify-publish.mjs
+```
+
+The tests run against `src` through a bundler alias, and that is exactly the
+arrangement that hid a real bug: `exports` pointed at `.ts`, and Node refuses
+to strip types inside `node_modules`, so anything published would not have
+loaded at all. `verify-publish.mjs` trusts none of it — it packs the real
+tarballs, serves them from a throwaway registry over HTTP (proxying anything
+that is not ours to npm, since our packages have ordinary dependencies),
+installs them into a throwaway store, and runs the CLI out of `dist` with plain
+`node`. Then it pulls the plug on the registry and checks `--frozen` still
+replays the lock.
 
 ## License
 
