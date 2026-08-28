@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib'
 import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Store, assertRegistrySpec, extractTarGz, integrityOf, parseSpec, pick, verifyIntegrity, type Packument } from '@speq/installer'
+import { Store, assertRegistrySpec, extractTarGz, integrityOf, parseSpec, pick, verifyIntegrity, type Packument } from '@speqkit/installer'
 
 const scratch: string[] = []
 function tempDir(prefix: string): string {
@@ -112,15 +112,15 @@ describe('version selection', () => {
 
 describe('plugin specs', () => {
   it('separates a version range from a scoped name', () => {
-    expect(parseSpec('@speq/plugin-http@^2.1.0')).toMatchObject({ name: '@speq/plugin-http', range: '^2.1.0' })
-    expect(parseSpec('@speq/plugin-http')).toMatchObject({ name: '@speq/plugin-http', range: '*' })
+    expect(parseSpec('@speqkit/plugin-http@^2.1.0')).toMatchObject({ name: '@speqkit/plugin-http', range: '^2.1.0' })
+    expect(parseSpec('@speqkit/plugin-http')).toMatchObject({ name: '@speqkit/plugin-http', range: '*' })
     expect(parseSpec('http')).toMatchObject({ name: 'http', range: '*', short: true })
-    expect(parseSpec('speq-plugin-kafka@1.2.3')).toMatchObject({ name: 'speq-plugin-kafka', range: '1.2.3', short: false })
+    expect(parseSpec('speqkit-plugin-kafka@1.2.3')).toMatchObject({ name: 'speqkit-plugin-kafka', range: '1.2.3', short: false })
   })
 
   it('says plainly that a git source is not supported yet, instead of 404ing on it', () => {
-    expect(() => assertRegistrySpec('github:acme/speq-plugin-legacy')).toThrow(/github source[\s\S]*speq link/)
-    expect(() => assertRegistrySpec('@speq/plugin-http@^2')).not.toThrow()
+    expect(() => assertRegistrySpec('github:acme/speqkit-plugin-legacy')).toThrow(/github source[\s\S]*speq link/)
+    expect(() => assertRegistrySpec('@speqkit/plugin-http@^2')).not.toThrow()
   })
 })
 

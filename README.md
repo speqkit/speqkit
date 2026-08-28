@@ -1,4 +1,4 @@
-# speq-next
+# speqkit
 
 A test framework that is mostly plugins.
 
@@ -7,8 +7,13 @@ format, control flow, reporters — every one of them is a plugin, including the
 ones that ship in the box. A tester who needs something we did not build writes
 it and publishes it; nothing needs to be agreed with us first.
 
-> Working name. The npm name `speq` is taken by an abandoned placeholder, and
-> `@speq-ai/speq` is an unrelated project. See `docs/architecture/`.
+> **speqkit** is the project. **`speq`** is the command you type.
+>
+> The npm scope and the GitHub organisation are [`speqkit`](https://github.com/speqkit);
+> the binary is called `speq` because that is what gets typed fifty times a day
+> — the same split as `@angular/cli` installing `ng`. The bare npm name `speq`
+> belongs to an abandoned 0.0.0 placeholder and `@speq-ai/speq` is an unrelated
+> project; neither is us.
 
 ## Status
 
@@ -65,23 +70,23 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 
 | Package | What it is |
 | --- | --- |
-| `@speq/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
-| `@speq/core` | The kernel and the `speq` bootstrap. Knows no protocol and no UI. |
-| `@speq/installer` | Resolve, verify, store, lock. No npm CLI involved. |
-| `@speq/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
-| `@speq/plugin-http` | HTTP steps and the smoke assertion set. |
-| `@speq/plugin-cli` | The terminal surface. Publishes the `cli` service. |
-| `@speq/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
-| `@speq/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
-| `@speq/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
+| `@speqkit/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
+| `@speqkit/core` | The kernel and the `speq` bootstrap. Knows no protocol and no UI. |
+| `@speqkit/installer` | Resolve, verify, store, lock. No npm CLI involved. |
+| `@speqkit/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
+| `@speqkit/plugin-http` | HTTP steps and the smoke assertion set. |
+| `@speqkit/plugin-cli` | The terminal surface. Publishes the `cli` service. |
+| `@speqkit/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
+| `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
+| `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 
 ## Using it in a repository that is not a Node project
 
 ```bash
 speq init                        # scaffold .speq/
-speq add @speq/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
+speq add @speqkit/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
 speq install --frozen            # CI: exactly the lock, or fail
-speq link ../speq-plugin-mine    # a plugin you are writing, no publish needed
+speq link ../speqkit-plugin-mine    # a plugin you are writing, no publish needed
 speq doctor                      # environment, store, and what came from where
 ```
 

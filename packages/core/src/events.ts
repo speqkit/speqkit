@@ -1,4 +1,4 @@
-import type { RunEvent, EventListener } from '@speq/plugin-api'
+import type { RunEvent, EventListener } from '@speqkit/plugin-api'
 
 /** The one channel every surface — CLI, TUI, VS Code, reporters — listens on. */
 export class EventBus {

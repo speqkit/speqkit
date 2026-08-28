@@ -1,4 +1,4 @@
-import { definePlugin, type AssertOutcome, type InputSchema } from '@speq/plugin-api'
+import { definePlugin, type AssertOutcome, type InputSchema } from '@speqkit/plugin-api'
 import { loadBrowserType, type Browser, type BrowserContext, type BrowserName, type Page } from './driver.js'
 
 interface PlaywrightConfig {
@@ -13,7 +13,7 @@ interface PlaywrightConfig {
 /**
  * The second half of the architecture gate.
  *
- * `@speq/plugin-loop` proved control flow can live outside the kernel. This
+ * `@speqkit/plugin-loop` proved control flow can live outside the kernel. This
  * one exercises the two parts of the spine it never touched:
  *
  *   - scoped resources — a browser that outlives the run, a page that dies
@@ -26,7 +26,7 @@ interface PlaywrightConfig {
  * than worked around here.
  */
 export default definePlugin({
-  name: '@speq/plugin-playwright',
+  name: '@speqkit/plugin-playwright',
   configSchema: {
     type: 'object',
     properties: {

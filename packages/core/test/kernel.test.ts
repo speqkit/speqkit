@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { definePlugin, type StepDef } from '@speq/plugin-api'
-import { Registry, runTests, validateTests } from '@speq/core'
+import { definePlugin, type StepDef } from '@speqkit/plugin-api'
+import { Registry, runTests, validateTests } from '@speqkit/core'
 
 /**
  * These are architecture tests, not feature tests. Each one pins an invariant
@@ -176,7 +176,7 @@ describe('the kernel protects its own contracts', () => {
 
   it('refuses a plugin built against a different plugin-api major', async () => {
     const future = definePlugin({ name: 'future', apiVersion: 2, setup: () => {} })
-    await expect(registryWith(future)).rejects.toThrow(/targets @speq\/plugin-api v2/)
+    await expect(registryWith(future)).rejects.toThrow(/targets @speqkit\/plugin-api v2/)
   })
 
   it('reports a plugin crash as error, not as a failed test', async () => {

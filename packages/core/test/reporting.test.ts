@@ -2,9 +2,9 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { definePlugin, type RunEvent, type ReporterContext } from '@speq/plugin-api'
-import { Registry, loadConfig, runTests, replayRun, listRuns, readRunLog } from '@speq/core'
-import junit from '@speq/plugin-junit'
+import { definePlugin, type RunEvent, type ReporterContext } from '@speqkit/plugin-api'
+import { Registry, loadConfig, runTests, replayRun, listRuns, readRunLog } from '@speqkit/core'
+import junit from '@speqkit/plugin-junit'
 
 /**
  * The road to a green CI, pinned.
@@ -326,7 +326,7 @@ describe('replay', () => {
 /* JUnit                                                               */
 /* ------------------------------------------------------------------ */
 
-describe('@speq/plugin-junit', () => {
+describe('@speqkit/plugin-junit', () => {
   it('reports failures and errors as the different things they are', async () => {
     const registry = await registryWith(suite, junit)
     const dir = tempDir()

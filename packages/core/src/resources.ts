@@ -1,4 +1,4 @@
-import type { ResourceDef, ResourceScope, ResourceContext } from '@speq/plugin-api'
+import type { ResourceDef, ResourceScope, ResourceContext } from '@speqkit/plugin-api'
 
 interface Entry {
   owner: string

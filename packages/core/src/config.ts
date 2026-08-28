@@ -2,7 +2,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import { Store, readLock, parseSpec } from '@speq/installer'
+import { Store, readLock, parseSpec } from '@speqkit/installer'
 
 export interface SpeqConfig {
   version: number

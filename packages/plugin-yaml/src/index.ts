@@ -1,6 +1,6 @@
 import { basename, extname } from 'node:path'
 import { parseAllDocuments } from 'yaml'
-import { definePlugin, type TestDef } from '@speq/plugin-api'
+import { definePlugin, type TestDef } from '@speqkit/plugin-api'
 
 /**
  * The authoring format is a plugin point, not a kernel concept. YAML ships as
@@ -9,7 +9,7 @@ import { definePlugin, type TestDef } from '@speq/plugin-api'
  * touching the kernel.
  */
 export default definePlugin({
-  name: '@speq/plugin-yaml',
+  name: '@speqkit/plugin-yaml',
   setup(ctx) {
     ctx.defineLoader('yaml', {
       extensions: ['.yaml', '.yml'],

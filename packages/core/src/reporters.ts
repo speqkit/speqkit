@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { ReporterContext, ReporterDef, RunEvent } from '@speq/plugin-api'
+import type { ReporterContext, ReporterDef, RunEvent } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { readRunLog } from './run-log.js'
 
@@ -89,7 +89,7 @@ export function selectReporters(
         `unknown reporter '${name}'. ` +
           (available.length
             ? `Loaded reporters: ${available.join(', ')}`
-            : `No plugin registered one — add '@speq/plugin-cli' or '@speq/plugin-junit'.`)
+            : `No plugin registered one — add '@speqkit/plugin-cli' or '@speqkit/plugin-junit'.`)
       )
     }
     return [name, entry.def]

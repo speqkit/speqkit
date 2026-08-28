@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome } from '@speq/plugin-api'
+import type { TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'

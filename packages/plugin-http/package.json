@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-http",
+  "name": "@speqkit/plugin-http",
   "version": "0.1.0",
   "type": "module",
   "description": "HTTP steps and the smoke assertion set that ships in the box.",
@@ -10,9 +10,9 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-cli",
+  "name": "@speqkit/plugin-cli",
   "version": "0.1.0",
   "type": "module",
   "description": "The terminal surface: run, validate, list. One surface among several, not the framework.",
@@ -10,12 +10,12 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "dependencies": {
-    "@speq/core": "workspace:*"
+    "@speqkit/core": "workspace:*"
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

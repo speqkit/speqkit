@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument, YAMLSeq, Scalar } from 'yaml'
-import { candidates, parseSpec } from '@speq/installer'
+import { candidates, parseSpec } from '@speqkit/installer'
 
 /**
  * `speq add` and `speq remove` edit the user's file, so they go through the
@@ -52,7 +52,7 @@ export function removePluginFromConfig(root: string, spec: string): { file: stri
   return { file, removed }
 }
 
-/** `http`, `@speq/plugin-http` and `@speq/plugin-http@^2` all name one plugin. */
+/** `http`, `@speqkit/plugin-http` and `@speqkit/plugin-http@^2` all name one plugin. */
 function names(spec: string): string[] {
   return candidates(parseSpec(spec).name)
 }

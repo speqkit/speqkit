@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
-import type { TestDef } from '@speq/plugin-api'
+import type { TestDef } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 
 export interface DiscoverOptions {
@@ -22,7 +22,7 @@ export async function discoverTests(registry: Registry, options: DiscoverOptions
   }
   if (byExtension.size === 0) {
     throw new Error(
-      "no loader is registered, so no test file can be read. Add a loader plugin (for YAML: '@speq/plugin-yaml')."
+      "no loader is registered, so no test file can be read. Add a loader plugin (for YAML: '@speqkit/plugin-yaml')."
     )
   }
 

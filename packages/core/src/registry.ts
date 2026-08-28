@@ -2,8 +2,8 @@ import type {
   PluginSpec, PluginContext, StepTypeDef, AssertionTypeDef, ResourceDef,
   ReporterDef, ValueProviderDef, LoaderDef, HookName, HookPayload,
   EventListener, InputSchema
-} from '@speq/plugin-api'
-import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speq/plugin-api'
+} from '@speqkit/plugin-api'
+import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speqkit/plugin-api'
 import { EventBus } from './events.js'
 import { ResourceManager } from './resources.js'
 
@@ -14,7 +14,7 @@ import { ResourceManager } from './resources.js'
  * services, optional injection, deferred registration. It is implemented here
  * directly because on day one the registry is ~100 lines and Cordis's API is
  * explicitly unstable. Swapping the internals for Cordis is a change to this
- * file alone — `@speq/plugin-api` never sees it either way. That is the whole
+ * file alone — `@speqkit/plugin-api` never sees it either way. That is the whole
  * point of the facade, and the reason the decision can wait until M2.
  */
 
@@ -65,7 +65,7 @@ export class Registry {
     const declared = spec.apiVersion ?? PLUGIN_API_VERSION
     if (declared !== PLUGIN_API_VERSION) {
       throw new Error(
-        `plugin '${spec.name}' targets @speq/plugin-api v${declared}, ` +
+        `plugin '${spec.name}' targets @speqkit/plugin-api v${declared}, ` +
           `this kernel speaks v${PLUGIN_API_VERSION}. ` +
           `Upgrade the plugin, or pin an older speq.`
       )
@@ -162,10 +162,10 @@ export class Registry {
   }
 }
 
-/** `@speq/plugin-http` and `speq-plugin-http` both configure under `http`. */
+/** `@speqkit/plugin-http` and `speqkit-plugin-http` both configure under `http`. */
 export function shortName(pluginName: string): string {
   return pluginName
     .replace(/^@[^/]+\//, '')
-    .replace(/^speq-plugin-/, '')
+    .replace(/^speqkit-plugin-/, '')
     .replace(/^plugin-/, '')
 }

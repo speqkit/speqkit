@@ -1,4 +1,4 @@
-# @speq/plugin-junit
+# @speqkit/plugin-junit
 
 JUnit XML, folded out of the run's event stream.
 

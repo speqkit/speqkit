@@ -1,4 +1,4 @@
-import type { StepDef, TestDef, InputSchema } from '@speq/plugin-api'
+import type { StepDef, TestDef, InputSchema } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 
 export interface Diagnostic {

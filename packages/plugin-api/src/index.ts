@@ -293,7 +293,7 @@ export interface PluginContext {
 
 export interface PluginSpec {
   name: string
-  /** Major of @speq/plugin-api this plugin is written against. */
+  /** Major of @speqkit/plugin-api this plugin is written against. */
   apiVersion?: number
   /** Schema for this plugin's block in speq.yaml. */
   configSchema?: InputSchema
@@ -305,7 +305,7 @@ export interface PluginSpec {
  * this copy of the package rather than from the kernel's.
  *
  * That distinction is invisible until plugins start loading from the store,
- * where a plugin brings its own `@speq/plugin-api` along. Without the stamp a
+ * where a plugin brings its own `@speqkit/plugin-api` along. Without the stamp a
  * plugin that omits `apiVersion` inherits the kernel's number and the
  * compatibility check silently agrees with itself.
  */

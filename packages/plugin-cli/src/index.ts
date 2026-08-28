@@ -1,7 +1,7 @@
 import { join } from 'node:path'
-import { definePlugin, type CommandDef, type CommandHost, type RunEvent } from '@speq/plugin-api'
-import { bootstrap, discoverTests, listRuns, replayRun, runTests, validateTests } from '@speq/core'
-import type { Diagnostic } from '@speq/core'
+import { definePlugin, type CommandDef, type CommandHost, type RunEvent } from '@speqkit/plugin-api'
+import { bootstrap, discoverTests, listRuns, replayRun, runTests, validateTests } from '@speqkit/core'
+import type { Diagnostic } from '@speqkit/core'
 
 const EXIT_OK = 0
 const EXIT_FAILED = 1
@@ -16,7 +16,7 @@ const DEFAULT_REPORTERS = ['console']
  * depending on the terminal existing at all.
  */
 export default definePlugin({
-  name: '@speq/plugin-cli',
+  name: '@speqkit/plugin-cli',
 
   setup(ctx) {
     const commands = new Map<string, CommandDef>()

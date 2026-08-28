@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CommandHost } from '@speq/plugin-api'
-import { Store, addLink, readLinks, readLock, removeLink, install, type InstallEvent } from '@speq/installer'
+import type { CommandHost } from '@speqkit/plugin-api'
+import { Store, addLink, readLinks, readLock, removeLink, install, type InstallEvent } from '@speqkit/installer'
 import { bootstrap } from './bootstrap.js'
 import { discoverRoot } from './discovery.js'
 import { loadConfig, readRawConfig } from './config.js'
@@ -50,7 +50,7 @@ async function main(argv: string[]): Promise<number> {
     process.stderr.write(
       available.length
         ? `unknown command '${command}'. Available: ${[...BOOTSTRAP_COMMANDS, ...available].sort().join(', ')}\n`
-        : `unknown command '${command}'. No command surface is loaded — add a plugin such as '@speq/plugin-cli'.\n`
+        : `unknown command '${command}'. No command surface is loaded — add a plugin such as '@speqkit/plugin-cli'.\n`
     )
     return EXIT_CONFIG
   }
@@ -70,7 +70,7 @@ function usage(): number {
       `  speq plugins                           what is loaded and what it contributes\n` +
       `  speq doctor                            environment, store and compatibility\n` +
       `  speq version\n\n` +
-      `Everything else comes from plugins. With '@speq/plugin-cli' loaded:\n` +
+      `Everything else comes from plugins. With '@speqkit/plugin-cli' loaded:\n` +
       `  speq run [--env <name>] [--reporter a,b]\n` +
       `  speq report [--run <id>] [--list]     re-render a finished run\n` +
       `  speq validate | speq list\n`

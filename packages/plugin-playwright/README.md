@@ -1,4 +1,4 @@
-# @speq/plugin-playwright
+# @speqkit/plugin-playwright
 
 Browser steps, scoped `browser` / `context` / `page` resources, and screenshots
 attached as artifacts.
@@ -70,7 +70,7 @@ also why a suite that crashes does not leave browsers running.
 
 ## Why this plugin exists
 
-It is the second half of the architecture gate. `@speq/plugin-loop` proved
+It is the second half of the architecture gate. `@speqkit/plugin-loop` proved
 control flow can live outside the kernel; this one exercises the two parts of
 the spine the loop never touched.
 

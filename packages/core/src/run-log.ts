@@ -1,6 +1,6 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
-import type { RunEvent } from '@speq/plugin-api'
+import type { RunEvent } from '@speqkit/plugin-api'
 
 const FILE = 'events.jsonl'
 

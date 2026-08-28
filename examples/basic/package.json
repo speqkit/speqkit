@@ -1,15 +1,15 @@
 {
-  "name": "@speq-examples/basic",
+  "name": "@speqkit-examples/basic",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@speq/core": "workspace:*",
-    "@speq/plugin-cli": "workspace:*",
-    "@speq/plugin-http": "workspace:*",
-    "@speq/plugin-junit": "workspace:*",
-    "@speq/plugin-loop": "workspace:*",
-    "@speq/plugin-playwright": "workspace:*",
-    "@speq/plugin-yaml": "workspace:*"
+    "@speqkit/core": "workspace:*",
+    "@speqkit/plugin-cli": "workspace:*",
+    "@speqkit/plugin-http": "workspace:*",
+    "@speqkit/plugin-junit": "workspace:*",
+    "@speqkit/plugin-loop": "workspace:*",
+    "@speqkit/plugin-playwright": "workspace:*",
+    "@speqkit/plugin-yaml": "workspace:*"
   }
 }

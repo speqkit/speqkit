@@ -1,4 +1,4 @@
-# @speq/plugin-api
+# @speqkit/plugin-api
 
 The only surface a plugin author sees. Types only — no runtime, no kernel
 internals, nothing that can drift.
@@ -8,10 +8,10 @@ plugin built against a different major, with a message rather than a crash
 halfway through a run. Adding is a minor. Changing or removing is a major.
 
 ```ts
-import { definePlugin } from '@speq/plugin-api'
+import { definePlugin } from '@speqkit/plugin-api'
 
 export default definePlugin({
-  name: 'speq-plugin-example',
+  name: 'speqkit-plugin-example',
   setup(ctx) {
     ctx.defineStepType('example', {
       schema: { type: 'object', properties: { value: {} }, required: ['value'] },

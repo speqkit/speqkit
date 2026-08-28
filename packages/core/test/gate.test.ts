@@ -2,11 +2,11 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { definePlugin, type RunEvent, type ResourceScope } from '@speq/plugin-api'
-import { Registry, runTests } from '@speq/core'
+import { definePlugin, type RunEvent, type ResourceScope } from '@speqkit/plugin-api'
+import { Registry, runTests } from '@speqkit/core'
 
 /**
- * The second half of the architecture gate. `@speq/plugin-playwright` is a
+ * The second half of the architecture gate. `@speqkit/plugin-playwright` is a
  * real plugin written against the published API; these tests pin the two
  * kernel guarantees it depends on, with fakes, so they run in milliseconds and
  * need no browser.
@@ -103,7 +103,7 @@ describe('a binary artifact survives the run', () => {
 })
 
 describe('all three resource scopes are real', () => {
-  // The exact shape @speq/plugin-playwright declares: a browser for the run,
+  // The exact shape @speqkit/plugin-playwright declares: a browser for the run,
   // a fixture for the file, a page per test — the third depending on the
   // second depending on the first.
   const log: string[] = []

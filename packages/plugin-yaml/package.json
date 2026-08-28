@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-yaml",
+  "name": "@speqkit/plugin-yaml",
   "version": "0.1.0",
   "type": "module",
   "description": "YAML loader. The default authoring format \u2014 and proof that the format is a plugin.",
@@ -10,12 +10,12 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "dependencies": {
     "yaml": "^2.6.1"
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

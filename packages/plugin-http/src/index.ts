@@ -1,4 +1,4 @@
-import { definePlugin, type AssertOutcome } from '@speq/plugin-api'
+import { definePlugin, type AssertOutcome } from '@speqkit/plugin-api'
 
 interface HttpConfig {
   baseUrl?: string
@@ -11,7 +11,7 @@ interface HttpConfig {
  * HTTP is, which is the whole test of the architecture.
  */
 export default definePlugin({
-  name: '@speq/plugin-http',
+  name: '@speqkit/plugin-http',
   configSchema: {
     type: 'object',
     properties: { baseUrl: { type: 'string' }, headers: { type: 'object' } }

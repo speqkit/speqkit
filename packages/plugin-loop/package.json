@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-loop",
+  "name": "@speqkit/plugin-loop",
   "version": "0.1.0",
   "type": "module",
   "description": "Control flow as a plugin: loop, repeat, retry. Nothing of this lives in the kernel.",
@@ -10,9 +10,9 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

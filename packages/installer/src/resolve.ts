@@ -24,7 +24,7 @@ export interface ResolvedGraph {
  * Resolves plugin specs into an exact, closed graph.
  *
  * Non-optional peer dependencies are installed rather than merely warned
- * about, because `@speq/plugin-api` is a peer of every plugin and
+ * about, because `@speqkit/plugin-api` is a peer of every plugin and
  * `definePlugin` is a real runtime import: a plugin whose peer is missing does
  * not fail a lint, it fails to load. Optional peers — Playwright's browser
  * driver, a database client — stay the user's decision.

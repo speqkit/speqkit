@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-junit",
+  "name": "@speqkit/plugin-junit",
   "version": "0.1.0",
   "type": "module",
   "description": "JUnit XML from the run's event stream. What CI reads.",
@@ -10,9 +10,9 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

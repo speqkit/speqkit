@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parse as parseYaml } from 'yaml'
-import { Store, install, readLock, type Packument, type RegistryClient } from '@speq/installer'
-import { Registry, addPluginToConfig, removePluginFromConfig, resolvePlugin, runTests } from '@speq/core'
-import type { PluginSpec } from '@speq/plugin-api'
+import { Store, install, readLock, type Packument, type RegistryClient } from '@speqkit/installer'
+import { Registry, addPluginToConfig, removePluginFromConfig, resolvePlugin, runTests } from '@speqkit/core'
+import type { PluginSpec } from '@speqkit/plugin-api'
 
 /**
  * The installer, end to end, with no network and no npm.
@@ -270,9 +270,9 @@ describe('speq.yaml is edited, not rewritten', () => {
     expect(after).toContain("# why this plugin is here")
     expect(parseYaml(after).plugins).toEqual(['@fake/plugin-alpha', 'yaml'])
 
-    // `http` and `@speq/plugin-http` name the same plugin, and so must remove.
-    addPluginToConfig(project, '@speq/plugin-http@^2.0.0')
-    expect(removePluginFromConfig(project, 'http').removed).toBe('@speq/plugin-http@^2.0.0')
+    // `http` and `@speqkit/plugin-http` name the same plugin, and so must remove.
+    addPluginToConfig(project, '@speqkit/plugin-http@^2.0.0')
+    expect(removePluginFromConfig(project, 'http').removed).toBe('@speqkit/plugin-http@^2.0.0')
     expect(removePluginFromConfig(project, 'yaml').removed).toBe('yaml')
     expect(parseYaml(readFileSync(join(project, 'speq.yaml'), 'utf8')).plugins).toEqual(['@fake/plugin-alpha'])
   })

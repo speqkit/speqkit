@@ -1,4 +1,4 @@
-# @speq/installer
+# @speqkit/installer
 
 Resolves plugins against the npm registry, verifies them, and puts them in a
 store. It never shells out to `npm`, `pnpm` or `yarn`.
@@ -25,7 +25,7 @@ project:
 ~/.speq/store/
   @speq+plugin-http@2.1.4/
     node_modules/
-      @speq/plugin-http/          the package itself
+      @speqkit/plugin-http/          the package itself
       semver -> ../../semver@7.6.3/node_modules/semver
 ```
 
@@ -41,21 +41,21 @@ The project commits one file: `speq.lock`.
 lockfileVersion: 1
 presets: []
 plugins:
-  - spec: "@speq/plugin-http@^2.1.0"
-    name: "@speq/plugin-http"
+  - spec: "@speqkit/plugin-http@^2.1.0"
+    name: "@speqkit/plugin-http"
     version: 2.1.4
 packages:
-  "@speq/plugin-http@2.1.4":
-    resolved: https://registry.npmjs.org/@speq/plugin-http/-/plugin-http-2.1.4.tgz
+  "@speqkit/plugin-http@2.1.4":
+    resolved: https://registry.npmjs.org/@speqkit/plugin-http/-/plugin-http-2.1.4.tgz
     integrity: sha512-…
     dependencies:
-      "@speq/plugin-api": 1.4.0
+      "@speqkit/plugin-api": 1.4.0
 ```
 
 ## Two passes, because presets come first
 
 A preset is an ordinary npm package that contains a `speq.yaml`, and
-`extends: "@acme/speq-preset"` is how one platform team pins the plugin set for
+`extends: "@acme/speqkit-preset"` is how one platform team pins the plugin set for
 thirty services at once. That creates an ordering problem: the config cannot be
 read until the package it extends is on disk. So `install()` takes two
 callbacks rather than two lists — it fetches the `extends` targets, and only

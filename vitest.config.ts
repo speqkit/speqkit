@@ -6,10 +6,10 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@speq/plugin-api': r('./packages/plugin-api/src/index.ts'),
-      '@speq/core': r('./packages/core/src/index.ts'),
-      '@speq/installer': r('./packages/installer/src/index.ts'),
-      '@speq/plugin-junit': r('./packages/plugin-junit/src/index.ts')
+      '@speqkit/plugin-api': r('./packages/plugin-api/src/index.ts'),
+      '@speqkit/core': r('./packages/core/src/index.ts'),
+      '@speqkit/installer': r('./packages/installer/src/index.ts'),
+      '@speqkit/plugin-junit': r('./packages/plugin-junit/src/index.ts')
     }
   },
   test: { include: ['packages/*/test/**/*.test.ts'] }

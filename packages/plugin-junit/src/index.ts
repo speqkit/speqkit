@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { definePlugin, type ReporterContext } from '@speq/plugin-api'
+import { definePlugin, type ReporterContext } from '@speqkit/plugin-api'
 import { RunBuilder, renderJUnit } from './build.js'
 
 interface JUnitConfig {
@@ -20,7 +20,7 @@ interface JUnitConfig {
  * folded out of events, with no access to the runner's own result object.
  */
 export default definePlugin({
-  name: '@speq/plugin-junit',
+  name: '@speqkit/plugin-junit',
 
   configSchema: {
     type: 'object',

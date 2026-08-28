@@ -1,4 +1,4 @@
-import { definePlugin, type StepDef, type StepRecord } from '@speq/plugin-api'
+import { definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api'
 
 /**
  * The proof that a plugin author is not boxed in.
@@ -13,7 +13,7 @@ import { definePlugin, type StepDef, type StepRecord } from '@speq/plugin-api'
  * kernel change, the spine is wrong and the change belongs there, not here.
  */
 export default definePlugin({
-  name: '@speq/plugin-loop',
+  name: '@speqkit/plugin-loop',
 
   setup(ctx) {
     ctx.defineStepType('loop', {

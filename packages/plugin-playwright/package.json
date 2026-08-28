@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-playwright",
+  "name": "@speqkit/plugin-playwright",
   "version": "0.1.0",
   "type": "module",
   "description": "Browser steps, scoped browser/context/page resources and screenshot artifacts.",
@@ -10,7 +10,7 @@
     "speq-plugin"
   ],
   "peerDependencies": {
-    "@speq/plugin-api": "workspace:^",
+    "@speqkit/plugin-api": "workspace:^",
     "playwright": ">=1.40"
   },
   "peerDependenciesMeta": {
@@ -19,6 +19,6 @@
     }
   },
   "devDependencies": {
-    "@speq/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   }
 }

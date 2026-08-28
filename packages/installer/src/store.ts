@@ -14,7 +14,7 @@ import { extractTarGz } from './tar.js'
  * resolution — which follows real paths — still finds it, and two plugins
  * wanting different versions of the same library each get their own.
  *
- *   ~/.speq/store/@speq+plugin-http@2.1.4/node_modules/@speq/plugin-http/
+ *   ~/.speq/store/@speq+plugin-http@2.1.4/node_modules/@speqkit/plugin-http/
  *                                        /node_modules/semver -> ../../semver@7.6.3/...
  */
 export class Store {

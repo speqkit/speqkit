@@ -109,7 +109,7 @@ export async function install(options: InstallOptions): Promise<InstallResult> {
 /** A linked plugin is read from disk every time; there is nothing to pin. */
 function isLinked(spec: string, links: Record<string, string>, emit: (e: InstallEvent) => void): boolean {
   const name = parseSpec(spec).name
-  const hit = Object.entries(links).find(([linked]) => linked === name || linked.endsWith(`/plugin-${name}`) || linked === `speq-plugin-${name}`)
+  const hit = Object.entries(links).find(([linked]) => linked === name || linked.endsWith(`/plugin-${name}`) || linked === `speqkit-plugin-${name}`)
   if (!hit) return false
   emit({ type: 'linked', name: hit[0], path: hit[1] })
   return true

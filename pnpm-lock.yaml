@@ -26,34 +26,34 @@ importers:
 
   examples/basic:
     dependencies:
-      '@speq/core':
+      '@speqkit/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@speq/plugin-cli':
+      '@speqkit/plugin-cli':
         specifier: workspace:*
         version: link:../../packages/plugin-cli
-      '@speq/plugin-http':
+      '@speqkit/plugin-http':
         specifier: workspace:*
         version: link:../../packages/plugin-http
-      '@speq/plugin-junit':
+      '@speqkit/plugin-junit':
         specifier: workspace:*
         version: link:../../packages/plugin-junit
-      '@speq/plugin-loop':
+      '@speqkit/plugin-loop':
         specifier: workspace:*
         version: link:../../packages/plugin-loop
-      '@speq/plugin-playwright':
+      '@speqkit/plugin-playwright':
         specifier: workspace:*
         version: link:../../packages/plugin-playwright
-      '@speq/plugin-yaml':
+      '@speqkit/plugin-yaml':
         specifier: workspace:*
         version: link:../../packages/plugin-yaml
 
   packages/core:
     dependencies:
-      '@speq/installer':
+      '@speqkit/installer':
         specifier: workspace:*
         version: link:../installer
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
       yaml:
@@ -77,29 +77,29 @@ importers:
 
   packages/plugin-cli:
     dependencies:
-      '@speq/core':
+      '@speqkit/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
   packages/plugin-http:
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
   packages/plugin-junit:
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
   packages/plugin-loop:
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
@@ -109,7 +109,7 @@ importers:
         specifier: '>=1.40'
         version: 1.62.1
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
@@ -119,7 +119,7 @@ importers:
         specifier: ^2.6.1
         version: 2.9.0
     devDependencies:
-      '@speq/plugin-api':
+      '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 

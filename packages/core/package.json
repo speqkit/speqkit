@@ -1,5 +1,5 @@
 {
-  "name": "@speq/core",
+  "name": "@speqkit/core",
   "version": "0.1.0",
   "type": "module",
   "description": "The kernel: loads plugins and gets out of the way.",
@@ -10,8 +10,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@speq/plugin-api": "workspace:*",
+    "@speqkit/plugin-api": "workspace:*",
     "yaml": "^2.6.1",
-    "@speq/installer": "workspace:*"
+    "@speqkit/installer": "workspace:*"
   }
 }

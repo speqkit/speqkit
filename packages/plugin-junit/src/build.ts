@@ -1,4 +1,4 @@
-import type { RunEvent, StepStatus } from '@speq/plugin-api'
+import type { RunEvent, StepStatus } from '@speqkit/plugin-api'
 
 export interface JUnitCase {
   name: string

@@ -1,5 +1,5 @@
 {
-  "name": "@speq/plugin-api",
+  "name": "@speqkit/plugin-api",
   "version": "0.3.0",
   "type": "module",
   "description": "Public contract for speq plugins. Types only — no runtime.",

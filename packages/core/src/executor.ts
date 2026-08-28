@@ -1,6 +1,6 @@
 import type {
   StepDef, StepRecord, StepResult, RunStepsOptions, ExecContext, StepStatus
-} from '@speq/plugin-api'
+} from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { resolveDeep, resolveString, type ResolveScope } from './interpolate.js'
 

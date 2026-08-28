@@ -39,7 +39,7 @@ export interface BrowserType {
 }
 
 const INSTALL_HINT =
-  "@speq/plugin-playwright needs the 'playwright' package, which it does not bundle.\n" +
+  "@speqkit/plugin-playwright needs the 'playwright' package, which it does not bundle.\n" +
   '  pnpm add -D playwright && pnpm exec playwright install chromium'
 
 export async function loadBrowserType(name: BrowserName): Promise<BrowserType> {
