@@ -173,6 +173,6 @@ frozen.code === 0
 
 server.close()
 console.log(failures === 0 ? '\n\x1b[32mall good\x1b[0m — what we publish installs and runs\n' : `\n\x1b[31m${failures} failure(s)\x1b[0m\n`)
-if (failures === 0) rmSync(scratch, { recursive: true, force: true })
+if (failures === 0 && !process.env.KEEP) rmSync(scratch, { recursive: true, force: true })
 else console.log(`scratch kept at ${scratch}\n`)
 process.exit(failures === 0 ? 0 : 1)
