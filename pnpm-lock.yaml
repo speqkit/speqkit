@@ -35,6 +35,9 @@ importers:
       '@speq/plugin-http':
         specifier: workspace:*
         version: link:../../packages/plugin-http
+      '@speq/plugin-junit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-junit
       '@speq/plugin-loop':
         specifier: workspace:*
         version: link:../../packages/plugin-loop
@@ -83,6 +86,12 @@ importers:
         version: link:../plugin-api
 
   packages/plugin-http:
+    devDependencies:
+      '@speq/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+
+  packages/plugin-junit:
     devDependencies:
       '@speq/plugin-api':
         specifier: workspace:*

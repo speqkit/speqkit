@@ -224,7 +224,29 @@ export interface AssertionTypeDef {
   evaluate(ctx: AssertContext, input: Record<string, unknown>): AssertOutcome | Promise<AssertOutcome>
 }
 
+export interface ReporterContext {
+  runId: string
+  /**
+   * The stable directory runs write into — `reports/`, not `reports/<runId>/`.
+   *
+   * A CI workflow names one fixed path in `upload-artifact`, so a report that
+   * moved every run would be unusable there. Undefined when the caller asked
+   * for nothing on disk.
+   */
+  outputDir?: string
+  /** This run's own directory, `reports/<runId>/`, holding artifacts and the event log. */
+  runDir?: string
+}
+
 export interface ReporterDef {
+  /**
+   * Called once before the first event, with where this run may write.
+   *
+   * Optional because a reporter that only prints needs none of it — but
+   * without it a file-writing reporter would have to guess the path, and
+   * `runId` is not known until the run begins.
+   */
+  init?(ctx: ReporterContext): void | Promise<void>
   /** Called for every event in the run. */
   on(event: RunEvent): void | Promise<void>
   /** Called once after `run.finished`, for writing files. */

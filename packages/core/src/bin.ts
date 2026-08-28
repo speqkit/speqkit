@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CommandHost } from '@speq/plugin-api'
 import { Store, addLink, readLinks, readLock, removeLink, install, type InstallEvent } from '@speq/installer'
@@ -38,7 +38,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === 'link') return commandLink(rest)
   if (command === 'unlink') return commandUnlink(rest)
 
-  const session = await bootstrap(flag(rest, '--speq-root'))
+  const session = await bootstrap({ root: flag(rest, '--speq-root'), env: flag(rest, '--env') })
 
   if (command === 'plugins') return commandPlugins(session)
   if (command === 'doctor') return commandDoctor(session)
@@ -71,7 +71,9 @@ function usage(): number {
       `  speq doctor                            environment, store and compatibility\n` +
       `  speq version\n\n` +
       `Everything else comes from plugins. With '@speq/plugin-cli' loaded:\n` +
-      `  speq run | speq validate | speq list\n`
+      `  speq run [--env <name>] [--reporter a,b]\n` +
+      `  speq report [--run <id>] [--list]     re-render a finished run\n` +
+      `  speq validate | speq list\n`
   )
   return EXIT_OK
 }
@@ -99,7 +101,7 @@ function commandInit(argv: string[]): number {
   writeFileSync(
     join(root, 'speq.yaml'),
     `version: 1\n\n` +
-      `plugins:\n  - yaml\n  - http\n  - cli\n\n` +
+      `plugins:\n  - yaml\n  - http\n  - cli\n  - junit\n\n` +
       `http:\n  baseUrl: http://localhost:8080\n`
   )
   writeFileSync(
@@ -108,6 +110,23 @@ function commandInit(argv: string[]): number {
       `steps:\n  - id: health\n    type: http\n    method: GET\n    url: /health\n\n` +
       `assert:\n  - type: status\n    expected: 200\n`
   )
+  // Two environments, because one environment teaches nothing. What differs
+  // between them is settings and only settings — see applyEnvironment().
+  writeFileSync(
+    join(root, 'environments', 'local.yaml'),
+    `# Applied on top of speq.yaml by 'speq run --env local'.\n` +
+      `# Settings only: the plugin set is pinned by speq.lock and must not\n` +
+      `# depend on which environment happens to run.\n\n` +
+      `http:\n  baseUrl: http://localhost:8080\n`
+  )
+  writeFileSync(
+    join(root, 'environments', 'ci.yaml'),
+    `# 'speq run --env ci'. The URL comes from the CI environment, and the\n` +
+      `# run fails loudly when it is missing rather than quietly testing\n` +
+      `# localhost. Write \${env:BASE_URL:-http://localhost:8080} to make it\n` +
+      `# optional instead.\n\n` +
+      `http:\n  baseUrl: \${env:BASE_URL}\n`
+  )
   writeFileSync(
     join(root, '.gitignore'),
     `# Run output and machine-local links. speq.lock is committed.\nreports/\nlinks.yaml\n`
@@ -115,8 +134,9 @@ function commandInit(argv: string[]): number {
 
   process.stdout.write(
     `created ${mode} project at ${root}\n` +
-      `  speq.yaml\n  suites/health.yaml\n  .gitignore\n\n` +
-      `Next: speq install && speq run\n`
+      `  speq.yaml\n  suites/health.yaml\n` +
+      `  environments/local.yaml\n  environments/ci.yaml\n  .gitignore\n\n` +
+      `Next: speq install && speq run --env local\n`
   )
   return EXIT_OK
 }
@@ -289,9 +309,12 @@ function commandDoctor(session: Awaited<ReturnType<typeof bootstrap>>): number {
   )
   for (const source of config.sources) process.stdout.write(`                 ${source}\n`)
   process.stdout.write(
-    `plugins          ${registry.loadedPlugins().length} loaded\n` +
+    `environment      ${config.env ?? 'none — pass --env or set SPEQ_ENV'}\n` +
+      `environments     ${environmentNames(root.root) || '(none)'}\n` +
+      `plugins          ${registry.loadedPlugins().length} loaded\n` +
       `step types       ${registry.stepTypes.size}\n` +
       `assertions       ${registry.assertions.size}\n` +
+      `reporters        ${[...registry.reporters.keys()].sort().join(', ') || '(none)'}\n` +
       `loaders          ${registry.loaders.size}\n`
   )
 
@@ -309,6 +332,18 @@ function commandDoctor(session: Awaited<ReturnType<typeof bootstrap>>): number {
     process.stdout.write(`\n  warning: no loader registered — no test file can be read\n`)
   }
   return EXIT_OK
+}
+
+function environmentNames(root: string): string {
+  try {
+    return readdirSync(join(root, 'environments'))
+      .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+      .map((f) => f.replace(/\.ya?ml$/, ''))
+      .sort()
+      .join(', ')
+  } catch {
+    return ''
+  }
 }
 
 function flag(argv: string[], name: string): string | undefined {

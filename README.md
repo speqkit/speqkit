@@ -29,6 +29,20 @@ HTTP, verifies hashes, extracts into `~/.speq` and writes `speq.lock` — withou
 and `link` work. The standalone binary and `github:` specs do not yet; see
 `packages/installer/README.md`.
 
+The road from "works on my laptop" to "green in CI" is now closed. `--env`
+layers an `environments/<name>.yaml` of settings — and only settings, because
+the plugin set is what `speq.lock` pins and `--frozen` runs before anyone has
+said which environment the run will use. `${env:VAR}` in a config file comes
+from the process environment and fails loudly when unset. Reporters are
+selected with `--reporter`, and `speq report` re-renders a finished run from
+its recorded event log.
+
+That last part closed the third hole of the same kind the gate found twice:
+`defineReporter` had been on the contract since the first commit and nothing
+had ever called it — the console output went straight to `events.subscribe`,
+around the mechanism rather than through it. It is an ordinary reporter now,
+and the default one.
+
 ## Try it
 
 ```bash
@@ -37,7 +51,11 @@ cd examples/basic
 
 node --import tsx ../../packages/core/src/bin.ts plugins   # what is loaded
 node --import tsx ../../packages/core/src/bin.ts validate  # catches typos, no network
-node --import tsx ../../packages/core/src/bin.ts run --test suites/loop.yaml
+node --import tsx ../../packages/core/src/bin.ts run --env local --test suites/loop.yaml
+node --import tsx ../../packages/core/src/bin.ts run --env ci --reporter console,junit \
+  --test suites/health.yaml
+node --import tsx ../../packages/core/src/bin.ts report --list   # runs already recorded
+node --import tsx ../../packages/core/src/bin.ts report          # re-render one, no re-run
 
 # UI, once a browser exists: pnpm exec playwright install chromium
 node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
@@ -54,6 +72,7 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speq/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speq/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speq/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
+| `@speq/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
 | `@speq/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 
 ## Using it in a repository that is not a Node project
@@ -69,21 +88,36 @@ speq doctor                      # environment, store, and what came from where
 Nothing lands in the repository except `.speq/` and `speq.lock`. The plugins
 live in `~/.speq`, shared across every project on the machine.
 
+## In CI
+
+```yaml
+- run: speq install --frozen                     # exactly the lock, or fail
+- run: speq run --env ci --reporter console,junit
+- uses: actions/upload-artifact@v4
+  if: always()
+  with: { name: speq-report, path: .speq/reports/ }
+```
+
+`--frozen` fails when `speq.lock` has drifted from `speq.yaml`. The exit code
+comes from the spine: 0 passed, 1 failed, 2 the configuration was wrong before
+anything ran. A misspelled `--reporter` or a missing `${env:VAR}` is caught
+before the first test, not twenty minutes into the suite.
+
 ## What the kernel owns
 
 Plugin registry and lifecycle · config with `extends` · the test model
 (Suite → Test → Step → Assertion) · execution, `${...}` resolution and the
 re-entrant `runSteps` · resources scoped to `run | suite | test` · the event
-bus · results and artifacts · validation.
+bus · results, artifacts and the run log · validation.
 
 It owns nothing else. There is no protocol, no command, no report format and no
 control construct anywhere in `packages/core`.
 
 ## The invariants
 
-They are pinned by `packages/core/test/kernel.test.ts` and `gate.test.ts`. If
-one starts failing, the spine moved and the fix belongs in the kernel, not in
-the test.
+They are pinned by `packages/core/test/kernel.test.ts`, `gate.test.ts` and
+`reporting.test.ts`. If one starts failing, the spine moved and the fix belongs
+in the kernel, not in the test.
 
 - A step type the kernel has never heard of runs, contributed at load time.
 - A plugin nests steps through `ctx.runSteps` in a child variable scope, and
@@ -100,6 +134,10 @@ the test.
   reporter is told where they went.
 - A plugin installed from a registry loads out of the store, with its own
   dependencies resolvable, and `--frozen` reproduces it without a network.
+- An environment layers settings and cannot add a plugin, so the lock stays
+  true whichever environment runs.
+- The event stream alone is enough to build a report: replaying a recorded run
+  produces a byte-identical file to watching it live.
 
 ## Development
 

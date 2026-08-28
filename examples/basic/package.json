@@ -5,10 +5,11 @@
   "type": "module",
   "dependencies": {
     "@speq/core": "workspace:*",
-    "@speq/plugin-yaml": "workspace:*",
-    "@speq/plugin-http": "workspace:*",
     "@speq/plugin-cli": "workspace:*",
+    "@speq/plugin-http": "workspace:*",
+    "@speq/plugin-junit": "workspace:*",
     "@speq/plugin-loop": "workspace:*",
-    "@speq/plugin-playwright": "workspace:*"
+    "@speq/plugin-playwright": "workspace:*",
+    "@speq/plugin-yaml": "workspace:*"
   }
 }

@@ -6,6 +6,7 @@ plugins:
   - cli           # the terminal surface
   - loop          # control flow, contributed rather than built in
   - playwright    # a UI capability, added without the kernel learning what a browser is
+  - junit         # the report CI reads, folded out of the event stream
 
 http:
   baseUrl: https://jsonplaceholder.typicode.com

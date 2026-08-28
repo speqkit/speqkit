@@ -1,0 +1,12 @@
+# speq run --env ci
+#
+# ${env:NAME} comes from the process environment. Written as ${env:NAME} with
+# no fallback it is required, and the run fails loudly when it is missing
+# rather than quietly testing localhost. The fallback here is only so that the
+# example runs on a laptop with nothing exported.
+
+http:
+  baseUrl: ${env:API_URL:-https://jsonplaceholder.typicode.com}
+
+playwright:
+  headless: true

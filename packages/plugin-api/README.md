@@ -32,6 +32,12 @@ build anything you cannot afford to rewrite.
 
 ## Changes
 
+**0.3.0** — `ReporterDef` gained an optional `init(ctx)` carrying `runId`,
+`outputDir` and `runDir`. A reporter that writes a file could not previously
+learn where to write it: the run's directory does not exist until the run
+starts. Optional method on an existing interface, so every 0.2.0 reporter still
+satisfies it, and `PLUGIN_API_VERSION` stays at `1`.
+
 **0.2.0** — `artifact.attached` gained `path`, set when the run wrote the body
 somewhere. Added field, so plugins built against 0.1.0 keep working and
 `PLUGIN_API_VERSION` stays at `1`. This is the versioning rule doing its job on

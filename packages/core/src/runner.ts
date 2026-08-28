@@ -3,6 +3,8 @@ import type { TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome } fr
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
+import { RunLog } from './run-log.js'
+import { startReporters, runDirFor } from './reporters.js'
 import { resolveDeep, resolveString } from './interpolate.js'
 
 export interface TestOutcome {
@@ -36,6 +38,12 @@ export interface RunOptions {
    */
   artifactDir?: string
   runId?: string
+  /**
+   * Reporters to drive, by the name their plugin registered. Empty means the
+   * run produces no output of its own — which is what a library caller wants
+   * and what `speq run` never does.
+   */
+  reporters?: readonly string[]
 }
 
 export async function runTests(
@@ -48,43 +56,66 @@ export async function runTests(
   const configFor = (plugin: string) => registry.configFor(plugin)
   const artifacts = new ArtifactStore(options.artifactDir, runId)
 
-  registry.events.emit({ type: 'run.started', runId, tests: tests.length, at: startedAt })
-  await registry.runHooks('run:before', {})
+  // Started before the first event and before any test runs: an unknown
+  // reporter name is a config mistake, and finding it after a twenty-minute
+  // suite would be the worst possible moment.
+  const reporters = await startReporters(registry, options.reporters ?? [], {
+    runId,
+    outputDir: options.artifactDir,
+    runDir: runDirFor(options.artifactDir, runId)
+  })
 
-  registry.resources.open('run')
-  const outcomes: TestOutcome[] = []
+  // Subscribed separately from the reporters so the run is recorded whatever
+  // they go on to do with it, including throwing.
+  const log = new RunLog(options.artifactDir, runId)
+  const stopLogging = registry.events.subscribe((event) => log.write(event))
 
   try {
-    // Suites are the middle scope, and they are real: a resource declared
-    // `suite` is set up once for the group and torn down when it ends. The
-    // grouping is by source file and consecutive, so nothing is reordered.
-    for (const group of groupIntoSuites(tests)) {
-      registry.events.emit({ type: 'suite.started', suite: group.suite })
-      await registry.runHooks('suite:before', { suite: group.suite })
-      registry.resources.open('suite')
-      try {
-        for (const test of group.tests) {
-          outcomes.push(await runOne(registry, test, group.suite, artifacts))
+    registry.events.emit({ type: 'run.started', runId, tests: tests.length, at: startedAt })
+    await registry.runHooks('run:before', {})
+
+    registry.resources.open('run')
+    const outcomes: TestOutcome[] = []
+
+    try {
+      // Suites are the middle scope, and they are real: a resource declared
+      // `suite` is set up once for the group and torn down when it ends. The
+      // grouping is by source file and consecutive, so nothing is reordered.
+      for (const group of groupIntoSuites(tests)) {
+        registry.events.emit({ type: 'suite.started', suite: group.suite })
+        await registry.runHooks('suite:before', { suite: group.suite })
+        registry.resources.open('suite')
+        try {
+          for (const test of group.tests) {
+            outcomes.push(await runOne(registry, test, group.suite, artifacts))
+          }
+        } finally {
+          await registry.resources.close('suite', configFor)
         }
-      } finally {
-        await registry.resources.close('suite', configFor)
+        await registry.runHooks('suite:after', { suite: group.suite })
+        registry.events.emit({ type: 'suite.finished', suite: group.suite })
       }
-      await registry.runHooks('suite:after', { suite: group.suite })
-      registry.events.emit({ type: 'suite.finished', suite: group.suite })
+    } finally {
+      await registry.resources.close('run', configFor)
     }
+
+    const counts = tally(outcomes)
+    const status: StepStatus =
+      counts.errored > 0 ? 'error' : counts.failed > 0 ? 'failed' : 'passed'
+    const durationMs = Date.now() - startedAt
+
+    await registry.runHooks('run:after', {})
+    registry.events.emit({ type: 'run.finished', runId, status, durationMs, ...counts })
+
+    return { runId, status, durationMs, tests: outcomes, artifacts: artifacts.all(), ...counts }
   } finally {
-    await registry.resources.close('run', configFor)
+    // Unconditional. A run that throws during teardown would otherwise leave a
+    // live subscription behind, and a long-lived host — an editor, a TUI —
+    // collects one per run until it is writing to closed file descriptors.
+    await reporters.finalize()
+    stopLogging()
+    log.close()
   }
-
-  const counts = tally(outcomes)
-  const status: StepStatus =
-    counts.errored > 0 ? 'error' : counts.failed > 0 ? 'failed' : 'passed'
-  const durationMs = Date.now() - startedAt
-
-  await registry.runHooks('run:after', {})
-  registry.events.emit({ type: 'run.finished', runId, status, durationMs, ...counts })
-
-  return { runId, status, durationMs, tests: outcomes, artifacts: artifacts.all(), ...counts }
 }
 
 interface SuiteGroup {

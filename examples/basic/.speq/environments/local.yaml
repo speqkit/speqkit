@@ -1,0 +1,11 @@
+# speq run --env local
+#
+# An environment layers settings and nothing else. It cannot add a plugin:
+# the plugin set is what speq.lock pins, and `speq install --frozen` runs in
+# CI before anyone has said which environment the run will use.
+
+http:
+  baseUrl: https://jsonplaceholder.typicode.com
+
+playwright:
+  headless: false          # locally you want to watch it
