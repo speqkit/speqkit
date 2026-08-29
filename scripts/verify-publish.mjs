@@ -10,20 +10,33 @@
  * runs the CLI out of `dist` with plain `node`.
  *
  *   node scripts/verify-publish.mjs
+ *   node scripts/verify-publish.mjs --binary build/speq
  *
- * Assumes `pnpm build` has run.
+ * The second form points the same battery at the standalone executable with
+ * an empty PATH, so the artefact a `brew install` produces has to pass what
+ * the published packages pass. Two ways of shipping, one definition of works.
+ *
+ * Assumes `pnpm build` has run — and, for --binary, that
+ * `node scripts/build-binary.mjs` has too.
  */
 import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const run_ = promisify(execFile)
 const repo = resolve(fileURLToPath(new URL('..', import.meta.url)))
+
+/**
+ * What is being tested: the published `dist` under the Node on this machine,
+ * or the standalone binary, which is supposed to need no Node at all.
+ */
+const binaryFlag = process.argv.indexOf('--binary')
+const binary = binaryFlag >= 0 ? resolve(repo, process.argv[binaryFlag + 1]) : undefined
 // Every package we would publish. `plugin-http` and `plugin-playwright` were
 // missing here, and `speq init` scaffolds a config that names `http` — so the
 // plugin a new project loads first was the one this never checked.
@@ -49,6 +62,16 @@ const bad = (label, detail) => {
 /* ------------------------------------------------------------------ */
 /* 1. Pack what we would publish                                       */
 /* ------------------------------------------------------------------ */
+
+console.log(
+  binary
+    ? `\nsubject: ${binary.replace(`${repo}/`, '')} — standalone, PATH emptied`
+    : `\nsubject: packages/*/dist under node ${process.version}`
+)
+if (binary && !existsSync(binary)) {
+  console.error(`${binary} is missing — run 'node scripts/build-binary.mjs' first.`)
+  process.exit(1)
+}
 
 console.log('\npacking')
 for (const name of PACKAGES) {
@@ -151,8 +174,15 @@ writeFileSync(
  */
 const speq = async (args, extraEnv = {}) => {
   const env = { ...process.env, SPEQ_HOME: store, SPEQ_REGISTRY: base, ...extraEnv }
+  // Emptied under --binary, and only there: the entire claim of that artefact
+  // is that the machine needs nothing on it, and a `node` still answering from
+  // PATH is precisely how that claim would go untested.
+  if (binary) env.PATH = ''
+  const [command, argv] = binary
+    ? [binary, args]
+    : [process.execPath, [join(repo, 'packages/core/dist/bin.js'), ...args]]
   try {
-    const { stdout, stderr } = await run_(process.execPath, [join(repo, 'packages/core/dist/bin.js'), ...args], {
+    const { stdout, stderr } = await run_(command, argv, {
       cwd: project,
       env,
       encoding: 'utf8'
@@ -227,7 +257,11 @@ frozen.code === 0
 
 server.close()
 sut.close()
-console.log(failures === 0 ? '\n\x1b[32mall good\x1b[0m — what we publish installs and runs\n' : `\n\x1b[31m${failures} failure(s)\x1b[0m\n`)
+console.log(
+  failures === 0
+    ? `\n\x1b[32mall good\x1b[0m — ${binary ? 'the binary installs and runs with nothing on the machine' : 'what we publish installs and runs'}\n`
+    : `\n\x1b[31m${failures} failure(s)\x1b[0m\n`
+)
 if (failures === 0 && !process.env.KEEP) rmSync(scratch, { recursive: true, force: true })
 else console.log(`scratch kept at ${scratch}\n`)
 process.exit(failures === 0 ? 0 : 1)

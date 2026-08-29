@@ -47,3 +47,39 @@ jobs:
       # of `dist` with plain node, in a directory with no node_modules. It is
       # the only step here that tests what a stranger would actually install.
       - run: node scripts/verify-publish.mjs
+
+  # The binary is a second way of shipping the same kernel, and it breaks in
+  # ways the packages cannot: a bundler rewriting `import()` would leave every
+  # plugin unloadable while `pnpm test` stayed green. One platform is enough
+  # here — the release workflow builds all four — but it has to be *some*
+  # platform, on every push, or the first person to notice is whoever tags.
+  binary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Downloads the pinned runtime from nodejs.org, checks it against
+      # SHASUMS256.txt, and smoke-tests the result with PATH emptied.
+      - run: node scripts/build-binary.mjs
+
+      # The same battery the packages face, pointed at the executable: install
+      # from a throwaway registry, load every plugin out of the store, run a
+      # suite — with no Node on PATH at all.
+      - run: node scripts/verify-publish.mjs --binary build/speq
+
+      # Proves the `curl … | sh` path against the artefacts just built, so it
+      # cannot be discovered broken by the first stranger who runs it.
+      - name: install.sh installs what was built
+        run: |
+          SPEQKIT_BASE_URL="file://$PWD/build" sh packaging/install.sh \
+            --version "v$(node -p "require('./packages/core/package.json').version")" \
+            --bin-dir "$RUNNER_TEMP/bin"
+          env -i PATH="" "$RUNNER_TEMP/bin/speq" version

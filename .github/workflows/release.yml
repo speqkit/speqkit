@@ -1,0 +1,139 @@
+# Cuts a release: four executables, their checksums, and the Homebrew formula
+# that points at them.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Each binary is built on its own runner rather than cross-compiled. The SEA
+# blob carries a V8 code cache, which is valid only for the exact runtime it
+# is injected into, and a macOS binary has to be re-signed after injection by
+# a tool that only exists on macOS. Native runners make both problems vanish.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  # Buildable without tagging: the artefacts are produced and checked, and
+  # nothing is published. Useful for finding out that a runner label changed
+  # underneath us on a day that is not release day.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Pinned, not `-latest`: the runner decides which macOS SDK the
+          # binary is built against, and that is a property of the release,
+          # not of whichever image GitHub promoted this month. macos-14 is
+          # deprecated and macos-13 is gone, which is how we know.
+          - { os: macos-15,         target: darwin-arm64 }
+          - { os: macos-15-intel,   target: darwin-x64   }
+          - { os: ubuntu-24.04,     target: linux-x64    }
+          - { os: ubuntu-24.04-arm, target: linux-arm64  }
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - run: node scripts/build-binary.mjs
+
+      # A release artefact nobody has run is a rumour. This installs it from a
+      # throwaway registry and runs a suite through it, with PATH emptied.
+      - run: node scripts/verify-publish.mjs --binary build/speq
+
+      - name: install.sh installs what was built
+        run: |
+          SPEQKIT_BASE_URL="file://$PWD/build" sh packaging/install.sh \
+            --version "v$(node -p "require('./packages/core/package.json').version")" \
+            --bin-dir "$RUNNER_TEMP/bin"
+          env -i PATH="" "$RUNNER_TEMP/bin/speq" version
+
+      - name: the tag and the version must agree
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          pkg="v$(node -p "require('./packages/core/package.json').version")"
+          # Cheap to check, expensive to find out later: a tag that disagrees
+          # with package.json produces archives nothing can ever download,
+          # because the formula and install.sh both build the filename out of
+          # the version.
+          [ "$tag" = "$pkg" ] || { echo "tag $tag but package.json says $pkg"; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: speqkit-${{ matrix.target }}
+          path: |
+            build/speqkit-*.tar.gz
+            build/speqkit-*.tar.gz.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Refuses to render if any of the four platforms is missing, so a
+      # partially failed matrix cannot become a tap that works on the
+      # maintainer's laptop and nowhere else.
+      - name: render the Homebrew formula
+        run: node scripts/render-formula.mjs --dist dist --version "${GITHUB_REF#refs/tags/}" --out dist/speqkit.rb
+
+      - name: create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title "speqkit $tag" \
+            --generate-notes \
+            --notes-file - <<NOTES
+          ## Install
+
+          \`\`\`sh
+          brew install speqkit/tap/speqkit
+          # or
+          curl -fsSL https://raw.githubusercontent.com/speqkit/speqkit/$tag/packaging/install.sh | sh
+          # or, if Node is already there
+          npm i -g speqkit
+          \`\`\`
+
+          The archives below carry their own Node runtime; nothing else is
+          needed on the machine. \`speqkit\` is what you install, \`speq\` is
+          what you type.
+          NOTES
+          gh release upload "$tag" dist/speqkit-*.tar.gz dist/speqkit-*.tar.gz.sha256 dist/speqkit.rb
+
+      # The tap is a separate repository, so the formula is attached to the
+      # release and copied over rather than pushed from here. Written down in
+      # the summary because a step that a human performs is a step a human
+      # forgets.
+      - name: what is left to do by hand
+        run: |
+          {
+            echo "### Copy into speqkit/homebrew-tap"
+            echo ""
+            echo '```sh'
+            echo "gh release download ${GITHUB_REF#refs/tags/} -R speqkit/speqkit -p speqkit.rb -O Formula/speqkit.rb"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

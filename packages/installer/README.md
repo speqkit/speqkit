@@ -80,6 +80,9 @@ then asks for the flattened plugin list.
   local-checkout case today.
 - Reading `.npmrc`. A private registry works through `SPEQ_REGISTRY` and
   `NPM_TOKEN`.
-- The standalone binary. Until it exists, speq still needs a Node runtime on
-  the machine — the plugins stay out of the repository either way, but step
-  zero of the story is not finished.
+
+The standalone binary used to be on this list. It is now built by
+`scripts/build-binary.mjs` and installed with `brew install speqkit` or
+`curl … | sh`, so nothing here needs a Node runtime on the machine. The store
+it writes to and the lock it replays are the same either way — the binary is a
+different way of shipping this code, not a different code path through it.

@@ -18,6 +18,9 @@ it and publishes it; nothing needs to be agreed with us first.
 ## Status
 
 M0, M1 and the architecture gate are done; M2 is most of the way there.
+All nine packages are published — the kernel as `speqkit`, the contract and
+the plugins under `@speqkit` — so `npm i -g speqkit` installs the `speq`
+binary from the registry rather than from this checkout.
 
 `plugin-loop` was written against the published API with **no kernel changes**
 — control flow is genuinely a plugin. `plugin-playwright` then exercised the
@@ -31,8 +34,16 @@ worked around.
 M2 is the installer: `speq install` resolves against the npm registry over
 HTTP, verifies hashes, extracts into `~/.speq` and writes `speq.lock` — without
 `npm`, `pnpm` or a `node_modules` in the project. `--frozen`, `add`, `remove`
-and `link` work. The standalone binary and `github:` specs do not yet; see
+and `link` work. `github:` specs do not yet; see
 `packages/installer/README.md`.
+
+Step zero is closed too. `scripts/build-binary.mjs` produces one executable
+with a pinned Node inside it, so a Go or Python repository can install a test
+runner without installing a JavaScript toolchain first. It is not a separate
+build of the kernel: `verify-publish.mjs --binary` points the same battery at
+the executable with `PATH` emptied, and it has to install from a registry,
+load four plugins out of the store and run a suite on a machine where `node`
+cannot be reached at all.
 
 The road from "works on my laptop" to "green in CI" is now closed. `--env`
 layers an `environments/<name>.yaml` of settings — and only settings, because
@@ -99,7 +110,9 @@ ever reaches the store.
 ## Using it in a repository that is not a Node project
 
 ```bash
-npm i -g speqkit                 # the package is speqkit, the command is speq
+brew install speqkit             # or: curl -fsSL .../install.sh | sh
+                                 # or: npm i -g speqkit, if Node is there
+                                 # you install speqkit, you type speq
 speq init                        # scaffold .speq/
 speq add @speqkit/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
 speq install --frozen            # CI: exactly the lock, or fail
@@ -115,7 +128,7 @@ live in `~/.speq`, shared across every project on the machine.
 ```yaml
 - run: speq install --frozen                     # exactly the lock, or fail
 - run: speq run --env ci --reporter console,junit
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@v7
   if: always()
   with: { name: speq-report, path: .speq/reports/ }
 ```
@@ -185,6 +198,26 @@ that is not ours to npm, since our packages have ordinary dependencies),
 installs them into a throwaway store, and runs the CLI out of `dist` with plain
 `node`. Then it pulls the plug on the registry and checks `--frozen` still
 replays the lock.
+
+### Building the standalone binary
+
+```bash
+pnpm build && node scripts/build-binary.mjs
+node scripts/verify-publish.mjs --binary build/speq
+```
+
+The first command downloads the pinned Node from nodejs.org, checks it against
+`SHASUMS256.txt`, bundles `packages/core/dist` into one CommonJS file, and
+injects it as a SEA blob. The runtime is downloaded rather than taken from
+`process.execPath` for a reason worth knowing before you try to shortcut it: a
+package manager's `node` may be a 66 KB stub in front of a shared `libnode`,
+with nothing to inject into. The second command is the same battery as above,
+pointed at the executable with `PATH` emptied.
+
+Releases are cut by tagging. `.github/workflows/release.yml` builds all four
+targets on native runners — cross-compiling is not an option, because the SEA
+blob carries a V8 code cache valid only for the exact runtime it goes into,
+and only macOS can re-sign a Mach-O after injection.
 
 ## License
 

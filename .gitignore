@@ -9,3 +9,7 @@ dist/
 # npm auth. The file itself only names an env var, but it is the file people
 # paste a token into by mistake, so it never goes near a commit.
 .npmrc
+
+# Standalone binary output: a 116 MB executable and the runtime it is cut
+# from. `node scripts/build-binary.mjs` rebuilds both.
+build/

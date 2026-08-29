@@ -11,11 +11,14 @@
     "clean": "tsc -b tsconfig.build.json --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "binary": "node scripts/build-binary.mjs",
     "speq": "node --import tsx packages/core/src/bin.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "esbuild": "^0.28.2",
     "playwright": "^1.62.1",
+    "postject": "1.0.0-alpha.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
