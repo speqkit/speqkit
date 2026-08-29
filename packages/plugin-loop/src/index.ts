@@ -28,6 +28,23 @@ export default definePlugin({
         additionalProperties: false
       },
 
+      /**
+       * `over` is usually a template, so what it resolves to is not knowable
+       * here — but whether one of the two was written at all is, and that
+       * mistake used to surface as an errored step in the middle of a run,
+       * from a message that could not say which file it was in.
+       */
+      validate(step) {
+        const over = step.over !== undefined && step.over !== null
+        const times = step.times !== undefined
+        if (over && times) return ["'over' and 'times' exclude each other; a loop is over a list or a count"]
+        if (!over && !times) return ["a loop needs 'over' (a list) or 'times' (a count)"]
+        if (times && typeof step.times === 'number' && step.times <= 0) {
+          return [{ path: 'times', message: `'times' has to be positive, got ${step.times}` }]
+        }
+        return []
+      },
+
       async execute(exec, input) {
         const children = (input.steps ?? []) as StepDef[]
         const alias = String(input.as ?? 'item')
@@ -56,6 +73,13 @@ export default definePlugin({
         type: 'object',
         properties: { attempts: { type: 'number' }, delayMs: { type: 'number' }, steps: { type: 'array' } },
         additionalProperties: false
+      },
+
+      validate(step) {
+        if (typeof step.attempts === 'number' && step.attempts < 1) {
+          return [{ path: 'attempts', message: `'attempts' has to be at least 1, got ${step.attempts}` }]
+        }
+        return []
       },
 
       async execute(exec, input) {

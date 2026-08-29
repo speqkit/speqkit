@@ -136,7 +136,7 @@ export default defineConfig({
       env: { ...process.env, CI: '1' }
     })
 
-    expect(result.stdout + result.stderr).toContain('7 passed')
+    expect(result.stdout + result.stderr).toContain('8 passed')
     expect(result.status).toBe(0)
   }, 60_000)
 })

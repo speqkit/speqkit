@@ -263,3 +263,93 @@ describe('validation uses the grammar the plugins defined', () => {
     expect(diagnostics.some((d) => d.message.includes("duplicate step id 'x'"))).toBe(true)
   })
 })
+
+describe('a plugin checks its own inputs, beyond their shape', () => {
+  // A schema settles shape. Whether the input means anything — a file that
+  // must exist, two fields that exclude each other — only the plugin knows,
+  // and before this it had nowhere to say so but the middle of the run.
+  const picky = definePlugin({
+    name: 'speqkit-plugin-picky',
+    setup(ctx) {
+      ctx.defineStepType('send', {
+        schema: { type: 'object', properties: { to: {}, all: {} }, additionalProperties: false },
+        validate(step) {
+          const problems: string[] = []
+          if (step.to && step.all) problems.push("'to' and 'all' exclude each other")
+          const { known = [] } = ctx.config<{ known?: string[] }>()
+          if (typeof step.to === 'string' && known.length > 0 && !known.includes(step.to)) {
+            problems.push(`'${step.to}' is not one of the configured recipients`)
+          }
+          return problems
+        },
+        execute: () => ({})
+      })
+      ctx.defineAssertion('arrived', {
+        validate: (assertion) =>
+          assertion.within === undefined ? [{ path: 'within', message: "'within' is required", hint: 'e.g. 5s' }] : [],
+        evaluate: () => ({ passed: true, message: 'ok' })
+      })
+      ctx.defineStepType('broken', {
+        validate: () => { throw new Error('I am the bug') },
+        execute: () => ({})
+      })
+    }
+  })
+
+  it('files a problem the plugin found against the right step', async () => {
+    const registry = await registryWith(picky)
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 'a.yaml', steps: [{ type: 'echo' }, { type: 'send', to: 'a', all: true }] }
+    ])
+
+    expect(diagnostics).toContainEqual({
+      file: 'a.yaml',
+      path: 'steps[1]',
+      message: "'to' and 'all' exclude each other"
+    })
+  })
+
+  it('addresses a problem inside the step when the plugin says where', async () => {
+    const registry = await registryWith(picky)
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 'a.yaml', steps: [{ type: 'send' }], assert: [{ type: 'arrived' }] }
+    ])
+
+    expect(diagnostics).toEqual([
+      { file: 'a.yaml', path: 'assert[0].within', message: "'within' is required", hint: 'e.g. 5s' }
+    ])
+  })
+
+  it('gives the validator the config for that plugin', async () => {
+    const registry = new Registry()
+    registry.setConfig({ picky: { known: ['ada'] } })
+    await registry.register(picky)
+    registry.settle()
+
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 'a.yaml', steps: [{ type: 'send', to: 'grace' }] }
+    ])
+
+    expect(diagnostics[0]!.message).toContain("'grace' is not one of the configured recipients")
+  })
+
+  it('reports a throwing validator as a bug in the plugin, and keeps going', async () => {
+    const registry = await registryWith(picky)
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 'a.yaml', steps: [{ type: 'broken' }, { type: 'nosuch' }] }
+    ])
+
+    // Both: the crash did not swallow the diagnostic the user needed.
+    expect(diagnostics[0]).toMatchObject({
+      path: 'steps[0]',
+      message: expect.stringContaining("threw inside plugin 'speqkit-plugin-picky': I am the bug"),
+      hint: 'this is a bug in the plugin, not in the test'
+    })
+    expect(diagnostics[1]!.message).toContain("unknown step type 'nosuch'")
+  })
+
+  it('says nothing when a plugin declares no validator', async () => {
+    const registry = await registryWith(echo)
+    expect(validateTests(registry, [{ name: 't', source: 'a.yaml', steps: [{ type: 'echo' }] }])).toEqual([])
+  })
+})

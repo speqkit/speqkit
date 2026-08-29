@@ -1,5 +1,7 @@
-import type { StepDef, TestDef, InputSchema, Diagnostic } from '@speqkit/plugin-api'
-import type { Registry } from './registry.js'
+import type {
+  AssertionDef, Diagnostic, InputSchema, StepDef, TestDef, ValidateContext, ValidationProblem, Validator
+} from '@speqkit/plugin-api'
+import type { Registry, Registered } from './registry.js'
 
 export type { Diagnostic }
 
@@ -8,6 +10,12 @@ export type { Diagnostic }
  * whole grammar: every step type and assertion the loaded plugins registered,
  * plus the schema each declared for its own inputs. A typo costs milliseconds
  * rather than a half-finished run against a real environment.
+ *
+ * A schema settles shape and nothing else, so a plugin may also contribute a
+ * `validate` of its own — whether the schema file an assertion names exists,
+ * whether two fields that exclude each other are both set. The kernel keeps
+ * the walk and the addressing: a plugin returns messages, never a location it
+ * could get wrong.
  */
 export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
@@ -46,6 +54,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
           diagnostics.push({ file, path, message: problem })
         }
       }
+      contribute(diagnostics, registry, entry, step, { test, file }, path, 'step type')
     })
 
     for (const [index, assertion] of (test.assert ?? []).entries()) {
@@ -65,10 +74,62 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
           diagnostics.push({ file, path, message: problem })
         }
       }
+      contribute(diagnostics, registry, entry, assertion, { test, file }, path, 'assertion')
     }
   }
 
   return diagnostics
+}
+
+/**
+ * Runs one plugin's own check and files what it says.
+ *
+ * The throw is caught rather than allowed out. A validator runs in front of
+ * every `speq run`, and a plugin with a bug in one would otherwise take down
+ * validation for the whole suite — including the diagnostics that would have
+ * told the user what was actually wrong.
+ */
+function contribute<T extends StepDef | AssertionDef>(
+  diagnostics: Diagnostic[],
+  registry: Registry,
+  entry: Registered<{ validate?: Validator<T> }>,
+  subject: T,
+  where: { test: TestDef; file: string },
+  path: string,
+  kind: string
+): void {
+  if (!entry.def.validate) return
+
+  const ctx: ValidateContext = {
+    test: where.test,
+    file: where.file,
+    config: () => registry.configFor(entry.owner) as never
+  }
+
+  let problems: (string | ValidationProblem)[] | void
+  try {
+    problems = entry.def.validate(subject, ctx)
+  } catch (err) {
+    diagnostics.push({
+      file: where.file,
+      path,
+      message:
+        `checking this ${kind} threw inside plugin '${entry.owner}': ` +
+        (err instanceof Error ? err.message : String(err)),
+      hint: 'this is a bug in the plugin, not in the test'
+    })
+    return
+  }
+
+  for (const problem of problems ?? []) {
+    const { message, hint, path: inner } = typeof problem === 'string' ? { message: problem, hint: undefined, path: undefined } : problem
+    diagnostics.push({
+      file: where.file,
+      path: inner ? `${path}.${inner}` : path,
+      message,
+      ...(hint ? { hint } : {})
+    })
+  }
 }
 
 function walkSteps(steps: StepDef[], path: string, visit: (s: StepDef, p: string) => void): void {

@@ -14,7 +14,10 @@ export default definePlugin({
   name: 'speqkit-plugin-example',
   setup(ctx) {
     ctx.defineStepType('example', {
+      // What shape the input has …
       schema: { type: 'object', properties: { value: {} }, required: ['value'] },
+      // … and whether it means anything. Both run before the suite does.
+      validate: (step) => (step.value === '' ? [{ path: 'value', message: "'value' is empty" }] : []),
       execute: (exec, input) => ({ echoed: input.value })
     })
   }
@@ -69,6 +72,21 @@ month window on the previous one. Until that line is in this README, do not
 build anything you cannot afford to rewrite.
 
 ## Changes
+
+**0.5.0** — `StepTypeDef` and `AssertionTypeDef` gained an optional
+`validate`, and with it `Validator`, `ValidateContext` and
+`ValidationProblem`. A schema settles the shape of an input and nothing more,
+so anything a plugin knows *about* an input — that the schema file an assertion
+names is on disk, that `over` and `times` exclude each other, that a topic is
+one of the configured ones — had nowhere to be said but the middle of a run,
+from a step type that cannot name the file the mistake is in. The kernel keeps
+the walk and the addressing: a plugin returns messages and, at most, a path
+inside its own step. Synchronous on purpose — validation runs in front of every
+run and is expected to cost milliseconds, so reading a file is fine and a
+network call is not; a validator that throws is reported as a bug in the plugin
+and the rest of the diagnostics still come back. Optional members on existing
+interfaces, so every 0.4.0 plugin still satisfies the contract and
+`PLUGIN_API_VERSION` stays at `1`.
 
 **0.4.0** — `PluginContext` gained `host`, and with it `Host`, `Diagnostic`,
 `ArtifactRecord`, `RunOutcome`, `TestOutcome`, `RecordedRun`, `DiscoverQuery`

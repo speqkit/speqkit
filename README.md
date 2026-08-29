@@ -62,9 +62,11 @@ had ever called it — the console output went straight to `events.subscribe`,
 around the mechanism rather than through it. It is an ordinary reporter now,
 and the default one.
 
-M4 is the ecosystem, and the first two pieces are here: `@speqkit/test-kit`
-runs a plugin inside the real kernel, and `create-speqkit-plugin` scaffolds one
-with those tests already written. Writing the kit found the fourth hole of the
+M4 is the ecosystem, and the first pieces are here: `@speqkit/test-kit`
+runs a plugin inside the real kernel, `create-speqkit-plugin` scaffolds one with
+those tests already written, and a plugin can now check its own inputs before a
+run rather than during one — `StepTypeDef.validate` and
+`AssertionTypeDef.validate`, contract 0.5.0. Writing the kit found the fourth hole of the
 same kind: `AssertContext.results` was documented as every step result so far
 and was always empty, and `${a.value}` in an `assert:` block reported that `a`
 was not defined. The executor discarded the test's own bindings the moment its

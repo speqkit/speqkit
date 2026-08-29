@@ -13,7 +13,7 @@ speqkit-plugin-kafka/
   tsconfig.json
   vitest.config.ts
   src/index.ts          one step type, one assertion, both with schemas
-  test/plugin.test.ts   seven tests, against the real kernel
+  test/plugin.test.ts   eight tests, against the real kernel
   README.md
   .gitignore
 ```

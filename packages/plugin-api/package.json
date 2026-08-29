@@ -1,7 +1,7 @@
 {
   "name": "@speqkit/plugin-api",
-  "version": "0.4.0",
-  "description": "Public contract for speq plugins. Types only \u2014 no runtime.",
+  "version": "0.5.0",
+  "description": "Public contract for speq plugins. Types only — no runtime.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",

@@ -208,6 +208,45 @@ export interface InputSchema {
 /** Marker the kernel substitutes with its own recursive step schema. */
 export const STEPS_SCHEMA = { $ref: '#/definitions/steps' } as const
 
+/**
+ * One thing a plugin found wrong with a step or an assertion it owns.
+ *
+ * A plain string is the same as `{ message }`. The kernel supplies the file
+ * and the address of the step itself, so a plugin can neither get the location
+ * wrong nor have to work it out.
+ */
+export interface ValidationProblem {
+  message: string
+  hint?: string
+  /** Where *inside* the step or assertion, e.g. `schema` or `body.items[0]`. */
+  path?: string
+}
+
+export interface ValidateContext {
+  /** The test this step or assertion belongs to. */
+  readonly test: TestDef
+  /** The file it came from, as it will read in the diagnostic. */
+  readonly file: string
+  /** This plugin's block in speq.yaml, already validated against its schema. */
+  config<T = Record<string, unknown>>(): T
+}
+
+/**
+ * Checks a plugin can make that a schema cannot.
+ *
+ * `schema` says what shape an input has; this says whether it means anything —
+ * that the schema file an assertion names is on disk, that a topic exists in
+ * the config, that two mutually exclusive fields are not both set. Without it
+ * the only place left to find out is the middle of a run, from a step type
+ * that cannot explain which file the mistake is in.
+ *
+ * **Synchronous on purpose.** `speq validate` and the check in front of every
+ * run are expected to cost milliseconds; reading a file here is fine and a
+ * network call is not. A validator that throws is reported as a diagnostic
+ * against the plugin rather than taken as the whole run's failure.
+ */
+export type Validator<T> = (subject: T, ctx: ValidateContext) => (string | ValidationProblem)[] | void
+
 /* ------------------------------------------------------------------ */
 /* Registration surface                                                */
 /* ------------------------------------------------------------------ */
@@ -216,11 +255,15 @@ export interface StepTypeDef {
   schema?: InputSchema
   /** Per-step timeout override, in milliseconds. */
   timeoutMs?: number
+  /** Checks this step means something, beyond having the right shape. */
+  validate?: Validator<StepDef>
   execute(ctx: ExecContext, input: Record<string, unknown>): StepResult | Promise<StepResult>
 }
 
 export interface AssertionTypeDef {
   schema?: InputSchema
+  /** Checks this assertion means something, beyond having the right shape. */
+  validate?: Validator<AssertionDef>
   evaluate(ctx: AssertContext, input: Record<string, unknown>): AssertOutcome | Promise<AssertOutcome>
 }
 

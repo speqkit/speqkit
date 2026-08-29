@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path'
  */
 export const VERSIONS = {
   'speqkit': '^0.2.0',
-  '@speqkit/plugin-api': '^0.4.0',
+  '@speqkit/plugin-api': '^0.5.0',
   '@speqkit/test-kit': '^0.1.0',
   'typescript': '^5.7.2',
   'vitest': '^2.1.8',
@@ -193,6 +193,17 @@ export default definePlugin({
         additionalProperties: false
       },
 
+      // The schema settles shape; this settles whether the input means
+      // anything — a host that resolves, a file that is on disk, two fields
+      // that exclude each other. It runs in front of the run, so the answer
+      // costs milliseconds instead of arriving halfway through one.
+      validate(step) {
+        if (typeof step.to === 'string' && step.to.trim() === '') {
+          return [{ path: 'to', message: "'to' is empty" }]
+        }
+        return []
+      },
+
       async execute(exec, input) {
         const { greeting = 'hello' } = ctx.config<{ greeting?: string }>()
         // \`input\` arrives with every \`\${...}\` already resolved.
@@ -277,6 +288,17 @@ describe('${type}', () => {
 
     expect(diagnostics).toHaveLength(1)
     expect(diagnostics[0]!.message).toContain('to')
+  })
+
+  it('rejects an input the schema cannot judge, before anything runs', async () => {
+    kit = await harness(plugin)
+    const diagnostics = kit.validate([
+      { name: 't', steps: [{ type: '${type}', to: '  ' }], source: 'suites/a.yaml' }
+    ])
+
+    expect(diagnostics).toEqual([
+      { file: 'suites/a.yaml', path: 'steps[0].to', message: "'to' is empty" }
+    ])
   })
 })
 
