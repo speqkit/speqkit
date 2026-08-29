@@ -30,6 +30,22 @@ const echo = definePlugin({
   }
 })
 
+const looper = definePlugin({
+  name: 'looper',
+  setup(ctx) {
+    ctx.defineStepType('loop', {
+      async execute(exec, input) {
+        const seen: unknown[] = []
+        for (const item of input.over as unknown[]) {
+          const records = await exec.runSteps(input.steps as StepDef[], { vars: { item } })
+          seen.push(records.map((r) => r.result))
+        }
+        return { iterations: seen.length, seen }
+      }
+    })
+  }
+})
+
 describe('the kernel knows nothing about any protocol', () => {
   it('runs a step type it has never heard of, contributed at load time', async () => {
     const registry = await registryWith(echo)
@@ -52,22 +68,6 @@ describe('the kernel knows nothing about any protocol', () => {
 describe('control flow is expressible as a plugin', () => {
   // The single most important test in the repository: if this stops passing,
   // control flow has to move into the kernel and the plugin model is a lie.
-  const looper = definePlugin({
-    name: 'looper',
-    setup(ctx) {
-      ctx.defineStepType('loop', {
-        async execute(exec, input) {
-          const seen: unknown[] = []
-          for (const item of input.over as unknown[]) {
-            const records = await exec.runSteps(input.steps as StepDef[], { vars: { item } })
-            seen.push(records.map((r) => r.result))
-          }
-          return { iterations: seen.length, seen }
-        }
-      })
-    }
-  })
-
   it('nests steps, resolves the child variable, and binds the parent result', async () => {
     const registry = await registryWith(echo, looper)
     const outcome = await runTests(registry, [
@@ -99,6 +99,50 @@ describe('control flow is expressible as a plugin', () => {
     ])
     expect(outcome.tests[0]!.steps[1]!.status).toBe('error')
     expect(outcome.tests[0]!.steps[1]!.message).toContain("'item' is not defined")
+  })
+})
+
+describe('an assertion can see what the steps produced', () => {
+  // The contract promises `results` is every step result so far, and the
+  // authoring format lets an assertion say `${id.field}`. Both are read after
+  // the last step has finished, which is the moment the bindings used to be
+  // discarded — so both were broken, in the one place no other test looked.
+  const spy = definePlugin({
+    name: 'spy',
+    setup(ctx) {
+      ctx.defineAssertion('sees', {
+        evaluate: (assert, input) => ({
+          passed: input.expected === input.actual,
+          message: `results: ${Object.keys(assert.results).sort().join(',') || '(none)'}`
+        })
+      })
+    }
+  })
+
+  it('resolves a step id in an assertion, after every step has finished', async () => {
+    const registry = await registryWith(echo, spy)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        steps: [{ id: 'a', type: 'echo', value: 'hello' }],
+        assert: [{ type: 'sees', expected: 'hello', actual: '${a.value}' }]
+      }
+    ])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.assertions[0]!.message).toBe('results: a')
+  })
+
+  it('keeps the parent binding while hiding the child scope', async () => {
+    const registry = await registryWith(echo, looper, spy)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        steps: [{ id: 'l', type: 'loop', over: ['a'], steps: [{ id: 'inner', type: 'echo', value: '${item}' }] }],
+        assert: [{ type: 'sees', expected: 1, actual: '${l.iterations}' }]
+      }
+    ])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.assertions[0]!.message).toBe('results: l')
   })
 })
 

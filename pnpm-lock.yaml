@@ -104,6 +104,12 @@ importers:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
 
   packages/plugin-playwright:
     dependencies:
@@ -124,6 +130,21 @@ importers:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
+  packages/test-kit:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

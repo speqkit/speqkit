@@ -144,25 +144,50 @@ describe('no plugin depends on the kernel', () => {
    * every third-party plugin is copied from, so a kernel dependency here
    * would not stay here.
    */
-  it('names the kernel in no plugin manifest', () => {
-    const offenders: string[] = []
-
+  function pluginPackages(): { dir: string; manifest: Record<string, never> }[] {
+    const out = []
     for (const dir of readdirSync('packages')) {
-      const file = join('packages', dir, 'package.json')
-      let manifest
       try {
-        manifest = JSON.parse(readFileSync(file, 'utf8'))
+        const manifest = JSON.parse(readFileSync(join('packages', dir, 'package.json'), 'utf8'))
+        if (manifest.keywords?.includes('speqkit-plugin')) out.push({ dir, manifest })
       } catch {
         continue
       }
-      if (!manifest.keywords?.includes('speqkit-plugin')) continue
+    }
+    return out
+  }
 
-      for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
+  it('names the kernel in nothing a user of the plugin would install', () => {
+    const offenders: string[] = []
+
+    for (const { manifest } of pluginPackages()) {
+      // `devDependencies` is deliberately not here. A plugin's tests run a
+      // real kernel through `@speqkit/test-kit` — that is the whole point of
+      // the kit — and nothing a consumer installs is affected by it. What
+      // must stay clean is the graph the installer walks.
+      for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
         // Both names: the kernel was published as `@speqkit/core` in the
         // working tree before it became `speqkit`, and a plugin copied from
         // anything written back then would name the old one.
         for (const kernel of ['speqkit', '@speqkit/core']) {
           if (manifest[field]?.[kernel]) offenders.push(`${manifest.name} ${field} ${kernel}`)
+        }
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  it('imports the kernel in no plugin source', () => {
+    const offenders: string[] = []
+
+    for (const { dir, manifest } of pluginPackages()) {
+      const src = join('packages', dir, 'src')
+      for (const file of readdirSync(src)) {
+        if (!file.endsWith('.ts')) continue
+        const source = readFileSync(join(src, file), 'utf8')
+        if (/from '(speqkit|@speqkit\/core)'/.test(source)) {
+          offenders.push(`${manifest.name} src/${file}`)
         }
       }
     }

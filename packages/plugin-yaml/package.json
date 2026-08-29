@@ -1,7 +1,7 @@
 {
   "name": "@speqkit/plugin-yaml",
   "version": "0.1.0",
-  "description": "YAML loader. The default authoring format \u2014 and proof that the format is a plugin.",
+  "description": "YAML loader. The default authoring format — and proof that the format is a plugin.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",
@@ -28,7 +28,9 @@
     "yaml": "^2.6.1"
   },
   "devDependencies": {
-    "@speqkit/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/test-kit": "workspace:*",
+    "speqkit": "workspace:*"
   },
   "files": [
     "dist",

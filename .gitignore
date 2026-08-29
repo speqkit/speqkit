@@ -13,3 +13,7 @@ dist/
 # Standalone binary output: a 116 MB executable and the runtime it is cut
 # from. `node scripts/build-binary.mjs` rebuilds both.
 build/
+
+# Temporary projects the create-speqkit-plugin tests generate. Inside the
+# repository rather than /tmp, so Node resolution finds vitest.
+speq-scaffold-*/

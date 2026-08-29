@@ -23,9 +23,10 @@ import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const run_ = promisify(execFile)
@@ -42,7 +43,11 @@ const binary = binaryFlag >= 0 ? resolve(repo, process.argv[binaryFlag + 1]) : u
 // plugin a new project loads first was the one this never checked.
 const PACKAGES = [
   'plugin-api', 'installer', 'core',
-  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-junit', 'plugin-http', 'plugin-playwright'
+  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-junit', 'plugin-http', 'plugin-playwright',
+  // Not plugins and never installed into a project — packed because the bug
+  // this whole script exists for is a wrong `exports` or a missing `files`,
+  // and these two are published the same way as the rest.
+  'test-kit', 'create-speqkit-plugin'
 ]
 
 const scratch = mkdtempSync(join(tmpdir(), 'speqkit-verify-'))
@@ -87,7 +92,7 @@ for (const file of readdirSync(tarballs)) {
   const manifest = JSON.parse(
     execFileSync('tar', ['-xzOf', join(tarballs, file), 'package/package.json'], { encoding: 'utf8' })
   )
-  registry.set(manifest.name, { manifest, body })
+  registry.set(manifest.name, { manifest, body, file: join(tarballs, file) })
   console.log(`  ${manifest.name}@${manifest.version}  ${(body.length / 1024).toFixed(1)}kb`)
 }
 
@@ -338,6 +343,90 @@ if (binary) {
   replay.code === 0
     ? ok('--frozen replays the commit into a cold store with the tag deleted')
     : bad('--frozen replays the commit into a cold store with the tag deleted', replay.out)
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. The author's side: the scaffolder and the kit, out of the box    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nothing here goes through speq. These two are ordinary npm packages a plugin
+ * author installs, so the question is the one that caught us before: does
+ * `exports` point at something plain Node can load, and does `files` carry it?
+ *
+ * Skipped under --binary, which is about the executable rather than packages.
+ */
+if (binary) {
+  console.log(`\n  \x1b[2mskip  the scaffolder and the kit: packages, not the binary\x1b[0m`)
+} else {
+  console.log('\nscaffolding a plugin, and running the kit from dist')
+
+  const author = join(scratch, 'author')
+  const modules = join(author, 'node_modules')
+  for (const name of ['@speqkit/plugin-api', '@speqkit/installer', 'speqkit', '@speqkit/test-kit', 'create-speqkit-plugin']) {
+    const entry = registry.get(name)
+    const dest = join(modules, name)
+    mkdirSync(dest, { recursive: true })
+    execFileSync('tar', ['-xzf', entry.file, '-C', dest, '--strip-components=1'], { stdio: 'pipe' })
+  }
+  // The third-party half of the kernel's own graph — the kit boots a real
+  // one. Resolved rather than guessed at: under pnpm these are not directories
+  // at the root of node_modules, they are links into the content store.
+  for (const [dep, from] of [['yaml', 'core'], ['semver', 'installer']]) {
+    const require_ = createRequire(join(repo, 'packages', from, 'package.json'))
+    cpSync(dirname(require_.resolve(`${dep}/package.json`)), join(modules, dep), {
+      recursive: true,
+      dereference: true
+    })
+  }
+
+  const node = async (args, cwd = author) => {
+    try {
+      const { stdout, stderr } = await run_(process.execPath, args, { cwd, encoding: 'utf8' })
+      return { code: 0, out: `${stdout}${stderr}` }
+    } catch (err) {
+      return { code: err.code ?? 1, out: `${err.stdout ?? ''}${err.stderr ?? ''}` }
+    }
+  }
+
+  const created = await node([join(modules, 'create-speqkit-plugin/dist/bin.js'), 'demo', '--dir', join(author, 'demo')])
+  const wrote = ['package.json', 'src/index.ts', 'test/plugin.test.ts', 'README.md']
+    .every((f) => existsSync(join(author, 'demo', f)))
+  created.code === 0 && wrote
+    ? ok('create-speqkit-plugin writes a plugin')
+    : bad('create-speqkit-plugin writes a plugin', created.out)
+
+  // The generated package.json is what npm will be handed, so it is read back
+  // rather than assumed: the contract stays a peer, and nothing depends on the
+  // kernel — the same rule the store check above enforces from the other end.
+  if (wrote) {
+    const generated = JSON.parse(readFileSync(join(author, 'demo', 'package.json'), 'utf8'))
+    !generated.dependencies && generated.peerDependencies?.['@speqkit/plugin-api']
+      ? ok('the generated plugin takes the contract as a peer and depends on nothing')
+      : bad('the generated plugin takes the contract as a peer and depends on nothing', JSON.stringify(generated, null, 2))
+  }
+
+  // The kit, driven by plain Node against the published dist — a real
+  // Registry, a real Executor, a real step.
+  writeFileSync(
+    join(author, 'drive.mjs'),
+    [
+      "import { harness } from '@speqkit/test-kit'",
+      "const kit = await harness({ name: 'demo', setup: (ctx) => ctx.defineStepType('ping', {",
+      '  execute: (_e, input) => ({ pong: input.to })',
+      '}) })',
+      "const step = await kit.step({ type: 'ping', to: 'world' })",
+      'await kit.close()',
+      "if (step.status !== 'passed' || step.result.pong !== 'world') {",
+      '  throw new Error(`kit returned ${JSON.stringify(step)}`)',
+      '}',
+      "process.stdout.write('kit ok\\n')"
+    ].join('\n')
+  )
+  const drove = await node([join(author, 'drive.mjs')])
+  drove.code === 0 && drove.out.includes('kit ok')
+    ? ok('@speqkit/test-kit runs a step under plain node, from dist')
+    : bad('@speqkit/test-kit runs a step under plain node, from dist', drove.out)
 }
 
 /* ------------------------------------------------------------------ */

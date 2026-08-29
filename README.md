@@ -17,8 +17,8 @@ it and publishes it; nothing needs to be agreed with us first.
 
 ## Status
 
-M0, M1, M2 and the architecture gate are done.
-All nine packages are published — the kernel as `speqkit`, the contract and
+M0, M1, M2 and the architecture gate are done; M4 has started.
+All nine published packages are up — the kernel as `speqkit`, the contract and
 the plugins under `@speqkit` — so `npm i -g speqkit` installs the `speq`
 binary from the registry rather than from this checkout.
 
@@ -62,6 +62,36 @@ had ever called it — the console output went straight to `events.subscribe`,
 around the mechanism rather than through it. It is an ordinary reporter now,
 and the default one.
 
+M4 is the ecosystem, and the first two pieces are here: `@speqkit/test-kit`
+runs a plugin inside the real kernel, and `create-speqkit-plugin` scaffolds one
+with those tests already written. Writing the kit found the fourth hole of the
+same kind: `AssertContext.results` was documented as every step result so far
+and was always empty, and `${a.value}` in an `assert:` block reported that `a`
+was not defined. The executor discarded the test's own bindings the moment its
+last step finished — before assertions run, and nowhere else. Fixed, with the
+two tests that were missing.
+
+## Writing a plugin
+
+```bash
+npm create speqkit-plugin kafka
+cd speqkit-plugin-kafka && npm install && npm test
+```
+
+The scaffold makes the decisions that are easy to get wrong: the contract is a
+peer, nothing depends on the kernel, the step type and the assertion carry
+schemas, and the `speqkit-plugin` keyword is there so the package can be found.
+Its tests use `@speqkit/test-kit`, which assembles the real `Registry`,
+`Executor` and runner — there are no fakes to drift, and green means it works
+in a project.
+
+```ts
+const kit = await harness(plugin, { config: { kafka: { brokers: [] } } })
+const step = await kit.step({ type: 'kafka.publish', topic: 'orders' })
+expect(step.result.offset).toBe(0)
+await kit.close()
+```
+
 ## Try it
 
 ```bash
@@ -101,14 +131,18 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speqkit/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
 | `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
 | `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
+| `@speqkit/test-kit` | Runs a plugin inside the real kernel, so an author can test one without a project. Not a plugin. |
+| `create-speqkit-plugin` | `npm create speqkit-plugin <name>` — source, tests and the decisions already made. Not a plugin. |
 
 Every `plugin-*` above depends on `@speqkit/plugin-api` and on nothing else of
 ours — never on the kernel. A plugin runs *inside* a kernel and reaches it as
 `ctx.host`; one that imports `speqkit` instead ships a second kernel in
 its `dependencies`, which the installer will faithfully put in the store and
 the plugin will faithfully boot. `packages/core/test/host.test.ts` fails if any
-manifest here names the kernel, and `scripts/verify-publish.mjs` fails if one
-ever reaches the store.
+manifest here names the kernel in what a user would install, or if any plugin
+source imports it, and `scripts/verify-publish.mjs` fails if one ever reaches
+the store. `@speqkit/test-kit` names the kernel deliberately, as a peer: it is
+not a plugin, it boots one.
 
 ## Using it in a repository that is not a Node project
 
@@ -201,6 +235,10 @@ that is not ours to npm, since our packages have ordinary dependencies),
 installs them into a throwaway store, and runs the CLI out of `dist` with plain
 `node`. Then it pulls the plug on the registry and checks `--frozen` still
 replays the lock.
+
+It ends on the author's side of the same question: it scaffolds a plugin with
+the packed `create-speqkit-plugin`, reads back the `package.json` npm would be
+handed, and drives `@speqkit/test-kit` from `dist` under plain `node`.
 
 ### Building the standalone binary
 

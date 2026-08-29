@@ -61,8 +61,23 @@ export class Executor {
     return { frames: this.#frames, providers }
   }
 
+  /**
+   * The outermost call runs *in* the base frame rather than pushing one.
+   *
+   * A nested call must have a child scope — that is the whole of what `loop`
+   * asks for. But the test's own steps are not nested inside anything, and
+   * pushing a frame for them meant it was popped again the moment the last
+   * step finished, taking every `id` binding with it. Assertions run after
+   * that point: `${a.value}` reported that 'a' is not defined, and
+   * `AssertContext.results` — documented as every step result so far — was
+   * always empty. Only the depth-0 case was ever wrong, which is why it
+   * survived: within one `runSteps` the frame is still there, so steps could
+   * always read each other.
+   */
   async runSteps(steps: StepDef[], options: RunStepsOptions = {}): Promise<StepRecord[]> {
-    this.#frames.unshift({ ...(options.vars ?? {}) })
+    const nested = this.#depth > 0
+    if (nested) this.#frames.unshift({ ...(options.vars ?? {}) })
+    else Object.assign(this.#frames[0]!, options.vars ?? {})
     this.#depth += 1
     try {
       const records: StepRecord[] = []
@@ -74,7 +89,7 @@ export class Executor {
       return records
     } finally {
       this.#depth -= 1
-      this.#frames.shift()
+      if (nested) this.#frames.shift()
     }
   }
 

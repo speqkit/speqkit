@@ -1,7 +1,7 @@
 {
-  "name": "@speqkit/plugin-loop",
+  "name": "@speqkit/test-kit",
   "version": "0.1.0",
-  "description": "Control flow as a plugin: loop, repeat, retry. Nothing of this lives in the kernel.",
+  "description": "Test a speq plugin against the real kernel, without a project.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/speqkit/speqkit.git",
-    "directory": "packages/plugin-loop"
+    "directory": "packages/test-kit"
   },
   "type": "module",
   "exports": {
@@ -19,14 +19,15 @@
     }
   },
   "keywords": [
-    "speqkit-plugin"
+    "speqkit",
+    "testing"
   ],
   "peerDependencies": {
-    "@speqkit/plugin-api": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^",
+    "speqkit": "workspace:^"
   },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*",
-    "@speqkit/test-kit": "workspace:*",
     "speqkit": "workspace:*"
   },
   "files": [
