@@ -295,13 +295,14 @@ describe('case 3 — a test writes a variable and reuses it', () => {
     expect(((nested.result.r as { result: { seen: string[] } }[])[0]!).result.seen).toEqual(['inner'])
   })
 
-  it('leaks a Promise when a value provider is async, which the type allows', async () => {
+  it('awaits a value provider that answers asynchronously', async () => {
     const kit = await harness(varsPlugin(), { with: [echo] })
     const step = await kit.step({ type: 'echo', value: '${slow:key}' })
     await kit.close()
 
-    // THE GAP: ValueProviderDef.resolve is typed `unknown | Promise<unknown>`
-    // and lookupPath never awaits it.
-    expect(step.result.value).toBeInstanceOf(Promise)
+    // Was the fourth gap, and the one that blocked the freeze: `resolve` is
+    // declared as maybe-async and the kernel now awaits it, rather than
+    // putting the Promise itself into the step's input.
+    expect(step.result.value).toBe('async-key')
   })
 })

@@ -11,6 +11,6 @@ export { startReporters, replayRun, selectReporters, runDirFor, type ReporterSes
 export { Registry, shortName } from './registry.js'
 export { Executor } from './executor.js'
 export { EventBus } from './events.js'
-export { resolveDeep, resolveString, UnresolvedError } from './interpolate.js'
+export { resolveDeep, resolveDeepAsync, resolveString, AsyncProviderError, UnresolvedError } from './interpolate.js'
 export { createHost, type HostSession } from './host.js'
 export { bootstrap, type Session, type BootstrapOptions } from './bootstrap.js'

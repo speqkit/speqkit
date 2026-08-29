@@ -299,6 +299,22 @@ export interface ReporterDef {
 export interface ValueProviderDef {
   /** The prefix this provider claims, e.g. `env` for `${env:HOME}`. */
   prefix: string
+  /**
+   * Answer one key.
+   *
+   * May take its time — a secret from a vault, a row from a database. speq
+   * asks every provider a step input or an assertion names before the step
+   * runs, all of them at once, and awaits them together.
+   *
+   * Asked once per resolution pass rather than once per `${...}`, so a key
+   * written twice in one step is one call: a provider is a lookup, not a
+   * generator. The pass is one step wide, so a value that changed between two
+   * steps is read again by the second.
+   *
+   * `ExecContext.resolve` is synchronous by contract and cannot wait: a
+   * template a plugin resolves by hand throws rather than handing back a
+   * Promise it would put in a request body unnoticed.
+   */
   resolve(key: string): unknown | Promise<unknown>
 }
 

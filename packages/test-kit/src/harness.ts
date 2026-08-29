@@ -6,7 +6,7 @@ import type {
   RunEvent, RunOutcome, StepDef, StepRecord, TestDef
 } from '@speqkit/plugin-api'
 import {
-  Executor, Registry, createHost, resolveDeep, resolveString, runTests, validateTests
+  Executor, Registry, createHost, resolveDeep, resolveDeepAsync, resolveString, runTests, validateTests
 } from 'speqkit'
 
 /**
@@ -145,7 +145,7 @@ export class Harness {
       resource: <T>(name: string) =>
         this.registry.resources.acquire(name, (p) => this.registry.configFor(p)) as Promise<T>
     }
-    const resolved = resolveDeep(scope, { ...assertion }) as Record<string, unknown>
+    const resolved = (await resolveDeepAsync(scope, { ...assertion })) as Record<string, unknown>
     const outcome = await entry.def.evaluate(ctx, resolved)
     return { type: assertion.type, ...outcome }
   }

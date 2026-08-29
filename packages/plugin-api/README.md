@@ -88,6 +88,13 @@ and the rest of the diagnostics still come back. Optional members on existing
 interfaces, so every 0.4.0 plugin still satisfies the contract and
 `PLUGIN_API_VERSION` stays at `1`.
 
+Also in 0.5.0, with no change to any type: `ValueProviderDef.resolve` has
+always been declared as `unknown | Promise<unknown>`, and the kernel now
+honours it. It used to drop the Promise itself into the request body, silently.
+A provider is asked once per resolution pass and every key a step needs is
+awaited at once; `ExecContext.resolve` stays synchronous, and throws where a
+template it is handed names an asynchronous provider.
+
 **0.4.0** — `PluginContext` gained `host`, and with it `Host`, `Diagnostic`,
 `ArtifactRecord`, `RunOutcome`, `TestOutcome`, `RecordedRun`, `DiscoverQuery`
 and `RunRequest`. A plugin that needed to discover, validate, run or replay

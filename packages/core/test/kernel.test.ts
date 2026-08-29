@@ -353,3 +353,133 @@ describe('a plugin checks its own inputs, beyond their shape', () => {
     expect(validateTests(registry, [{ name: 't', source: 'a.yaml', steps: [{ type: 'echo' }] }])).toEqual([])
   })
 })
+
+describe('a value provider may take its time', () => {
+  /**
+   * A secret lives in a vault, a fixture lives in a database: the answer to
+   * `${...}` is not always in memory. The contract has always typed `resolve`
+   * as maybe-async; until now the kernel never awaited it and put the Promise
+   * itself into the request body, silently.
+   *
+   * The awaiting happens where speq resolves a step input or an assertion, so
+   * `ExecContext.resolve` stays synchronous for plugins.
+   */
+  function vault(log: string[] = [], delayMs = 0) {
+    return definePlugin({
+      name: 'vault',
+      setup(ctx) {
+        ctx.defineValueProvider('vault', {
+          prefix: 'vault',
+          async resolve(key) {
+            log.push(key)
+            if (delayMs) await new Promise((r) => setTimeout(r, delayMs))
+            if (key === 'missing') throw new Error('no such secret')
+            return `secret-${key}`
+          }
+        })
+      }
+    })
+  }
+
+  it('awaits the provider instead of handing the step a Promise', async () => {
+    const registry = await registryWith(echo, vault())
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ id: 'a', type: 'echo', value: '${vault:token}' }] }
+    ])
+
+    expect(outcome.tests[0]!.steps[0]!.result.value).toBe('secret-token')
+  })
+
+  it('asks once per step, however many times the key is written', async () => {
+    const log: string[] = []
+    const registry = await registryWith(echo, vault(log))
+    await runTests(registry, [
+      {
+        name: 't',
+        steps: [
+          { type: 'echo', value: '${vault:token} and ${vault:token}', other: ['${vault:token}'] },
+          { type: 'echo', value: '${vault:token}' }
+        ]
+      }
+    ])
+
+    // A provider is a lookup, not a generator — but the pass is one step
+    // wide, so a value that changed between the two steps is read again.
+    expect(log).toEqual(['token', 'token'])
+  })
+
+  it('asks for every key it needs at once, not one after another', async () => {
+    const registry = await registryWith(echo, vault([], 60))
+    const started = Date.now()
+    await runTests(registry, [
+      { name: 't', steps: [{ type: 'echo', a: '${vault:one}', b: '${vault:two}', c: '${vault:three}' }] }
+    ])
+
+    expect(Date.now() - started).toBeLessThan(150)
+  })
+
+  it('errors the step when the provider rejects, with the reason it gave', async () => {
+    const registry = await registryWith(echo, vault())
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'echo', value: '${vault:missing}' }] }
+    ])
+
+    expect(outcome.tests[0]!.steps[0]!.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.message).toBe('no such secret')
+  })
+
+  it('resolves an assertion the same way', async () => {
+    const registry = await registryWith(echo, vault())
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        steps: [{ type: 'echo', value: 'secret-token' }],
+        assert: [{ type: 'equals', expected: '${vault:token}' }]
+      }
+    ])
+
+    expect(outcome.status).toBe('passed')
+  })
+
+  it('gives a step its timeout to wait, rather than hanging on the provider', async () => {
+    // Short enough that the timer this leaves behind does not outlive the
+    // test run, long enough that the step's timeout wins.
+    const registry = await registryWith(echo, vault([], 200))
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'echo', timeout: 20, value: '${vault:token}' }] }
+    ])
+
+    expect(outcome.tests[0]!.steps[0]!.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.message).toContain('timed out')
+  })
+
+  it('tells a plugin resolving by hand that this one cannot be awaited', async () => {
+    const byHand = definePlugin({
+      name: 'by-hand',
+      setup: (ctx) =>
+        ctx.defineStepType('by-hand', {
+          execute: (exec) => ({ value: exec.resolve('${vault:token}') })
+        })
+    })
+    const registry = await registryWith(byHand, vault())
+    const outcome = await runTests(registry, [{ name: 't', steps: [{ type: 'by-hand' }] }])
+
+    // Rather than a Promise ending up in the result, which is what the old
+    // behaviour did everywhere.
+    expect(outcome.tests[0]!.steps[0]!.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.message).toContain('answers asynchronously')
+  })
+
+  it('leaves a synchronous provider synchronous', async () => {
+    const now = definePlugin({
+      name: 'now',
+      setup: (ctx) => ctx.defineValueProvider('now', { prefix: 'now', resolve: (key) => `${key}!` })
+    })
+    const registry = await registryWith(echo, now)
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'echo', value: '${now:hi}' }] }
+    ])
+
+    expect(outcome.tests[0]!.steps[0]!.result.value).toBe('hi!')
+  })
+})

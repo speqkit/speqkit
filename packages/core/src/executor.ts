@@ -2,7 +2,9 @@ import type {
   StepDef, StepRecord, StepResult, RunStepsOptions, ExecContext, StepStatus
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
-import { resolveDeep, resolveString, type ResolveScope } from './interpolate.js'
+import {
+  resolveDeep, resolveDeepAsync, resolveString, type ResolveScope, type ValueProviderFn
+} from './interpolate.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -54,7 +56,7 @@ export class Executor {
   }
 
   scope(): ResolveScope {
-    const providers = new Map<string, (key: string) => unknown>()
+    const providers = new Map<string, ValueProviderFn>()
     for (const [, { def }] of this.#registry.valueProviders) {
       providers.set(def.prefix, (key) => def.resolve(key))
     }
@@ -121,7 +123,10 @@ export class Executor {
 
     let record: StepRecord
     try {
-      const input = this.#prepareInput(step)
+      // Under the same timeout as the step itself: a value provider that
+      // answers over the network can hang, and a hang before the step is
+      // still the step taking too long.
+      const input = await withTimeout(this.#prepareInput(step), controller.signal)
       const ctx = this.#execContext(controller.signal, entry.owner)
       const result = await withTimeout(entry.def.execute(ctx, input), controller.signal)
       const bound = (result ?? {}) as StepResult
@@ -164,13 +169,21 @@ export class Executor {
    * Inputs are resolved against the current scope — except nested `steps`,
    * which are handed to the plugin untouched. A loop's body must be resolved
    * once per iteration, in the child scope the loop itself creates.
+   *
+   * The whole input is resolved in one pass, so a value provider named twice
+   * in one step is asked once.
    */
-  #prepareInput(step: StepDef): Record<string, unknown> {
-    const scope = this.scope()
-    const input: Record<string, unknown> = {}
+  async #prepareInput(step: StepDef): Promise<Record<string, unknown>> {
+    const templated: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(step)) {
+      if (!RESERVED_INPUT.has(key) && key !== 'steps') templated[key] = value
+    }
+    const resolved = await resolveDeepAsync(this.scope(), templated)
+
+    const input: Record<string, unknown> = {}
+    for (const key of Object.keys(step)) {
       if (RESERVED_INPUT.has(key)) continue
-      input[key] = key === 'steps' ? value : resolveDeep(scope, value)
+      input[key] = key === 'steps' ? step[key] : resolved[key]
     }
     return input
   }

@@ -7,7 +7,7 @@ import { Executor } from './executor.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
 import { RunLog } from './run-log.js'
 import { startReporters, runDirFor } from './reporters.js'
-import { resolveDeep, resolveString } from './interpolate.js'
+import { resolveDeep, resolveDeepAsync, resolveString } from './interpolate.js'
 
 export type { RunOutcome, TestOutcome }
 
@@ -164,7 +164,7 @@ async function runOne(
           })
           continue
         }
-        const input = resolveDeep(executor.scope(), { ...assertion }) as Record<string, unknown>
+        const input = (await resolveDeepAsync(executor.scope(), { ...assertion })) as Record<string, unknown>
         try {
           const outcome = await entry.def.evaluate(ctx, input)
           assertions.push({ type: assertion.type, ...outcome })
