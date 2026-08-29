@@ -17,7 +17,7 @@ it and publishes it; nothing needs to be agreed with us first.
 
 ## Status
 
-M0, M1 and the architecture gate are done; M2 is most of the way there.
+M0, M1, M2 and the architecture gate are done.
 All nine packages are published — the kernel as `speqkit`, the contract and
 the plugins under `@speqkit` — so `npm i -g speqkit` installs the `speq`
 binary from the registry rather than from this checkout.
@@ -34,8 +34,11 @@ worked around.
 M2 is the installer: `speq install` resolves against the npm registry over
 HTTP, verifies hashes, extracts into `~/.speq` and writes `speq.lock` — without
 `npm`, `pnpm` or a `node_modules` in the project. `--frozen`, `add`, `remove`
-and `link` work. `github:` specs do not yet; see
-`packages/installer/README.md`.
+and `link` work, and a plugin can come from a repository as well as from the
+registry: `github:acme/plugin#v2`, `git+ssh://…#main`, or a tarball URL. A ref
+is resolved to a commit at install time and only the commit is locked, so
+`--frozen` in CI installs what was reviewed rather than wherever a tag has
+moved since. See `packages/installer/README.md`.
 
 Step zero is closed too. `scripts/build-binary.mjs` produces one executable
 with a pinned Node inside it, so a Go or Python repository can install a test

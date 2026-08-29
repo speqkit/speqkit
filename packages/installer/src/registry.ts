@@ -61,11 +61,23 @@ export function npmRegistry(options: NpmRegistryOptions = {}): RegistryClient {
     },
 
     async tarball(url) {
-      const response = await doFetch(url, { headers })
+      // The token goes to the registry and nowhere else. A packument names
+      // the host its own tarballs live on, and a spec in speq.yaml can name
+      // any host at all; sending a private-scope credential to whichever one
+      // turned up in a URL is how a token leaves the building.
+      const response = await doFetch(url, { headers: sameOrigin(url, base) ? headers : {} })
       if (!response.ok) {
-        throw new Error(`could not download ${url}: registry answered ${response.status}`)
+        throw new Error(`could not download ${url}: answered ${response.status}`)
       }
       return new Uint8Array(await response.arrayBuffer())
     }
+  }
+}
+
+function sameOrigin(url: string, base: string): boolean {
+  try {
+    return new URL(url).origin === new URL(base).origin
+  } catch {
+    return false
   }
 }

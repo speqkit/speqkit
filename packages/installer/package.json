@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/installer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Resolves plugins against the npm registry, verifies them, and puts them in the store. No npm CLI involved.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

@@ -4,6 +4,7 @@ import { resolveGraph, type ResolvedPackage } from './resolve.js'
 import { keyOf, parseKey, readLock, writeLock, type LockFile, type LockedRoot } from './lock.js'
 import { readLinks } from './links.js'
 import { parseSpec } from './spec.js'
+import { fetchCommit } from './git.js'
 
 export type InstallEvent =
   | { type: 'resolving'; specs: number }
@@ -63,7 +64,7 @@ export async function install(options: InstallOptions): Promise<InstallResult> {
   if (presetSpecs.length > 0) {
     const presetGraph = options.frozen
       ? closure(lock!, matchRoots(lock!.presets, presetSpecs, 'preset'))
-      : (await resolveGraph(presetSpecs, client)).packages
+      : (await resolveGraph(presetSpecs, client, { store })).packages
     await materialiseAll(presetGraph, store, client, emit, installed)
   }
 
@@ -72,7 +73,7 @@ export async function install(options: InstallOptions): Promise<InstallResult> {
 
   const graph: Graph = options.frozen
     ? frozenGraph(lock!, presetSpecs, pluginSpecs)
-    : await freshGraph(presetSpecs, pluginSpecs, client, emit)
+    : await freshGraph(presetSpecs, pluginSpecs, client, emit, store)
 
   await materialiseAll(graph.packages, store, client, emit, installed)
 
@@ -119,10 +120,11 @@ async function freshGraph(
   presetSpecs: string[],
   pluginSpecs: string[],
   client: RegistryClient,
-  emit: (event: InstallEvent) => void
+  emit: (event: InstallEvent) => void,
+  store: Store
 ): Promise<Graph> {
   emit({ type: 'resolving', specs: presetSpecs.length + pluginSpecs.length })
-  const resolved = await resolveGraph([...presetSpecs, ...pluginSpecs], client)
+  const resolved = await resolveGraph([...presetSpecs, ...pluginSpecs], client, { store })
 
   for (const pkg of resolved.packages.values()) {
     for (const peer of pkg.optionalPeers) {
@@ -204,11 +206,26 @@ async function materialiseAll(
       continue
     }
 
-    const bytes = await client.tarball(pkg.resolved)
-    if (pkg.integrity) verifyIntegrity(bytes, pkg.integrity)
-    else emit({ type: 'warning', message: `${pkg.name}@${pkg.version} publishes no integrity hash` })
-
-    store.add(pkg.name, pkg.version, bytes)
+    // Three ways a package becomes files in the store, and the lock says
+    // which without needing a field for it: a `git+` URL is a repository, and
+    // everything else is a tarball to download and verify.
+    if (pkg.localDir) {
+      store.addDirectory(pkg.name, pkg.version, pkg.localDir)
+    } else if (pkg.resolved.startsWith('git+')) {
+      // The replay path: --frozen in CI, where nothing was resolved and the
+      // commit comes straight out of the lock.
+      const hash = pkg.resolved.lastIndexOf('#')
+      if (hash < 0) throw new Error(`speq.lock has '${pkg.resolved}' with no commit pinned. Run 'speq install'.`)
+      const url = pkg.resolved.slice('git+'.length, hash)
+      const commit = pkg.resolved.slice(hash + 1)
+      const dir = fetchCommit({ raw: pkg.resolved, url }, commit, store.gitCache())
+      store.addDirectory(pkg.name, pkg.version, dir)
+    } else {
+      const bytes = pkg.bytes ?? (await client.tarball(pkg.resolved))
+      if (pkg.integrity) verifyIntegrity(bytes, pkg.integrity)
+      else emit({ type: 'warning', message: `${pkg.name}@${pkg.version} publishes no integrity hash` })
+      store.add(pkg.name, pkg.version, bytes)
+    }
     emit({ type: 'package', name: pkg.name, version: pkg.version, source: 'downloaded' })
     into.push({ name: pkg.name, version: pkg.version, source: 'downloaded' })
   }

@@ -1,10 +1,19 @@
+import { isGitSpec } from './git.js'
+
 /**
- * Plugin specs, as written in speq.yaml. All four of these are the same thing:
+ * Plugin specs, as written in speq.yaml. All four of these name a package in
+ * a registry, which is where plugins normally come from:
  *
- *   http                          short name, ours
+ *   http                             short name, ours
  *   @speqkit/plugin-http@^2.1.0      full name with a range
  *   speqkit-plugin-kafka             community convention, unscoped
  *   @acme/speqkit-plugin-legacy      a company's private scope
+ *
+ * Three other kinds exist, and `classifySpec` tells them apart:
+ *
+ *   github:acme/plugin#v2            a repository — see git.ts
+ *   https://acme.dev/plugin-1.0.tgz  a tarball at a URL
+ *   ./local/plugin                   a path, resolved by the kernel, not here
  */
 
 export interface PluginSpec {
@@ -18,6 +27,14 @@ export interface PluginSpec {
 
 export function parseSpec(raw: string): PluginSpec {
   const trimmed = raw.trim()
+
+  // A URL is not a name with a range on the end. `git+ssh://git@host/x.git`
+  // has an `@` in it that means something else entirely, and splitting there
+  // produces a package called `git+ssh://git` nobody will ever find.
+  if (classifySpec(trimmed) !== 'registry') {
+    return { raw: trimmed, name: trimmed, range: '*', short: false }
+  }
+
   const at = trimmed.lastIndexOf('@')
   const hasRange = at > 0 && !trimmed.slice(at + 1).includes('/')
 
@@ -43,22 +60,30 @@ export function isPathSpec(name: string): boolean {
   return name.startsWith('.') || name.startsWith('/') || name.startsWith('file:')
 }
 
-/**
- * Everything the registry cannot answer for.
- *
- * The design promises git and tarball URLs eventually; until they exist, a
- * spec that names one has to say so. Left alone it becomes a 404 for a
- * package called `github:acme/thing`, which sends the reader looking in
- * exactly the wrong place.
- */
-const NON_REGISTRY = /^(github|gitlab|bitbucket|git|git\+https?|git\+ssh|https?):/i
+export type SpecKind = 'registry' | 'git' | 'tarball' | 'path'
 
-export function assertRegistrySpec(spec: string): void {
-  const match = NON_REGISTRY.exec(spec.trim())
-  if (!match) return
-  throw new Error(
-    `'${spec}' is a ${match[1]} source, and this build installs from the npm registry only.\n` +
-      `  A local checkout works today: speq link <path>\n` +
-      `  So does a private registry, via SPEQ_REGISTRY and NPM_TOKEN.`
-  )
+/** A URL ending in a tarball extension, and nothing else over plain http. */
+const TARBALL = /^https?:\/\/\S+\.(tgz|tar\.gz)(\?\S*)?$/i
+
+/**
+ * Which of the four sources a spec names.
+ *
+ * The one case worth spelling out is a bare `https://` URL that is not a
+ * tarball. Left to fall through it would be looked up as a package whose name
+ * begins with `https:`, and the 404 would send the reader looking in exactly
+ * the wrong place.
+ */
+export function classifySpec(raw: string): SpecKind {
+  const spec = raw.trim()
+  if (isPathSpec(spec)) return 'path'
+  if (isGitSpec(spec)) return 'git'
+  if (TARBALL.test(spec)) return 'tarball'
+  if (/^https?:/i.test(spec)) {
+    throw new Error(
+      `'${spec}' is a URL but not a tarball, and speq will not guess what is at the other end.\n` +
+        `  A repository: git+${spec}#<ref>, or github:owner/repo#<ref>\n` +
+        `  A packed tarball: the URL has to end in .tgz or .tar.gz`
+    )
+  }
+  return 'registry'
 }

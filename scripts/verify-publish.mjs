@@ -172,7 +172,7 @@ writeFileSync(
  * a synchronous child would block the very server it is about to call and the
  * whole thing would deadlock — which is exactly what it did the first time.
  */
-const speq = async (args, extraEnv = {}) => {
+const speq = async (args, extraEnv = {}, cwd = project) => {
   const env = { ...process.env, SPEQ_HOME: store, SPEQ_REGISTRY: base, ...extraEnv }
   // Emptied under --binary, and only there: the entire claim of that artefact
   // is that the machine needs nothing on it, and a `node` still answering from
@@ -183,7 +183,7 @@ const speq = async (args, extraEnv = {}) => {
     : [process.execPath, [join(repo, 'packages/core/dist/bin.js'), ...args]]
   try {
     const { stdout, stderr } = await run_(command, argv, {
-      cwd: project,
+      cwd,
       env,
       encoding: 'utf8'
     })
@@ -252,6 +252,93 @@ const frozen = await speq(['install', '--frozen'], { SPEQ_REGISTRY: 'http://127.
 frozen.code === 0
   ? ok('--frozen replays the lock with the registry unreachable')
   : bad('--frozen replays the lock with the registry unreachable', frozen.out)
+
+/* ------------------------------------------------------------------ */
+/* 5. A plugin that never went near a registry                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `git+file://` is a real remote as far as git is concerned, so this walks
+ * exactly the code `github:acme/plugin` walks — ls-remote, a shallow fetch of
+ * one commit, the checkout, the store — with no fixture host to stand up.
+ *
+ * Skipped against the standalone binary, and the reason is the point of that
+ * mode rather than a gap in it: PATH is emptied there to prove the machine
+ * needs nothing, and a git spec is the one thing that does need something.
+ */
+if (binary) {
+  console.log(`\n  \x1b[2mskip  git specs: --binary runs with PATH emptied, and git is the one thing they need\x1b[0m`)
+} else {
+  console.log('\ninstalling a plugin out of a repository')
+
+  const repo = join(scratch, 'plugin-repo')
+  const gitProject = join(scratch, 'git-project')
+  mkdirSync(join(repo, 'dist'), { recursive: true })
+  writeFileSync(
+    join(repo, 'package.json'),
+    JSON.stringify({ name: 'speqkit-plugin-fromgit', version: '1.4.0', type: 'module', main: 'dist/index.js' })
+  )
+  writeFileSync(
+    join(repo, 'dist', 'index.js'),
+    `export default {\n` +
+      `  name: 'speqkit-plugin-fromgit',\n` +
+      `  setup(ctx) {\n` +
+      `    ctx.defineStepType('fromgit', { execute: () => ({ body: { ok: true } }) })\n` +
+      `  }\n` +
+      `}\n`
+  )
+  const git = (args) =>
+    execFileSync('git', args, {
+      cwd: repo,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'speq', GIT_AUTHOR_EMAIL: 'speq@example.com',
+        GIT_COMMITTER_NAME: 'speq', GIT_COMMITTER_EMAIL: 'speq@example.com'
+      }
+    }).trim()
+
+  git(['init', '--quiet', '--initial-branch', 'main'])
+  git(['add', '.'])
+  git(['commit', '--quiet', '-m', 'a plugin nobody published'])
+  git(['tag', 'v1.4.0'])
+  const commit = git(['rev-parse', 'HEAD'])
+
+  mkdirSync(join(gitProject, 'suites'), { recursive: true })
+  writeFileSync(
+    join(gitProject, 'speq.yaml'),
+    `version: 1\n\nplugins:\n  - yaml\n  - cli\n  - "git+file://${repo}#v1.4.0"\n`
+  )
+  writeFileSync(
+    join(gitProject, 'suites', 'fromgit.yaml'),
+    'name: a plugin from a repository contributes a step\n\nsteps:\n  - id: it\n    type: fromgit\n'
+  )
+
+  const gitInstall = await speq(['install'], {}, gitProject)
+  console.log(gitInstall.out.split('\n').map((l) => `  ${l}`).join('\n').trimEnd())
+  gitInstall.code === 0 ? ok('a git spec installs') : bad('a git spec installs', gitInstall.out)
+
+  // The commit, never the tag. A tag moves, and CI has to install the code
+  // that was reviewed rather than whatever the tag points at that morning.
+  const gitLock = readFileSync(join(gitProject, 'speq.lock'), 'utf8')
+  gitLock.includes(`#${commit}`)
+    ? ok('the lock pins the commit, not the ref')
+    : bad('the lock pins the commit, not the ref', gitLock)
+
+  const gitRun = await speq(['run'], {}, gitProject)
+  gitRun.code === 0
+    ? ok('its step type runs')
+    : bad(`its step type runs (exit ${gitRun.code})`, gitRun.out)
+
+  // The store is thrown away and the tag deleted: only the lock knows where
+  // the code is now. This is the CI case, and the only one that matters.
+  git(['tag', '-d', 'v1.4.0'])
+  const replay = await speq(['install', '--frozen'], { SPEQ_HOME: join(scratch, 'cold-store') }, gitProject)
+  replay.code === 0
+    ? ok('--frozen replays the commit into a cold store with the tag deleted')
+    : bad('--frozen replays the commit into a cold store with the tag deleted', replay.out)
+}
 
 /* ------------------------------------------------------------------ */
 

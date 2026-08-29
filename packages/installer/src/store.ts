@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { extractTarGz } from './tar.js'
@@ -55,6 +55,53 @@ export class Store {
       mkdirSync(dirname(file), { recursive: true })
       writeFileSync(file, entry.body, { mode: entry.mode & 0o777 })
     }
+
+    mkdirSync(dirname(this.virtualDir(name, version)), { recursive: true })
+    rmSync(this.virtualDir(name, version), { recursive: true, force: true })
+    renameSync(staging, this.virtualDir(name, version))
+    return target
+  }
+
+  /**
+   * Where a checkout of a repository is kept before it becomes a package.
+   *
+   * Beside the store rather than inside it: entries here are keyed by commit,
+   * not by name and version, and `speq doctor` counting them as packages
+   * would be wrong in a way that is annoying to work out.
+   */
+  gitCache(): string {
+    return join(this.root, 'git')
+  }
+
+  /**
+   * The same as `add`, from a directory instead of a tarball — a git checkout
+   * has already been unpacked by git.
+   *
+   * Symlinks are refused rather than copied, for the reason tar.ts refuses
+   * them: a link is how a package escapes the directory it was given, and a
+   * plugin that needs one is a plugin we do not install.
+   */
+  addDirectory(name: string, version: string, from: string): string {
+    const target = this.pathFor(name, version)
+    if (this.has(name, version)) return target
+
+    const staging = `${this.virtualDir(name, version)}.tmp-${process.pid}-${Date.now()}`
+    rmSync(staging, { recursive: true, force: true })
+    const stagedPackage = join(staging, 'node_modules', name)
+    mkdirSync(stagedPackage, { recursive: true })
+
+    cpSync(from, stagedPackage, {
+      recursive: true,
+      dereference: false,
+      filter: (source) => {
+        if (lstatSync(source).isSymbolicLink()) {
+          throw new Error(
+            `${name}@${version} contains a symbolic link (${relative(from, source)}), which speq does not install.`
+          )
+        }
+        return true
+      }
+    })
 
     mkdirSync(dirname(this.virtualDir(name, version)), { recursive: true })
     rmSync(this.virtualDir(name, version), { recursive: true, force: true })

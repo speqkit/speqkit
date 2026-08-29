@@ -61,6 +61,50 @@ read until the package it extends is on disk. So `install()` takes two
 callbacks rather than two lists — it fetches the `extends` targets, and only
 then asks for the flattened plugin list.
 
+## Where a plugin can come from
+
+```yaml
+plugins:
+  - http                                       # the registry, short name
+  - "@acme/speqkit-plugin-legacy@^2.1.0"       # the registry, private scope
+  - github:acme/speqkit-plugin-legacy#v2.1.0   # a repository
+  - git+ssh://git@git.acme.internal/qa/plugin.git#main
+  - https://builds.acme.dev/plugin-1.4.0.tgz   # a packed tarball
+```
+
+`github:`, `gitlab:` and `bitbucket:` are shorthands for the obvious HTTPS
+URL; `git+https:`, `git+ssh:`, `git+file:` and `git:` are passed to git as
+written. A `#ref` is a branch, a tag or a commit, and no `#ref` means the
+default branch.
+
+Repository sources shell out to `git`, and that is a deliberate exception to
+the rule that governs the rest of this package. `speq install` speaks the npm
+registry's HTTP API itself because npm is the tool being replaced — requiring
+it would cancel the whole idea. Git is not being replaced by anything, it is
+already on the machine of whoever owns the repository, and going through it
+buys three things hand-written HTTP would not: private repositories work
+through the credentials and ssh agent that are already set up, self-hosted
+hosts need no per-vendor API dialect, and the commit is verified by git rather
+than trusted from a vendor's JSON. Only a git spec needs git — nothing else
+here does, including inside the standalone binary.
+
+**A ref is resolved to a commit at install time, and only the commit is
+locked.** `#main` in `speq.yaml` means something different next month;
+`--frozen` in CI installs the commit that was reviewed. The store keys the
+checkout by that commit as semver build metadata — `1.4.0+8f2c1ade9b7c` —
+because two commits can carry the same `version`, and a dependent asking for
+`^1.4.0` should still be satisfied.
+
+**No build ever runs.** Not running install scripts is what makes installing
+from a repository defensible at all, so a repository whose entry point is not
+committed is refused at install time with the reason, rather than installing
+cleanly and failing to load minutes later inside a plugin loader that cannot
+say why.
+
+A tarball URL is hashed on arrival and the hash goes in the lock, since no
+registry published one to compare against. The registry token is never sent to
+a host that is not the registry.
+
 ## Things it refuses to do
 
 - **Follow a link entry in a tarball**, or write a path containing `..` or a
@@ -75,11 +119,11 @@ then asks for the flattened plugin list.
 
 ## Not built yet
 
-- `github:`, `git+ssh:` and tarball-URL specs. They are refused with a message
-  saying so, rather than turning into a confusing 404. `speq link` covers the
-  local-checkout case today.
 - Reading `.npmrc`. A private registry works through `SPEQ_REGISTRY` and
   `NPM_TOKEN`.
+- A repository that depends on another repository. A package's own
+  `dependencies` are resolved from the registry whatever the package itself
+  came from, because that is what a range in a package.json means.
 
 The standalone binary used to be on this list. It is now built by
 `scripts/build-binary.mjs` and installed with `brew install speqkit` or

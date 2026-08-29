@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 import { Store, install, readLock, type Packument, type RegistryClient } from '@speqkit/installer'
 import { Registry, addPluginToConfig, removePluginFromConfig, resolvePlugin, runTests } from 'speqkit'
@@ -275,5 +275,22 @@ describe('speq.yaml is edited, not rewritten', () => {
     expect(removePluginFromConfig(project, 'http').removed).toBe('@speqkit/plugin-http@^2.0.0')
     expect(removePluginFromConfig(project, 'yaml').removed).toBe('yaml')
     expect(parseYaml(readFileSync(join(project, 'speq.yaml'), 'utf8')).plugins).toEqual(['@fake/plugin-alpha'])
+  })
+})
+
+describe('the version the CLI prints', () => {
+  /**
+   * `speq version` reports a literal, because the standalone binary has no
+   * package.json to read at run time. A literal that nobody re-reads is a
+   * literal that goes stale at the first release, so this is where it is
+   * re-read.
+   */
+  it('is the version in packages/core/package.json', () => {
+    const manifest = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')
+    ) as { version: string }
+    const source = readFileSync(fileURLToPath(new URL('../src/bin.ts', import.meta.url)), 'utf8')
+
+    expect(source).toContain(`const VERSION = '${manifest.version}'`)
   })
 })
