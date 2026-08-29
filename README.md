@@ -62,6 +62,89 @@ had ever called it — the console output went straight to `events.subscribe`,
 around the mechanism rather than through it. It is an ordinary reporter now,
 and the default one.
 
+The plugin list is settled — see `docs/architecture/plugins.html` for which
+plugins are ours and why — and the first one on it is written.
+`@speqkit/plugin-use` is composition: shared blocks, module actions and
+fixtures, all through one `use` step. It came first because a real suite says
+so: in the corpus it was written against, `use` outnumbers the HTTP step it
+composes, 179 to 115.
+
+Writing it found the rest of the test model missing. `Suite → Test → Step →
+Assertion` had assertions only at the test, and a test had a body but no way to
+build a world before it or take one down after — so 204 of the corpus's
+assertions and every one of its 50 cleanups had nowhere to go. Both are the
+kernel's, not a plugin's: a step type has no business reading an `assert:`
+block that is not its input, and a plugin cannot express `finally` without
+leaking its child scope back into the caller. Contract 0.6.0 adds
+`StepDef.assert`, `TestDef.setup` and `TestDef.cleanup`; `PLUGIN_API_VERSION`
+stays 1, and no ninth contribution point was opened. Cleanup runs after the
+test whatever happened to it — including after a setup that never finished,
+which is exactly when the rows a half-built test created would otherwise be
+left behind — and a test that passed but failed to clean up is an `error`,
+because the next run inherits what it left.
+
+`@speqkit/plugin-data` is the second: `${gen:…}` for data a test makes up,
+`${env:…}` moved out of `plugin-http` where it never belonged, and `${vars:…}`
+for the values an environment file sets. Generated values are derived from a
+seed rather than drawn from the system random source — the seed is the run id,
+so replaying a run's data means copying the string that already names its
+report directory, and a single failing test re-run alone sees exactly what it
+saw inside the suite.
+
+It also found the last piece of the test model missing. A test had no givens:
+nothing could put a value in scope before the first step, because a plugin's
+nested scope is popped the moment its step returns. Contract 0.7.0 adds
+`TestDef.variables`, resolved **one at a time, in declaration order** — which
+is what lets a given be written in terms of the one above it, and what keeps
+two generated slugs from being the same slug twice. speq asks a value provider
+once per resolution pass, deliberately; a whole block resolved in one pass
+would have made the test that proves two tenants stay apart test one tenant
+against itself.
+
+`@speqkit/plugin-assert` is the third, and the first one that is deliberately
+*wide*: twenty-one words for equality, order, membership, text, presence, size
+and shape, over one selector shared by all of them. Wide is not deep — a
+vocabulary is language, and language is the half of the line that is ours. A
+team that cannot write "at least" or "is one of" writes it as a regex over a
+stringified body, and the suite stops saying what it means. `schema` validates
+through ajv rather than a subset of our own: a schema generated from OpenAPI
+arrives with `oneOf` and `$ref`, and a validator that ignores the keywords it
+does not know reports a pass it never performed. Schemas are compiled during
+`speq validate`, so a typo in one is found in milliseconds.
+
+`jsonpath` and `body_contains` left `plugin-http` for it, along with `env`
+earlier: what is left in the HTTP plugin is the two checks that are actually
+about HTTP, the status line and the time on the wire. Both old names still
+work, and say what to write instead.
+
+`@speqkit/plugin-yaml` is the fourth, and it closes the loop the corpus opened:
+the whole 60-test suite it was designed against now migrates and validates —
+`speq migrate` rewrites 66 files, and `speq validate` reports nothing. The
+loader grew the decided test form (`id`, `title`, `tags`, `variables`, `setup`,
+`steps`, `assert`, `cleanup`) and the codemod turns `{{x}}` into `${x}`,
+`type: api` into `type: http`, `$steps.a.response.body` into `${a.body}`, a
+folded `bodyFromFixture` into the `use` step it always was, and
+`manifest.yaml` plus `environments/*` into a `speq.yaml` with layers. Comments
+survive, because a suite this size is documentation as much as it is tests.
+What has no successor yet — a suite-level `beforeEach`, a v1 retry policy — is
+named by file with what to do instead, never dropped: a codemod that silently
+drops what it does not understand leaves a suite that still runs with a guard
+that is simply gone.
+
+Contract 0.8.0 adds the field list nobody can close. `link`, `owner`, `epic`,
+`severity`, a ticket number — there will be as many of these as there are
+teams, so a test's spine is closed and everything outside it becomes `meta`,
+which the kernel carries and never reads. On a step it has to be written under
+a reserved `meta:`, because every *other* unknown key there belongs to the
+plugin that owns the step's `type`; the kernel lifts it out before the schema
+is checked. It reaches `test.started` and both step events, so a reporter gets
+it for free, and `${meta:owner}` resolves like any other value — an `x-owner`
+header on every request needs no plugin. **The kernel never branches on it**,
+and that is an invariant rather than an implementation detail: the moment
+behaviour follows from an annotation, a suite has control flow that `validate`
+cannot see and a report cannot explain. No ninth contribution point was opened
+for it, and none will be.
+
 M4 is the ecosystem, and the first pieces are here: `@speqkit/test-kit`
 runs a plugin inside the real kernel, `create-speqkit-plugin` scaffolds one with
 those tests already written, and a plugin can now check its own inputs before a
@@ -127,10 +210,13 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speqkit/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
 | `speqkit` | The kernel and the `speq` bootstrap. Unscoped, because it is what you install. Knows no protocol and no UI. |
 | `@speqkit/installer` | Resolve, verify, store, lock. No npm CLI involved. |
-| `@speqkit/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
+| `@speqkit/plugin-yaml` | The default authoring format, and `speq migrate` — proof the format is a plugin. |
 | `@speqkit/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speqkit/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speqkit/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
+| `@speqkit/plugin-use` | Composition: shared blocks, module actions and fixtures, called with `use`. |
+| `@speqkit/plugin-data` | Where values come from: seeded generated data, the environment, project variables. |
+| `@speqkit/plugin-assert` | The assertion vocabulary: equality, order, membership, text, presence, size, JSON Schema. |
 | `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
 | `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 | `@speqkit/test-kit` | Runs a plugin inside the real kernel, so an author can test one without a project. Not a plugin. |

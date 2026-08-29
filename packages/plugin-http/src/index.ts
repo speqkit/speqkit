@@ -6,9 +6,17 @@ interface HttpConfig {
 }
 
 /**
- * The batteries-included plugin: an HTTP step and the smoke checks most teams
- * need on day one. It is an ordinary plugin — the kernel has no idea what
- * HTTP is, which is the whole test of the architecture.
+ * The protocol, and only the protocol.
+ *
+ * What is left here after `jsonpath` and `body_contains` left for
+ * `@speqkit/plugin-assert` is the two checks that are genuinely about HTTP:
+ * the status line and the time on the wire. Everything else was checking a
+ * *value*, and a value does not care that it arrived over HTTP — its twin is
+ * needed by a SQL row and the body of a Kafka message, and every author would
+ * have written their own if the vocabulary lived here.
+ *
+ * The kernel has no idea what HTTP is, which is the whole test of the
+ * architecture.
  */
 export default definePlugin({
   name: '@speqkit/plugin-http',
@@ -77,41 +85,6 @@ export default definePlugin({
       }
     })
 
-    ctx.defineAssertion('jsonpath', {
-      schema: {
-        type: 'object',
-        properties: { path: { type: 'string' }, expected: {} },
-        required: ['path', 'expected'],
-        additionalProperties: false
-      },
-      evaluate(assert, input) {
-        const actual = readPath(assert.last?.body, String(input.path))
-        const equal = JSON.stringify(actual) === JSON.stringify(input.expected)
-        return outcome(
-          equal,
-          `${input.path}: expected ${JSON.stringify(input.expected)}, got ${JSON.stringify(actual)}`,
-          `${input.path} is ${JSON.stringify(actual)}`,
-          input.expected,
-          actual
-        )
-      }
-    })
-
-    ctx.defineAssertion('body_contains', {
-      schema: { type: 'object', properties: { expected: { type: 'string' } }, required: ['expected'] },
-      evaluate(assert, input) {
-        const text = String(assert.last?.text ?? '')
-        const needle = String(input.expected)
-        return outcome(
-          text.includes(needle),
-          `body does not contain ${JSON.stringify(needle)}`,
-          `body contains ${JSON.stringify(needle)}`,
-          needle,
-          text.slice(0, 200)
-        )
-      }
-    })
-
     ctx.defineAssertion('duration_under', {
       schema: { type: 'object', properties: { ms: { type: 'number' } }, required: ['ms'] },
       evaluate(assert, input) {
@@ -119,11 +92,6 @@ export default definePlugin({
         const limit = Number(input.ms)
         return outcome(actual < limit, `took ${actual}ms, budget ${limit}ms`, `took ${actual}ms`, limit, actual)
       }
-    })
-
-    ctx.defineValueProvider('env', {
-      prefix: 'env',
-      resolve: (key) => process.env[key]
     })
   }
 })
@@ -150,11 +118,3 @@ function parseBody(text: string, contentType: string | null): unknown {
   try { return JSON.parse(text) } catch { return text }
 }
 
-function readPath(value: unknown, path: string): unknown {
-  let current = value
-  for (const segment of path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)) {
-    if (current === null || current === undefined) return undefined
-    current = (current as Record<string, unknown>)[segment]
-  }
-  return current
-}

@@ -11,6 +11,9 @@
       "@speqkit/plugin-junit": ["packages/plugin-junit/src/index.ts"],
       "@speqkit/test-kit": ["packages/test-kit/src/index.ts"],
       "@speqkit/plugin-loop": ["packages/plugin-loop/src/index.ts"],
+      "@speqkit/plugin-assert": ["packages/plugin-assert/src/index.ts"],
+      "@speqkit/plugin-data": ["packages/plugin-data/src/index.ts"],
+      "@speqkit/plugin-use": ["packages/plugin-use/src/index.ts"],
       "@speqkit/plugin-yaml": ["packages/plugin-yaml/src/index.ts"],
       "create-speqkit-plugin": ["packages/create-speqkit-plugin/src/index.ts"]
     }

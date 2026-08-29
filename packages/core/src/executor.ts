@@ -1,5 +1,6 @@
 import type {
-  StepDef, StepRecord, StepResult, RunStepsOptions, ExecContext, StepStatus
+  AssertContext, AssertOutcome, AssertionDef, StepDef, StepRecord, StepResult, RunStepsOptions,
+  ExecContext, StepStatus, TestPhase
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import {
@@ -9,11 +10,13 @@ import {
 const DEFAULT_TIMEOUT_MS = 30_000
 
 /** Keys the kernel owns; a step type never receives them as input. */
-const RESERVED_INPUT = new Set(['id', 'type', 'timeout'])
+const RESERVED_INPUT = new Set(['id', 'type', 'timeout', 'assert', 'meta'])
 
 export interface ExecutorOptions {
   registry: Registry
   test: string
+  /** The test's annotations, answered as `${meta:…}` and carried on events. */
+  meta?: Record<string, unknown>
   defaultTimeoutMs?: number
   attach(name: string, body: string | Uint8Array, contentType: string): void
 }
@@ -29,6 +32,7 @@ export interface ExecutorOptions {
 export class Executor {
   readonly #registry: Registry
   readonly #test: string
+  readonly #meta: Record<string, unknown>
   readonly #defaultTimeoutMs: number
   readonly #attach: ExecutorOptions['attach']
 
@@ -36,10 +40,12 @@ export class Executor {
   #frames: Record<string, unknown>[] = [{}]
   #depth = 0
   #parentId: string | undefined
+  #phase: TestPhase | undefined
 
   constructor(options: ExecutorOptions) {
     this.#registry = options.registry
     this.#test = options.test
+    this.#meta = options.meta ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
     this.#attach = options.attach
   }
@@ -60,7 +66,59 @@ export class Executor {
     for (const [, { def }] of this.#registry.valueProviders) {
       providers.set(def.prefix, (key) => def.resolve(key))
     }
+    // `meta` is the kernel's own prefix, refused to plugins at registration.
+    // It costs one line here and saves a contribution point: a suite that
+    // stamps `x-owner: ${meta:owner}` on every request needs no plugin, and
+    // the annotation a report shows is the annotation the request carried.
+    providers.set('meta', (key) => this.#meta[key])
     return { frames: this.#frames, providers }
+  }
+
+  /**
+   * Bind the test's `variables` into its own frame, before anything runs.
+   *
+   * One entry at a time, in declaration order, each bound before the next is
+   * resolved. Two reasons, and both are visible in a real suite:
+   *
+   * A given is often derived from the one above it —
+   * `email: "speq-${slug}@example.com"` — which only works if `slug` is
+   * already there.
+   *
+   * And resolution asks a value provider once per pass, deliberately: two
+   * `${env:HOME}` in one step are one lookup. Resolving the whole block in a
+   * single pass would apply that to generators too, so a test declaring
+   * `slug: "${gen:uuid}"` and `otherSlug: "${gen:uuid}"` would get one uuid
+   * twice — and the test that exists to prove two tenants stay apart would
+   * quietly be testing one tenant against itself.
+   */
+  async defineVariables(variables: Record<string, unknown>): Promise<void> {
+    for (const [name, value] of Object.entries(variables)) {
+      try {
+        this.#frames[0]![name] = await resolveDeepAsync(this.scope(), value)
+      } catch (err) {
+        throw new Error(
+          `variable '${name}': ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err }
+        )
+      }
+    }
+  }
+
+  /**
+   * Run a lifecycle phase — `setup` or `cleanup` — in the test's own frame.
+   *
+   * Not on `ExecContext`: a plugin has no business declaring that its nested
+   * steps are somebody's cleanup. The runner labels the phase so reports can
+   * tell "the test failed" from "the test passed and the teardown did not".
+   */
+  async runPhase(steps: StepDef[], phase: TestPhase | undefined): Promise<StepRecord[]> {
+    const previous = this.#phase
+    this.#phase = phase
+    try {
+      return await this.runSteps(steps)
+    } finally {
+      this.#phase = previous
+    }
   }
 
   /**
@@ -103,7 +161,9 @@ export class Executor {
       stepId: step.id,
       stepType: step.type,
       parentId: this.#parentId,
-      depth: this.#depth
+      depth: this.#depth,
+      ...(this.#phase ? { phase: this.#phase } : {}),
+      ...(isMeta(step.meta) ? { meta: this.#label(step.meta) } : {})
     } as const
 
     if (!entry) {
@@ -131,16 +191,29 @@ export class Executor {
       const result = await withTimeout(entry.def.execute(ctx, input), controller.signal)
       const bound = (result ?? {}) as StepResult
 
+      // Bound before the assertions run, so a step can address its own result.
       if (step.id) this.#frames[0]![step.id] = bound
+
+      const assertions = await withTimeout(this.#assert(step, bound), controller.signal)
+      const failure = assertions.find((a) => !a.passed)
 
       record = {
         id: step.id,
         type: step.type,
-        status: 'passed',
+        status: failure ? 'failed' : 'passed',
         result: bound,
+        ...(failure ? { message: failure.message } : {}),
+        ...(assertions.length ? { assertions } : {}),
+        ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
       }
-      this.#registry.events.emit({ type: 'step.finished', ...base, status: 'passed', durationMs: record.durationMs })
+      this.#registry.events.emit({
+        type: 'step.finished',
+        ...base,
+        status: record.status,
+        durationMs: record.durationMs,
+        ...(failure ? { message: failure.message } : {})
+      })
     } catch (err) {
       // A crash inside a plugin is `error`, not `failed`: the test did not
       // prove the system wrong, the harness failed to ask the question.
@@ -151,6 +224,7 @@ export class Executor {
         status: 'error',
         result: {},
         message,
+        ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
       }
       this.#registry.events.emit({
@@ -163,6 +237,82 @@ export class Executor {
 
     await this.#registry.runHooks('step:after', { test: this.#test, step, record })
     return record
+  }
+
+  /**
+   * Annotations are resolved for the report, and never at the report's cost.
+   *
+   * A label is written in terms of the run — `POST ${vars:adminApi}/tables` —
+   * so leaving it verbatim would print the template instead of the request.
+   * Resolving it is still not *reading* it: nothing here branches on what
+   * comes back, and a template that cannot be resolved is shown as written
+   * rather than allowed to fail a step. An annotation is never a reason for a
+   * test not to run.
+   */
+  #label(meta: Record<string, unknown>): Record<string, unknown> {
+    try {
+      return resolveDeep(this.scope(), meta)
+    } catch {
+      return meta
+    }
+  }
+
+  /**
+   * Evaluates a step's own `assert` block against what it just returned.
+   *
+   * Every assertion in the block runs, including the ones after the first
+   * failure: a step that got the status right and the body wrong should say
+   * both, not stop at whichever was written first.
+   */
+  async #assert(step: StepDef, last: StepResult): Promise<(AssertOutcome & { type: string })[]> {
+    const block = Array.isArray(step.assert) ? (step.assert as AssertionDef[]) : []
+    const out: (AssertOutcome & { type: string })[] = []
+
+    for (const assertion of block) {
+      const entry = this.#registry.assertions.get(assertion.type)
+      if (!entry) {
+        const known = [...this.#registry.assertions.keys()].sort().join(', ') || '(none)'
+        out.push({
+          type: assertion.type,
+          passed: false,
+          message: `unknown assertion '${assertion.type}'; loaded plugins provide: ${known}`
+        })
+      } else {
+        const input = (await resolveDeepAsync(this.scope(), withoutMeta(assertion))) as Record<string, unknown>
+        try {
+          out.push({ type: assertion.type, ...(await entry.def.evaluate(this.#assertContext(last), input)) })
+        } catch (err) {
+          out.push({
+            type: assertion.type,
+            passed: false,
+            message: `assertion threw: ${err instanceof Error ? err.message : String(err)}`
+          })
+        }
+      }
+
+      const latest = out.at(-1)!
+      this.#registry.events.emit({
+        type: 'assertion.evaluated',
+        test: this.#test,
+        assertionType: assertion.type,
+        passed: latest.passed,
+        message: latest.message,
+        ...(step.id ? { stepId: step.id } : {})
+      })
+    }
+    return out
+  }
+
+  #assertContext(last: StepResult): AssertContext {
+    const self = this
+    return {
+      results: self.results(),
+      last,
+      resolve: <T>(t: string) => resolveString(self.scope(), t) as T,
+      resolveDeep: <T>(v: T) => resolveDeep(self.scope(), v),
+      resource: <T>(name: string) =>
+        self.#registry.resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>
+    }
   }
 
   /**
@@ -207,7 +357,10 @@ export class Executor {
   }
 
   #fail(
-    base: { test: string; stepId?: string; stepType: string; parentId?: string; depth: number },
+    base: {
+      test: string; stepId?: string; stepType: string; parentId?: string; depth: number
+      meta?: Record<string, unknown>
+    },
     started: number,
     status: StepStatus,
     message: string
@@ -216,6 +369,16 @@ export class Executor {
     this.#registry.events.emit({ type: 'step.finished', ...base, status, durationMs, message })
     return { id: base.stepId, type: base.stepType, status, result: {}, message, durationMs }
   }
+}
+
+function isMeta(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0
+}
+
+/** An assertion's annotations are the kernel's, exactly as a step's are. */
+function withoutMeta(assertion: AssertionDef): Record<string, unknown> {
+  const { meta: _meta, ...rest } = assertion
+  return rest
 }
 
 function readTimeout(value: unknown): number | undefined {

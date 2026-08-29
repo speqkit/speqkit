@@ -1,7 +1,7 @@
 {
-  "name": "@speqkit/plugin-yaml",
-  "version": "0.2.0",
-  "description": "YAML loader and the speq 1.x codemod. The default authoring format — and proof that the format is a plugin.",
+  "name": "@speqkit/plugin-data",
+  "version": "0.1.0",
+  "description": "Where values come from: generated test data, the environment, and project variables.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/speqkit/speqkit.git",
-    "directory": "packages/plugin-yaml"
+    "directory": "packages/plugin-data"
   },
   "type": "module",
   "exports": {
@@ -24,16 +24,8 @@
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^"
   },
-  "dependencies": {
-    "yaml": "^2.6.1"
-  },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*",
-    "@speqkit/plugin-assert": "workspace:*",
-    "@speqkit/plugin-cli": "workspace:*",
-    "@speqkit/plugin-data": "workspace:*",
-    "@speqkit/plugin-http": "workspace:*",
-    "@speqkit/plugin-use": "workspace:*",
     "@speqkit/test-kit": "workspace:*",
     "speqkit": "workspace:*"
   },

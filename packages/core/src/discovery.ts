@@ -43,9 +43,26 @@ export function discoverRoot(explicit?: string, from = process.cwd()): SpeqRoot 
     dir = parent
   }
 
+  const v1 = looksLikeVersionOne(from) ?? looksLikeVersionOne(join(from, '.speq'))
+  if (v1) {
+    throw new Error(
+      `${v1} is a speq 1.x project: it has manifest.yaml where this build expects speq.yaml. ` +
+        `Run 'speq init' beside it and then 'speq migrate --from ${v1}'.`
+    )
+  }
+
   throw new Error(
     `speq root not found in ${from} or any parent directory; run 'speq init' or pass --speq-root`
   )
+}
+
+/**
+ * Named, not adopted. Booting inside a v1 project would mean every command
+ * failing later and further from the cause; saying so here costs one branch
+ * and turns a dead end into the next command to type.
+ */
+function looksLikeVersionOne(dir: string): string | undefined {
+  return existsSync(join(dir, 'manifest.yaml')) && isDir(join(dir, SUITES)) ? dir : undefined
 }
 
 function looksLikeProject(dir: string): boolean {

@@ -31,7 +31,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
     }
 
     const seen = new Set<string>()
-    walkSteps(test.steps, 'steps', (step, path) => {
+    const visit = (step: StepDef, path: string) => {
       if (step.id) {
         if (seen.has(step.id)) {
           diagnostics.push({ file, path, message: `duplicate step id '${step.id}'` })
@@ -55,30 +55,65 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
         }
       }
       contribute(diagnostics, registry, entry, step, { test, file }, path, 'step type')
-    })
 
-    for (const [index, assertion] of (test.assert ?? []).entries()) {
-      const path = `assert[${index}]`
-      const entry = registry.assertions.get(assertion.type)
-      if (!entry) {
+      // A step's own assertions are checked exactly like a test's: they are
+      // the same `Assertion` of the model, written one level down.
+      checkAssertions(diagnostics, registry, step.assert, { test, file }, path)
+    }
+
+    // Setup and cleanup are steps and get the same grammar, addressed by the
+    // phase they were written in so the diagnostic points at the right block.
+    walkSteps(test.setup ?? [], 'setup', visit)
+    walkSteps(test.steps, 'steps', visit)
+    walkSteps(test.cleanup ?? [], 'cleanup', visit)
+
+    checkAssertions(diagnostics, registry, test.assert, { test, file }, '')
+
+    // A variable and a step result live in one namespace — that is what makes
+    // `${slug}` and `${login.body.id}` read the same way — so a step that
+    // binds over a given silently changes what every later `${name}` means.
+    for (const name of Object.keys(test.variables ?? {})) {
+      if (seen.has(name)) {
         diagnostics.push({
           file,
-          path: `${path}.type`,
-          message: `unknown assertion '${assertion.type}'`,
-          hint: suggest(assertion.type, [...registry.assertions.keys()])
+          path: `variables.${name}`,
+          message: `variable '${name}' is also a step id`,
+          hint: `the step binds over the variable, so \${${name}} means the given before that step and the result after it`
         })
-        continue
       }
-      if (entry.def.schema) {
-        for (const problem of checkSchema(assertion, entry.def.schema)) {
-          diagnostics.push({ file, path, message: problem })
-        }
-      }
-      contribute(diagnostics, registry, entry, assertion, { test, file }, path, 'assertion')
     }
   }
 
   return diagnostics
+}
+
+/** Checks one `assert:` block — a test's or a step's — against the grammar. */
+function checkAssertions(
+  diagnostics: Diagnostic[],
+  registry: Registry,
+  block: AssertionDef[] | undefined,
+  where: { test: TestDef; file: string },
+  prefix: string
+): void {
+  for (const [index, assertion] of (block ?? []).entries()) {
+    const path = prefix ? `${prefix}.assert[${index}]` : `assert[${index}]`
+    const entry = registry.assertions.get(assertion.type)
+    if (!entry) {
+      diagnostics.push({
+        file: where.file,
+        path: `${path}.type`,
+        message: `unknown assertion '${assertion.type}'`,
+        hint: suggest(assertion.type, [...registry.assertions.keys()])
+      })
+      continue
+    }
+    if (entry.def.schema) {
+      for (const problem of checkSchema(assertion, entry.def.schema)) {
+        diagnostics.push({ file: where.file, path, message: problem })
+      }
+    }
+    contribute(diagnostics, registry, entry, assertion, where, path, 'assertion')
+  }
 }
 
 /**
@@ -151,7 +186,9 @@ function checkSchema(value: Record<string, unknown>, schema: InputSchema): strin
     if (value[key] === undefined) problems.push(`missing required field '${key}'`)
   }
   if (schema.additionalProperties === false && schema.properties) {
-    const allowed = new Set([...Object.keys(schema.properties), 'id', 'type', 'timeout', 'steps'])
+    const allowed = new Set([
+      ...Object.keys(schema.properties), 'id', 'type', 'timeout', 'steps', 'assert', 'meta'
+    ])
     for (const key of Object.keys(value)) {
       if (!allowed.has(key)) {
         problems.push(`unknown field '${key}'${suggest(key, [...allowed]) ?? ''}`)

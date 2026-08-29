@@ -137,7 +137,18 @@ export class Registry {
       defineAssertion: (type, def) => claim(this.assertions, 'assertion', type, def),
       defineResource: (name, def) => this.resources.define(name, pluginName, def as ResourceDef<unknown>),
       defineReporter: (name, def) => claim(this.reporters, 'reporter', name, def),
-      defineValueProvider: (name, def) => claim(this.valueProviders, 'value provider', name, def),
+      defineValueProvider: (name, def) => {
+        // The kernel answers `${meta:…}` out of the running test's own
+        // annotations. A plugin claiming the prefix would shadow it in some
+        // projects and not others, and the difference would only ever show up
+        // as a header carrying the wrong owner.
+        if (def.prefix === 'meta') {
+          throw new Error(
+            `value provider prefix 'meta' is reserved by the kernel; '${pluginName}' cannot claim it`
+          )
+        }
+        claim(this.valueProviders, 'value provider', name, def)
+      },
       defineLoader: (name, def) => claim(this.loaders, 'loader', name, def),
 
       defineHook: (name: HookName, fn) => {
