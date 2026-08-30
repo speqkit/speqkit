@@ -174,6 +174,11 @@ function printEvent(event: RunEvent): void {
       if (event.message) process.stdout.write(`  ${indent}  ${red(event.message)}\n`)
       break
     }
+    case 'test.skipped':
+      // Printed rather than counted quietly. The reason is the only thing that
+      // makes a parked test worth keeping, so it is on screen every run.
+      process.stdout.write(`  ${yellow('pending')} ${dim(event.reason)}\n`)
+      break
     case 'artifact.attached':
       process.stdout.write(
         `    ${dim('+')} ${event.name} ${dim(`${event.bytes}b${event.path ? ` -> ${event.path}` : ''}`)}\n`
@@ -191,7 +196,8 @@ function printEvent(event: RunEvent): void {
       const parts = [
         green(`${event.passed} passed`),
         event.failed ? red(`${event.failed} failed`) : '',
-        event.errored ? yellow(`${event.errored} errored`) : ''
+        event.errored ? yellow(`${event.errored} errored`) : '',
+        event.skipped ? dim(`${event.skipped} pending`) : ''
       ].filter(Boolean)
       process.stdout.write(`\n${parts.join(dim(' - '))} ${dim(`in ${event.durationMs}ms`)}\n`)
       break

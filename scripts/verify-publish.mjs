@@ -43,7 +43,7 @@ const binary = binaryFlag >= 0 ? resolve(repo, process.argv[binaryFlag + 1]) : u
 // plugin a new project loads first was the one this never checked.
 const PACKAGES = [
   'plugin-api', 'installer', 'core',
-  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-use', 'plugin-data', 'plugin-assert', 'plugin-junit', 'plugin-http', 'plugin-playwright',
+  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-use', 'plugin-data', 'plugin-assert', 'plugin-json', 'plugin-junit', 'plugin-http', 'plugin-playwright',
   // Not plugins and never installed into a project — packed because the bug
   // this whole script exists for is a wrong `exports` or a missing `files`,
   // and these two are published the same way as the rest.
@@ -149,7 +149,16 @@ const base = `http://127.0.0.1:${server.address().port}`
  * someone else's went down.
  */
 const sut = createServer((req, res) => {
-  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: 1, ok: true }))
+  const chunks = []
+  req.on('data', (c) => chunks.push(c))
+  req.on('end', () => {
+    const body = Buffer.concat(chunks).toString('utf8')
+    const parts = (req.headers['content-type'] ?? '').startsWith('multipart/form-data')
+      ? { multipart: body.includes('filename="tiny.txt"') && body.includes('speq') }
+      : {}
+    res.writeHead(200, { 'content-type': 'application/json' })
+      .end(JSON.stringify({ id: 1, ok: true, ...parts }))
+  })
 })
 await new Promise((r) => sut.listen(0, '127.0.0.1', r))
 const sutBase = `http://127.0.0.1:${sut.address().port}`
@@ -157,7 +166,7 @@ const sutBase = `http://127.0.0.1:${sut.address().port}`
 mkdirSync(join(project, 'suites'), { recursive: true })
 writeFileSync(
   join(project, 'speq.yaml'),
-  'version: 1\n\nplugins:\n  - yaml\n  - cli\n  - loop\n  - junit\n  - http\n  - assert\n  - data\n  - playwright\n\n' +
+  'version: 1\n\nplugins:\n  - yaml\n  - cli\n  - loop\n  - junit\n  - json\n  - http\n  - assert\n  - data\n  - playwright\n\n' +
     `http:\n  baseUrl: ${sutBase}\n`
 )
 writeFileSync(
@@ -252,7 +261,28 @@ if (plugins.code !== 0) {
     : ok('every plugin came from the store, not node_modules')
 }
 
-const run = await speq(['run'])
+writeFileSync(join(project, 'suites', 'upload.yaml'), [
+  'name: a file goes over the wire',
+  'steps:',
+  '  - id: sent',
+  '    type: http',
+  '    method: POST',
+  '    url: /uploads',
+  '    multipart:',
+  '      kind: variant_image',
+  '      file:',
+  '        content: "speq"',
+  '        filename: tiny.txt',
+  '    assert:',
+  '      - type: status',
+  '        expected: 200',
+  '      - type: equals',
+  '        path: body.multipart',
+  '        expected: true',
+  ''
+].join('\n'))
+
+const run = await speq(['run', '--reporter', 'console,json'])
 console.log('\n' + run.out.split('\n').map((l) => `  ${l}`).join('\n').trimEnd())
 run.code === 0 ? ok('speq run passes') : bad(`speq run passes (exit ${run.code})`, '')
 
@@ -287,6 +317,31 @@ const rewritten = existsSync(join(v2, 'suites', 'old.yaml'))
 migrated.code === 0 && rewritten.includes('${vars:adminApi}') && rewritten.includes('type: equals')
   ? ok('speq migrate rewrites a v1 suite')
   : bad('speq migrate rewrites a v1 suite', `${migrated.out}\n${rewritten}`)
+
+/**
+ * The summary shape, read the way the workflow that depends on it reads it.
+ *
+ * These four paths live in a `jq` expression in somebody else's repository. A
+ * rename here is a silent zero there, because `// 0` does not fail.
+ */
+const summaryFile = join(project, 'reports', 'results', 'summary.json')
+if (!existsSync(summaryFile)) {
+  bad('plugin-json writes reports/results/summary.json', run.out)
+} else {
+  const summary = JSON.parse(readFileSync(summaryFile, 'utf8'))
+  const shaped =
+    typeof summary.status === 'string' &&
+    typeof summary.durationMs === 'number' &&
+    typeof summary.totals?.total === 'number' &&
+    typeof summary.totals?.passed === 'number' &&
+    typeof summary.totals?.failed === 'number' &&
+    typeof summary.totals?.pending === 'number' &&
+    Array.isArray(summary.tests) &&
+    summary.tests.every((t) => typeof t.id === 'string' && typeof t.status === 'string')
+  shaped
+    ? ok('summary.json has the shape a workflow parses')
+    : bad('summary.json has the shape a workflow parses', JSON.stringify(summary, null, 2))
+}
 
 const frozen = await speq(['install', '--frozen'], { SPEQ_REGISTRY: 'http://127.0.0.1:1' })
 frozen.code === 0

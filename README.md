@@ -117,6 +117,35 @@ earlier: what is left in the HTTP plugin is the two checks that are actually
 about HTTP, the status line and the time on the wire. Both old names still
 work, and say what to write instead.
 
+`@speqkit/plugin-json` is the fifth, and the first whose deliverable is a
+*shape* rather than a feature: `reports/results/summary.json`, folded out of the
+event stream, with the keys a workflow already reads. `totals.pending` is the
+same number as `totals.skipped`, which is nobody's idea of a good design and is
+exactly the point — a `jq` expression in another repository says
+`.totals.pending // 0`, so renaming the key would make that workflow report zero
+pending tests instead of failing. The moment somebody parses a shape it stops
+being ours to tidy: keys get added, never renamed.
+
+`pending` had to become real for that number to mean anything, and it is a
+field of the spine rather than an annotation — it changes what happens, so it
+is declared and checked. Contract 0.9.0 takes a *reason*, not a flag: a test
+parked without one is a test being deleted slowly, and the reason is the only
+thing that makes the entry worth keeping over `git rm`. A pending test is still
+validated, because it is precisely the test nobody runs and therefore the one
+that rots unnoticed.
+
+`plugin-http` grew the two things the corpus's own "known gaps" section asks
+for. **Multipart**, because three upload paths there have no gate test at all —
+and the note explaining why says that `multipart`, `formData`, `form`, `files`,
+`bodyFile` and `bodyRaw` were every one of them *silently ignored*: the request
+went out empty and the test reported passed. Closed schemas mean an unknown key
+is a diagnostic before a request goes out, and a part naming a file that is not
+on disk is found the same way. And **retrying**, off by default, with two
+decisions in the defaults: 429 is not on the list, because a policy that
+repeats through a rate limiter makes the test that proves the limiter works
+pass whether it exists or not; and only idempotent methods repeat, because a
+502 means a gateway answered, not that the origin never saw the POST.
+
 `@speqkit/plugin-yaml` is the fourth, and it closes the loop the corpus opened:
 the whole 60-test suite it was designed against now migrates and validates —
 `speq migrate` rewrites 66 files, and `speq validate` reports nothing. The
@@ -211,6 +240,7 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `speqkit` | The kernel and the `speq` bootstrap. Unscoped, because it is what you install. Knows no protocol and no UI. |
 | `@speqkit/installer` | Resolve, verify, store, lock. No npm CLI involved. |
 | `@speqkit/plugin-yaml` | The default authoring format, and `speq migrate` — proof the format is a plugin. |
+| `@speqkit/plugin-json` | The run as one JSON file, in the shape a workflow reads with `jq`. |
 | `@speqkit/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speqkit/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speqkit/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |

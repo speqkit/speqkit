@@ -493,3 +493,83 @@ describe('a test carries what it says about itself', () => {
     await expect(registryWith(thief)).rejects.toThrow(/reserved by the kernel/)
   })
 })
+
+/**
+ * Pending: the one thing in the spine that stops a test from running, and the
+ * reason `meta` is not allowed to do the same. It changes behaviour, so it is
+ * declared, checked, and reported — not an annotation somebody wrote once.
+ */
+describe('a test can record a gap instead of running', () => {
+  const gap = definePlugin({
+    name: 'gap',
+    setup(ctx) {
+      ctx.defineStepType('touch', {
+        execute: () => { world.push('touched'); return {} }
+      })
+    }
+  })
+
+  it('does not run, and says why', async () => {
+    const registry = await registryWith(gap)
+    const events: RunEvent[] = []
+    registry.events.subscribe((e) => events.push(e))
+    world.length = 0
+
+    const outcome = await runTests(registry, [{
+      name: 'rate limit returns 429',
+      pending: 'the gate raises the attempt limit, so this path is unreachable from the same stack',
+      setup: [{ type: 'touch' }],
+      steps: [{ type: 'touch' }],
+      cleanup: [{ type: 'touch' }]
+    }])
+
+    // Nothing ran — including the cleanup, because nothing was built.
+    expect(world).toEqual([])
+    expect(outcome.tests[0]).toMatchObject({ status: 'skipped', steps: [] })
+    expect(outcome.skipped).toBe(1)
+    expect(events.find((e) => e.type === 'test.skipped')).toMatchObject({
+      reason: 'the gate raises the attempt limit, so this path is unreachable from the same stack'
+    })
+  })
+
+  it('is still announced, so a report can count it', async () => {
+    const registry = await registryWith(gap)
+    const events: RunEvent[] = []
+    registry.events.subscribe((e) => events.push(e))
+
+    await runTests(registry, [{ name: 't', pending: 'not yet', steps: [{ type: 'touch' }] }])
+
+    // A pending test that produced no events would be missing from every
+    // report rather than visible in it as a gap, which is the whole point.
+    expect(events.filter((e) => e.type === 'test.started')).toHaveLength(1)
+    expect(events.find((e) => e.type === 'test.finished')).toMatchObject({ status: 'skipped' })
+  })
+
+  it('does not make the run a failure', async () => {
+    const registry = await registryWith(gap)
+    const outcome = await runTests(registry, [
+      { name: 'a', steps: [{ type: 'touch' }] },
+      { name: 'b', pending: 'not yet', steps: [{ type: 'touch' }] }
+    ])
+    expect(outcome.status).toBe('passed')
+  })
+
+  it('is still validated', async () => {
+    const registry = await registryWith(gap)
+
+    // The parked test is exactly the one nobody runs, and therefore the one
+    // that rots into an unknown step type unnoticed.
+    const diagnostics = registry && validateTests(registry, [{
+      name: 't', source: 'suites/t.yaml', pending: 'not yet', steps: [{ type: 'nosuchthing' }]
+    }])
+    expect(diagnostics.map((d) => d.message)).toEqual(["unknown step type 'nosuchthing'"])
+  })
+
+  it('has to say why', async () => {
+    const registry = await registryWith(gap)
+    const diagnostics = validateTests(registry, [{
+      name: 't', source: 'suites/t.yaml', pending: true as never, steps: [{ type: 'touch' }]
+    }])
+    expect(diagnostics[0]).toMatchObject({ path: 'pending', message: 'pending must say why' })
+  })
+})

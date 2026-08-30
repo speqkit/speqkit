@@ -30,6 +30,19 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
       continue
     }
 
+    // Checked, not excused. A pending test is precisely the one nobody runs
+    // and therefore the one that rots into an invalid step type unnoticed;
+    // skipping validation for it would make the entry worthless by the time
+    // somebody comes back to it.
+    if (test.pending !== undefined && typeof test.pending !== 'string') {
+      diagnostics.push({
+        file,
+        path: 'pending',
+        message: 'pending must say why',
+        hint: 'a test parked without a reason is a test being deleted slowly — write the gap it records'
+      })
+    }
+
     const seen = new Set<string>()
     const visit = (step: StepDef, path: string) => {
       if (step.id) {

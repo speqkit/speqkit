@@ -126,6 +126,34 @@ async function runOne(
 
   const meta = test.meta && Object.keys(test.meta).length > 0 ? test.meta : undefined
 
+  // A pending test is announced and not run. It is still discovered, still
+  // counted and still validated — what it records is a gap the suite knows
+  // about, and a gap nobody is reminded of is a gap that has been deleted.
+  if (test.pending) {
+    registry.events.emit({
+      type: 'test.started',
+      test: test.name,
+      source: test.source,
+      ...(test.title ? { title: test.title } : {}),
+      ...(meta ? { meta } : {})
+    })
+    registry.events.emit({ type: 'test.skipped', test: test.name, reason: test.pending })
+    registry.events.emit({ type: 'test.finished', test: test.name, status: 'skipped', durationMs: 0 })
+    return {
+      name: test.name,
+      ...(test.title ? { title: test.title } : {}),
+      pending: test.pending,
+      ...(meta ? { meta } : {}),
+      source: test.source,
+      suite,
+      status: 'skipped',
+      durationMs: 0,
+      steps: [],
+      assertions: [],
+      artifacts: []
+    }
+  }
+
   registry.events.emit({
     type: 'test.started',
     test: test.name,

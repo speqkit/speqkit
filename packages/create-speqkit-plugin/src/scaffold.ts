@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path'
  */
 export const VERSIONS = {
   'speqkit': '^0.2.0',
-  '@speqkit/plugin-api': '^0.8.0',
+  '@speqkit/plugin-api': '^0.9.0',
   '@speqkit/test-kit': '^0.1.0',
   'typescript': '^5.7.2',
   'vitest': '^2.1.8',

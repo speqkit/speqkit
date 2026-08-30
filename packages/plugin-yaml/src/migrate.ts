@@ -68,6 +68,26 @@ interface Survey {
   defaultEnvironment: string | undefined
   /** Shared block file (bare name) → the ids it publishes to its caller. */
   blocks: Map<string, string[]>
+  /** The manifest's retry policy, in the words plugin-http uses. */
+  retry: Record<string, unknown> | undefined
+}
+
+/**
+ * v1 named the same policy differently and kept it at the top of the project,
+ * where it applied to everything. It belongs to the plugin that does the
+ * repeating, which is also the only thing that knows what a 429 means.
+ */
+function retryPolicy(raw: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!raw || raw.enabled === false) return undefined
+  const on = (raw.retryOn ?? {}) as Record<string, unknown>
+  const status = Array.isArray(on.statusCodes) ? (on.statusCodes as number[]).filter((c) => c !== 429) : undefined
+  return {
+    attempts: typeof raw.maxAttempts === 'number' ? raw.maxAttempts : 3,
+    ...(typeof raw.delayMs === 'number' ? { delayMs: raw.delayMs } : {}),
+    ...(raw.backoff === 'fixed' || raw.backoff === 'exponential' ? { backoff: raw.backoff } : {}),
+    ...(typeof on.networkErrors === 'boolean' ? { network: on.networkErrors } : {}),
+    ...(status ? { status } : {})
+  }
 }
 
 export function registerMigrate(ctx: PluginContext): void {
@@ -176,19 +196,27 @@ function surveyProject(from: string, notes: Note[]): Survey {
     )
   }
 
-  for (const key of ['retry', 'coverage'] as const) {
-    const value = manifest[key] as Record<string, unknown> | undefined
-    if (!value || value.enabled === false) continue
+  const coverage = manifest.coverage as Record<string, unknown> | undefined
+  if (coverage && coverage.enabled !== false) {
     notes.push({
       file: 'manifest.yaml',
-      message: `'${key}' has no home yet and was not carried over`,
-      hint: key === 'retry'
-        ? 'retries belong to the step that retries — plugin-http grows a retry policy of its own'
-        : 'coverage against an OpenAPI document is plugin-openapi, which is not written'
+      message: "'coverage' has no home yet and was not carried over",
+      hint: 'coverage against an OpenAPI document is plugin-openapi, which is not written'
     })
   }
 
-  return { manifest, dirs, vars, environments, defaultEnvironment: str(manifest.defaultEnvironment), blocks }
+  const retry = manifest.retry as Record<string, unknown> | undefined
+  if (retry && retry.enabled !== false) {
+    notes.push({
+      file: 'speq.yaml',
+      message: 'the retry policy moved under http, and now repeats only idempotent methods',
+      hint: 'v1 repeated a POST through a 502, which creates the row twice when the origin ' +
+        'saw the request and the gateway lost the answer. Name the method under ' +
+        "http.retry.methods where an endpoint is known to be safe to repeat"
+    })
+  }
+
+  return { manifest, dirs, vars, environments, defaultEnvironment: str(manifest.defaultEnvironment), blocks, retry: retryPolicy(retry) }
 }
 
 /* ------------------------------------------------------------------ */
@@ -365,8 +393,26 @@ function reference(expr: string, owners: Map<string, string>, survey: Survey): s
 /* Structure                                                           */
 /* ------------------------------------------------------------------ */
 
+const PARKED = 'carried over from speq 1.x — replace this with the reason'
+
 function rewriteStructure(file: string, root: YAMLMap, rw: Rewrite): void {
   const where = { file, rw }
+
+  // `status: pending` becomes `pending: <why>`. v1 had nowhere to put the
+  // reason, so it is always in a comment above — which is why the codemod
+  // writes a placeholder rather than inventing one, and says so.
+  const status = findPair(root, 'status')
+  if (status && isScalar(status.value) && status.value.value === 'pending') {
+    ;(status.key as Scalar).value = 'pending'
+    status.value.value = PARKED
+    status.value.type = Scalar.QUOTE_DOUBLE
+    rw.notes.push({
+      file,
+      message: 'this test is pending and now has to say why',
+      hint: 'the reason is in the comment beside it; move it into the `pending:` line, ' +
+        'where a reader of the report will see it'
+    })
+  }
 
   const variables = root.get('variables')
   if (isMap(variables)) rewriteGenerators(variables, nameFrom(file), where)
@@ -725,6 +771,16 @@ function writeConfig(
   if (headers && Object.keys(headers).length > 0) {
     lines.push('  headers:')
     for (const [key, value] of Object.entries(headers)) lines.push(`    ${key}: ${quote(String(value))}`)
+  }
+  if (survey.retry) {
+    lines.push('  # Absorbs the gap between "the container is up" and "the API answers".')
+    lines.push('  # 429 is deliberately not in the list: a rate limiter is behaviour a suite')
+    lines.push('  # tests, and a policy that retries through one makes that test pass whether')
+    lines.push('  # the limiter exists or not.')
+    lines.push('  retry:')
+    for (const [key, value] of Object.entries(survey.retry)) {
+      lines.push(`    ${key}: ${Array.isArray(value) ? `[${value.join(', ')}]` : String(value)}`)
+    }
   }
   lines.push('')
 

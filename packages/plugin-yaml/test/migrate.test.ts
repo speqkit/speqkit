@@ -61,7 +61,11 @@ const V1: Record<string, string> = {
     'suitesDir: "suites"',
     'retry:',
     '  enabled: true',
-    '  maxAttempts: 3'
+    '  maxAttempts: 3',
+    '  delayMs: 300',
+    '  retryOn:',
+    '    networkErrors: true',
+    '    statusCodes: [502, 503, 504, 429]'
   ].join('\n'),
 
   'environments/local.yaml': [
@@ -133,6 +137,16 @@ const V1: Record<string, string> = {
     '        path: "$.description"',
     '      - type: schema',
     '        ref: "item.schema.json"'
+  ].join('\n'),
+
+  'suites/menu/parked.yaml': [
+    'id: "menu.parked"',
+    'status: pending',
+    '# The stack raises the limit, so this path is unreachable here.',
+    'steps:',
+    '  - type: api',
+    '    method: GET',
+    '    url: "{{adminApi}}/menu"'
   ].join('\n'),
 
   'suites/menu/reads-menu.yaml': [
@@ -334,8 +348,16 @@ describe('what it refuses to decide', () => {
     expect(notes.some((n) => n.file === 'suites/init.yaml' && /beforeEach/.test(n.message))).toBe(true)
   })
 
-  it('says the retry policy has no home yet', () => {
-    expect(migrate().notes.some((n) => /retry/.test(n.message))).toBe(true)
+  it('moves the retry policy and reports the one thing that changed', () => {
+    const migrated = migrate()
+    const config = migrated.file('speq.yaml')
+
+    // Carried, not dropped — and 429 is stripped on the way, because a policy
+    // that retries through a rate limiter makes the test that proves the
+    // limiter works pass whether it exists or not.
+    expect(config).toContain('  retry:\n    attempts: 3')
+    expect(config).toContain('status: [502, 503, 504]')
+    expect(migrated.notes.some((n) => /idempotent/.test(n.message))).toBe(true)
   })
 
   it('keeps a directory annotation while dropping the aliases beside it', () => {
@@ -343,6 +365,20 @@ describe('what it refuses to decide', () => {
     expect(migrated.file('suites/menu/init.yaml')).toContain('epic: menu')
     expect(migrated.file('suites/menu/init.yaml')).not.toContain('imports')
     expect(migrated.notes.some((n) => /imports/.test(n.message))).toBe(true)
+  })
+})
+
+describe('a test that records a gap', () => {
+  it('keeps the gap and asks for the reason it never had a field for', () => {
+    const migrated = migrate()
+    const parked = migrated.file('suites/menu/parked.yaml')
+
+    // v1 had nowhere to put a reason, so it was always a comment. Inventing
+    // one from the prose is the sort of guess a codemod should not make.
+    expect(parked).toContain('pending: "carried over from speq 1.x')
+    expect(parked).not.toContain('status: pending')
+    expect(parked).toContain('# The stack raises the limit')
+    expect(migrated.notes.some((n) => n.file === 'suites/menu/parked.yaml')).toBe(true)
   })
 })
 
@@ -374,7 +410,8 @@ describe('the result is a project', () => {
     registry.settle()
 
     const tests = await discoverTests(registry, { root: out })
-    expect(tests.map((t) => t.name)).toEqual(['menu.creates-item', 'menu.reads-menu'])
+    expect(tests.map((t) => t.name)).toEqual(['menu.creates-item', 'menu.parked', 'menu.reads-menu'])
+    expect(tests.find((t) => t.name === 'menu.parked')?.pending).toMatch(/^carried over/)
     // The directory annotation survived the round trip into the new loader.
     expect(tests[0]!.meta).toEqual({ epic: 'menu' })
 

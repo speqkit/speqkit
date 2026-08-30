@@ -1,7 +1,7 @@
 {
-  "name": "@speqkit/plugin-http",
-  "version": "0.2.0",
-  "description": "HTTP steps and the smoke assertion set that ships in the box.",
+  "name": "@speqkit/plugin-json",
+  "version": "0.1.0",
+  "description": "The run as one JSON file — the shape a workflow reads with jq.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/speqkit/speqkit.git",
-    "directory": "packages/plugin-http"
+    "directory": "packages/plugin-json"
   },
   "type": "module",
   "exports": {

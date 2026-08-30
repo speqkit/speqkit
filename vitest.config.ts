@@ -8,6 +8,7 @@ export default defineConfig({
     alias: [
       { find: '@speqkit/plugin-api', replacement: r('./packages/plugin-api/src/index.ts') },
       { find: '@speqkit/installer', replacement: r('./packages/installer/src/index.ts') },
+      { find: '@speqkit/plugin-json', replacement: r('./packages/plugin-json/src/index.ts') },
       { find: '@speqkit/plugin-junit', replacement: r('./packages/plugin-junit/src/index.ts') },
       { find: '@speqkit/test-kit', replacement: r('./packages/test-kit/src/index.ts') },
       { find: '@speqkit/plugin-loop', replacement: r('./packages/plugin-loop/src/index.ts') },

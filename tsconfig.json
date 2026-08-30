@@ -8,6 +8,7 @@
       "@speqkit/plugin-api": ["packages/plugin-api/src/index.ts"],
       "speqkit": ["packages/core/src/index.ts"],
       "@speqkit/installer": ["packages/installer/src/index.ts"],
+      "@speqkit/plugin-json": ["./packages/plugin-json/src/index.ts"],
       "@speqkit/plugin-junit": ["packages/plugin-junit/src/index.ts"],
       "@speqkit/test-kit": ["packages/test-kit/src/index.ts"],
       "@speqkit/plugin-loop": ["packages/plugin-loop/src/index.ts"],

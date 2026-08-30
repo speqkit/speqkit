@@ -128,6 +128,8 @@ speq migrate --from ../.speq --out . --write  # does it
 | `{ gen: { type: uuid } }` | `"${gen:uuid}"` |
 | `type: json`, `path: "$.a"` | `type: equals`, `path: body.a` |
 | `notcontains` / `regex` | `not_contains` / `matches` |
+| `status: pending` | `pending: "<why>"` — the reason was only ever a comment, so it asks for one |
+| `retry:` in the manifest | `http.retry`, with 429 dropped from the list |
 | `manifest.yaml` + `environments/*` | `speq.yaml` + environment layers |
 
 Two things it does that are worth knowing about.

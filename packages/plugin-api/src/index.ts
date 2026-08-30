@@ -68,6 +68,22 @@ export interface TestDef {
   title?: string
   tags?: string[]
   /**
+   * Why this test is not being run — and the fact that it is not.
+   *
+   * A reason rather than a flag, because a test parked without one is a test
+   * being deleted slowly. It records a gap the suite knows about: an endpoint
+   * whose 429 path cannot be reached from a stack configured to survive the
+   * rest of the run, a feature behind a flag nobody can turn on in CI. The
+   * text is what a reader needs and the only thing that makes the entry worth
+   * keeping over `git rm`.
+   *
+   * It is a field of the spine, not an annotation, and that is the line the
+   * whole `meta` design draws: this changes what happens, so it is declared
+   * and checked. A pending test is still validated — it is exactly the test
+   * that rots unnoticed — it simply does not run, and reports `skipped`.
+   */
+  pending?: string
+  /**
    * The test's givens, resolved once before anything runs and addressable as
    * `${name}` from setup, steps, assertions and cleanup alike.
    *
@@ -230,6 +246,7 @@ export type RunEvent =
   | { type: 'run.started'; runId: string; tests: number; at: number }
   | { type: 'suite.started'; suite: string }
   | { type: 'test.started'; test: string; source?: string; title?: string; meta?: Record<string, unknown> }
+  | { type: 'test.skipped'; test: string; reason: string }
   | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
   | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
   | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string; stepId?: string }
@@ -444,6 +461,8 @@ export interface ArtifactRecord {
 export interface TestOutcome {
   name: string
   title?: string
+  /** Set when the test did not run, carrying the reason it says. */
+  pending?: string
   meta?: Record<string, unknown>
   source?: string
   suite: string

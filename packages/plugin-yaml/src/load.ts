@@ -14,7 +14,7 @@ import type { TestDef } from '@speqkit/plugin-api'
  * exchange for labels in a report.
  */
 const SPINE = new Set([
-  'id', 'title', 'name', 'tags', 'variables', 'setup', 'steps', 'assert', 'cleanup', 'meta'
+  'id', 'title', 'name', 'tags', 'pending', 'variables', 'setup', 'steps', 'assert', 'cleanup', 'meta'
 ])
 
 /** A file by this name describes the directory it is in, and is never a test. */
@@ -42,6 +42,7 @@ export function loadTests(file: string, content: string, options: LoadOptions): 
     tests.push({
       name,
       ...(str(value.title) ? { title: str(value.title)! } : {}),
+      ...(value.pending !== undefined ? { pending: value.pending as string } : {}),
       tags: (value.tags as string[] | undefined) ?? [],
       ...(value.variables ? { variables: value.variables as Record<string, unknown> } : {}),
       ...(value.setup ? { setup: value.setup as TestDef['setup'] } : {}),

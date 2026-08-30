@@ -29,6 +29,9 @@
       "path": "packages/plugin-use/tsconfig.build.json"
     },
     {
+      "path": "packages/plugin-json/tsconfig.build.json"
+    },
+    {
       "path": "packages/plugin-junit/tsconfig.build.json"
     },
     {
