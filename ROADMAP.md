@@ -28,48 +28,167 @@ missing thing, which is scopes that survive being entered twice at once.
 
 ---
 
-## M5 — Frames — blocks 1.0
+## M5 — Suites at once — blocks 1.0
 
-The kernel's promise that control flow is a plugin — `loop`, `retry`,
-`parallel`, `try/catch` are ordinary step types calling `ctx.runSteps` — holds
-for the three that run in sequence and does not hold for the fourth.
+**The shape is decided.** Concurrency exists between suites and nowhere else.
+The seven sentences below are the decision; the items after them are what the
+decision costs.
 
-- [ ] **Variable scopes survive concurrent `runSteps`**
-  - *Done when:* two nested runs started at once each see only their own variables.
-  - *Where:* `packages/core/src/executor.ts` — `#frames` is one array on the
-    instance, pushed with `unshift` and popped with `shift`, so a branch that
-    resumes while another branch's frame sits on top reads the wrong frame.
-  - *Evidence:* a throwaway `parallel` plugin, written against the published
-    API exactly as the design record describes it, with branches sleeping 10 ms
-    and 50 ms, returned `[["b"],["a"]]` where `[["a"],["b"]]` was expected.
-    Branch `a` read branch `b`'s variable. It did not fail — it read the wrong
-    value and passed.
-  - *Test:* belongs with the invariants in `packages/core/test/kernel.test.ts`,
-    not as a regression test. It is a statement that makes the architecture true.
+1. **Inside a test there is no concurrency, and there cannot be.** No step type
+   may run two `ctx.runSteps` calls at the same time.
+2. **A test is the atomic unit.** It runs whole, interleaved with nothing.
+3. **Suites run in parallel** — and once suites nest, the leaves of the tree do.
+4. **A suite's `before`/`each`/`after` cannot collide between its own tests**,
+   because the tests inside one suite are sequential.
+5. **A thousand tests in one suite is a bottleneck**, and the answer to it is
+   shards, not a second kind of concurrency.
+6. **A live reporter buffers** until what it is holding has a final status, and
+   prints it then. A reporter that renders a finished run needs no live output
+   at all.
+7. **A failed test does not stop the run.** It frees a slot in the pool.
+
+What that buys: the executor is per test, so with (1) and (2) its frames,
+`#depth`, `#parentId` and `#phase` are correct as they stand. The variable-scope
+item that opened this milestone is gone. What remains is the resource manager,
+one refusal, and the sentence that has to be written down.
+
+### The guarantees, to live beside the `RunEvent` union
+
+The decision above is only real once a reporter author can read it. G4 is the
+one that costs something, and it is weaker here than it would be under
+test-level concurrency — which is the point of deciding it this way.
+
+- **G1** — `run.started` is the first event, `run.finished` the last.
+- **G2** — For any test, `test.started` precedes every event naming it and
+  `test.finished` follows all of them.
+- **G3** — For any suite, `suite.started` precedes the `test.started` of every
+  test whose `source` is that suite, and `suite.finished` follows every
+  `test.finished` of those tests.
+- **G4** — Events of *different suites* may interleave in any order. Within one
+  suite the stream is totally ordered, and a reporter may rely on that.
+- **G5** — Within a test, step events are ordered. Nesting is expressed by
+  `parentId` and `depth`, never by adjacency.
+- **G6** — Every event belonging to a test names it; every test names its suite
+  once, on `test.started`; a name identifies a test for the whole run.
+
+### The items
 
 - [ ] **A resource acquired twice at once is one resource**
-  - *Done when:* two tests acquiring the same resource concurrently get one
-    value, and every resource that was set up is torn down.
-  - *Where:* `packages/core/src/resources.ts` — frames are a stack rather than
-    a tree, and `acquire` caches the resolved value rather than the promise, so
-    two concurrent acquisitions launch two resources and one is never released.
+  - *Done when:* two suites acquiring the same resource concurrently get one
+    value, and every resource that was set up is torn down exactly once.
+  - *Where:* `packages/core/src/resources.ts`. Two faults, both load-bearing
+    under (3): `#frames` is one stack for the whole kernel, so `close('test')`
+    in suite A pops the frame suite B just opened; and `acquire` caches the
+    resolved value rather than the promise, so two callers both find the cache
+    empty and both call `setup`.
+  - *Evidence:* a `test`-scoped resource whose setup takes 20 ms, acquired
+    twice at once, reported `SETUPS 2` and `TORN DOWN [2, 2]`. Not one leak:
+    resource 1 was never released and resource 2 was released twice.
   - *Note:* the file's own doc comment already claims that data isolation under
     parallel execution falls out of this model. Today it does not. Either the
     code moves or the comment does, and the code is the one that should move.
 
-- [ ] **The shape of parallelism is decided and written down**
-  - *Done when:* a reporter can attribute every step to its test without
-    depending on the order events arrive in.
-  - *Why now:* `RunRequest` carries only `reporters`, so there is no way to ask
-    for concurrency at all, and the ordering guarantees of `RunEvent` are
-    currently implicit in the fact that nothing runs at the same time. Deciding
-    the shape is required before 1.0; shipping the implementation is not.
+- [ ] **A concurrent `runSteps` is refused, loudly**
+  - *Done when:* a step type that starts a second `ctx.runSteps` before its
+    first has returned gets an error naming the rule, instead of an answer.
+  - *Why this and not documentation:* the contract cannot stop a plugin author
+    from writing `Promise.all(ctx.runSteps(a), ctx.runSteps(b))`, and today that
+    does not fail — a throwaway `parallel` plugin returned
+    `[["branch-1"],["branch-1"]]` where `[["branch-0"],["branch-1"]]` was
+    expected, and the step passed. A rule nobody can violate by accident is a
+    rule; a rule that returns another branch's data is a trap.
+  - *Where:* `packages/core/src/executor.ts`. Nesting stays legal — `loop` and
+    `retry` call `runSteps` from inside a running one. What is refused is
+    siblings: a call that returns to a different depth than it left from.
 
-- [ ] **`parallel` is a plugin, written against the published API**
-  - *Done when:* a parallel step type is published from outside this repository
-    with no kernel changes, the same way `@speqkit/plugin-loop` was.
-  - *Why this is the gate:* it is the only way to know M5 is actually done. The
-    claim was believed for months because nobody had written the plugin.
+- [ ] **The promise about `parallel` is withdrawn where it was made**
+  - *Done when:* no document or comment tells a plugin author that `parallel` is
+    an ordinary step type they may write.
+  - *Where:* `packages/core/src/executor.ts` (the `runSteps` doc comment),
+    `packages/plugin-api/src/index.ts` (twice — `StepDef.steps` and
+    `ExecContext.runSteps`), `packages/plugin-loop/src/index.ts`, and the
+    decision table in `docs/architecture/plugin-framework.html`, where
+    "Loop, condition, retry, parallel — all plugins" is marked **decided**.
+  - *And what replaces it:* the refusal is on concurrent `runSteps`, not on
+    concurrent I/O. A step type may fan out fifty requests inside one `execute`
+    — it touches no frame doing so. `http.batch` stays writable, and that is
+    where nearly all of the real demand for `parallel` was going.
+
+- [ ] **A suite hook knows which suite it is in**
+  - *Done when:* `test:before`, `test:after`, `step:before` and `step:after`
+    carry the suite, so a hook holding per-suite state can key on it.
+  - *Where:* `packages/core/src/runner.ts` and `executor.ts` — four call sites.
+    `HookPayload.suite` is already declared and is never populated for these
+    four, so this costs nothing on the contract. It is the second dead field
+    found here, after `RunStepsOptions.label`.
+  - *Why it belongs to M5:* a hook is registered once for the whole run, so two
+    concurrent suites call the same function. Thesis (4) holds inside a suite
+    and says nothing across suites; a hook that cannot name its suite has no
+    way to keep the two apart.
+
+- [ ] **Concurrency can be asked for**
+  - *Done when:* `RunRequest.concurrency` exists and `speq run --workers N`
+    reaches it, with 1 the default.
+  - *Why 1 forever:* every framework surveyed defaults to the CPU count, because
+    their bottleneck is the local processor. Ours is somebody else's service.
+    Eight workers is eight times the load on the system under test, and step
+    timeouts start firing where they did not fire in sequence — concurrency
+    would change verdicts. There is no `auto`.
+
+- [ ] **The reporters key on identity**
+  - *Done when:* an interleaved stream renders the same report as a sequential
+    one.
+  - *Where:* `packages/plugin-junit/src/build.ts` holds `#case` and `#suite`,
+    one slot each. Fed the stream two concurrent suites produce, it emitted one
+    of two tests and dropped the other — and the run still exits non-zero, so
+    nobody opens the report to notice. It needs a map keyed by name, and
+    `event.source` rather than the last `suite.started`.
+  - *And the console:* buffer per **test**, flush on `test.finished`, print a
+    suite header lazily on the first flush from that suite. Buffering per suite
+    means minutes of silence at eight workers.
+  - *Note:* both are wrong today for a reason that has nothing to do with
+    concurrency, which is why neither needs a contract change to fix.
+
+- [ ] **The report does not depend on who finished first**
+  - *Done when:* two runs of the same suites at `--workers 4` produce the same
+    report.
+  - *Where:* `packages/core/src/runner.ts` — `outcomes.push(await …)` becomes a
+    write at the test's own index. The event log stays chronological; the report
+    is not the event log.
+
+- [ ] **The gate: a plugin from outside proves it**
+  - *Done when:* a plugin published from outside this repository, defining a
+    `suite`-scoped resource and a suite hook, runs correctly under
+    `--workers 4` with no kernel changes — one resource per suite, torn down
+    once, and the hook's state never crossing between suites.
+  - *Why a gate at all:* the old one was `parallel` itself, and thesis (1)
+    forbids it. The claim that this milestone is done cannot be checked from
+    inside the repository that makes it. It was believed for months last time
+    because nobody had written the plugin.
+
+- [ ] **Shards** — *any time, does not block 1.0*
+  - *Done when:* `speq run --shard 2/4` runs a quarter of the tests, and four
+    shards between them run each test exactly once.
+  - *Why it is here:* it is the answer thesis (5) points at, and it is the only
+    item in this milestone that touches neither the kernel nor the contract.
+    Discovery is already sorted, so a shard is a slice. Each shard is an
+    ordinary sequential run with its own `events.jsonl` and its own JUnit XML,
+    and CI merges XML the way it merges everything else.
+  - *The fork to decide when it is taken:* slicing by suite keeps a suite whole
+    but leaves a thousand tests in one file as one shard — which is the case
+    that asked for this. Slicing by test fixes that and splits a suite across
+    shards, so a `suite`-scoped resource is set up in each. That second
+    behaviour is pytest's session-fixture-per-worker, the most common surprise
+    in the category, and it is survivable if the flag's help says so.
+
+### Not in M5, and deliberately
+
+- **Fail-fast.** Thesis (7) settles it: nothing stops the run. A half-cancelled
+  run leaves resources behind, which is the failure mode this milestone exists
+  to remove. Out of 1.0, and said out loud rather than left open.
+- **Worker processes.** In-process async covers L1–L3 because the work is I/O
+  against somebody else's service. Processes buy crash containment, which
+  shards already give, and CPU parallelism, which this workload does not use.
 
 ## M6 — The spine closes — blocks 1.0
 
