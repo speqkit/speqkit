@@ -78,10 +78,14 @@ reporters break once rather than four times. Each is a field on the spine, in
 the same tradition as the four holes already found and closed that way — none
 of them opens a ninth contribution point.
 
-- [ ] **A failed assertion says what it expected and what it got**
+- [x] **A failed assertion says what it expected and what it got**
   - *Done when:* a reporter can render a diff without re-running the test.
-  - *Where:* `AssertOutcome` carries `expected` and `actual`; the
-    `assertion.evaluated` event drops them.
+  - *Landed early*, out of order with the rest of M6, because M7's console diff
+    could not be written without it and is otherwise pure terminal work. It is
+    additive — a reporter that ignores the two keys behaves exactly as before —
+    so it does not spend the "reporters break once" budget the other three
+    items share. They ride on failure only: a response body per passing
+    assertion in `events.jsonl` buys nothing.
   - *Why it matters twice:* a human without a diff is inconvenienced; an agent
     without a diff has nothing to fix.
 
@@ -131,35 +135,52 @@ of them opens a ninth contribution point.
     read next quarter is comparing against a name.
   - *Not `foreach`:* see [Not doing](#not-doing).
 
-## M7 — The first five minutes — any time, do first
+## M7 — The first five minutes — any time, do first — **done**
 
 Nothing here changes the contract. All of it changes whether a stranger gets
 past their first run.
 
-- [ ] **The example in the README runs**
+- [x] **The example in the README runs**
   - *Done when:* `examples/basic` validates and runs green, and CI runs it.
-  - *Today:* `speq validate` there reports 4 problems and exits 2. `jsonpath`
-    moved into `plugin-assert` and the example's plugin list was never updated.
-    Nothing in `.github/workflows/ci.yml` executes the example, so the one path
-    every newcomer takes is the one path nothing tests.
-- [ ] **A failed request says which URL failed and why**
+  - *Done:* the plugin list gained `assert` and the assertions moved to the
+    current vocabulary; the deliberately broken file moved out of `suites/`
+    into `broken/`, so the default check is green and the typo is still shown
+    being caught with `validate --suite broken`. CI runs `plugins`, `validate`,
+    the broken file, and both HTTP suites against a stub on localhost — a gate
+    that crosses the public internet reports somebody else's outage as our
+    broken example.
+- [x] **A failed request says which URL failed and why**
   - *Done when:* a connection error names the URL and the underlying cause
     instead of two words.
-  - *Today:* `plugin-http` rethrows undici's raw `TypeError: fetch failed`,
-    discarding `err.cause`.
-- [ ] **`validate` and `list` honour the flags they are given**
+- [x] **`validate` and `list` honour the flags they are given**
   - *Done when:* `speq validate --test x.yaml` validates that file.
-  - *Today:* both call `ctx.host.discover()` with no query and silently ignore
-    `--test`, `--suite` and `--tags`.
-- [ ] **A run can be debugged without a proxy**
-  - *Done when:* `--verbose` shows the exchange and a failed assertion shows a
-    diff in the console.
-- [ ] **The untested plugins have tests**
+- [ ] **A run can be debugged without a proxy** — *half done*
+  - [x] A failed assertion shows a diff in the console: two scalars as a
+    comparison, two shapes as a unified diff over their JSON.
+  - [ ] `--verbose` shows the exchange. **This one is misfiled here.** A step's
+    result never enters the event stream — `step.finished` carries a status, a
+    duration and a message and nothing else — so no reporter can print a
+    request and a response, whatever flag it is given. It needs the stream to
+    carry what a step produced, which is a `RunEvent` change and therefore
+    **blocks 1.0**. Two shapes to choose between when M6 is taken: the result
+    on `step.finished`, which makes `events.jsonl` as large as every response
+    body in the run; or an opt-in, where the step decides what is worth
+    recording. The second is almost certainly right, and it is the same
+    mechanism a UI panel needs to show an exchange.
+- [x] **The untested plugins have tests**
   - *Done when:* `plugin-cli`, `plugin-junit` and `plugin-playwright` are
     covered. The CLI is the reference every plugin author copies.
-- [ ] **The roadmap ledger matches the code**
+  - *Note:* the browser tests skip when no browser is installed, since
+    `playwright` is an optional peer. One CI job installs chromium and sets
+    `SPEQ_REQUIRE_BROWSER=1`, which turns that skip into a failure — otherwise
+    "green" and "did not run" look the same from outside.
+- [x] **The roadmap ledger matches the code**
   - *Done when:* `docs/architecture/plugins.html` no longer says the contract is
     at 0.5.0 (it is 0.9.0) or that five of nine plugins are written.
+  - *Done:* the versions came out of the chips rather than being corrected — a
+    version written into HTML by hand rots on the next release — and
+    `workspace.test.ts` now checks the part that stays: a package this
+    repository publishes has a row, and a row marked written has a package.
 
 ## M8 — A surface a machine can read — any time
 
