@@ -200,7 +200,7 @@ export class Executor {
       // answers over the network can hang, and a hang before the step is
       // still the step taking too long.
       const input = await withTimeout(this.#prepareInput(step), controller.signal)
-      const ctx = this.#execContext(controller.signal, entry.owner)
+      const ctx = this.#execContext(controller.signal, entry.owner, step.type)
       const result = await withTimeout(entry.def.execute(ctx, input), controller.signal)
       const bound = (result ?? {}) as StepResult
 
@@ -352,12 +352,18 @@ export class Executor {
     return input
   }
 
-  #execContext(signal: AbortSignal, owner: string): ExecContext {
+  #execContext(signal: AbortSignal, owner: string, stepType: string): ExecContext {
     const self = this
+    // The depth this step is executing at. A nested `runSteps` returns here
+    // before the next one may start, and that is the whole of the check.
+    const at = this.#depth
     return {
       resolve: <T>(template: string) => resolveString(self.scope(), template) as T,
       resolveDeep: <T>(value: T) => resolveDeep(self.scope(), value),
-      runSteps: (steps, options) => self.runSteps(steps, options),
+      runSteps: (steps, options) => {
+        if (self.#depth !== at) throw concurrentRunSteps(stepType)
+        return self.runSteps(steps, options)
+      },
       resource: <T>(name: string) =>
         self.#resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>,
       config: <T>() => self.#registry.configFor(owner) as T,
@@ -383,6 +389,30 @@ export class Executor {
     this.#registry.events.emit({ type: 'step.finished', ...base, status, durationMs, message })
     return { id: base.stepId, type: base.stepType, status, result: {}, message, durationMs }
   }
+}
+
+/**
+ * A test is the atomic unit, so two `runSteps` calls never overlap.
+ *
+ * Nothing in the contract could have stopped a plugin author from writing
+ * `Promise.all([ctx.runSteps(a), ctx.runSteps(b)])`, and until this check the
+ * kernel answered. Both calls shared one frame stack, so the second branch's
+ * bindings landed in the first branch's frame: a throwaway `parallel` plugin
+ * asked for two branches and got `[["branch-1"], ["branch-1"]]` — the same
+ * branch twice, reported as passing. A rule that returns another branch's data
+ * is not a rule, it is a trap.
+ *
+ * Refused here rather than documented, and refused where the mistake is rather
+ * than where it shows: the wrong answer surfaces in an assertion three steps
+ * later, and by then nothing points back at the `Promise.all`.
+ */
+function concurrentRunSteps(stepType: string): Error {
+  return new Error(
+    `step type '${stepType}' called runSteps while its own nested steps were still running. ` +
+      'Steps inside one test never run at the same time — a test is the unit speq runs ' +
+      'atomically, and concurrency lives between suites. Concurrent I/O inside execute() is ' +
+      'fine and is usually what was wanted: fan out the requests, return one result.'
+  )
 }
 
 function isMeta(value: unknown): value is Record<string, unknown> {
