@@ -50,8 +50,14 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b]',
+      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b] [--workers N]',
       async run(argv) {
+        const workers = readWorkers(argv)
+        if (typeof workers === 'string') {
+          process.stderr.write(`${workers}\n`)
+          return EXIT_CONFIG
+        }
+
         const tests = await ctx.host.discover(query(argv))
         if (tests.length === 0) {
           process.stderr.write('no tests matched\n')
@@ -67,7 +73,8 @@ export default definePlugin({
         if (ctx.host.env) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
 
         const outcome = await ctx.host.run(tests, {
-          reporters: list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS
+          reporters: list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS,
+          concurrency: workers
         })
         return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
       }
@@ -365,6 +372,31 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
     process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ?? ''}\n`)
   }
   process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
+}
+
+/**
+ * `--workers N`: how many suites may be in flight at once. One when absent.
+ *
+ * Returns the message rather than printing it, so the command decides what a
+ * bad flag costs — here, refusing to run at all. A run that quietly fell back
+ * to one worker after being asked for eight would be a twenty-minute suite
+ * pretending to obey.
+ *
+ * There is no `auto`, and the refusal says so. Every framework surveyed
+ * defaults to the CPU count because their bottleneck is the local processor;
+ * ours is somebody else's service, and N suites at once is N times the load on
+ * it. Nothing here can know what that system will take.
+ */
+function readWorkers(argv: string[]): number | string {
+  const raw = flag(argv, '--workers')
+  if (raw === undefined) return 1
+  const workers = Number(raw)
+  if (!Number.isInteger(workers) || workers < 1) {
+    return `--workers takes a whole number of 1 or more, and got '${raw}'. ` +
+      'There is no auto: N suites at once is N times the load on the system under test, ' +
+      'and only you know what it will take.'
+  }
+  return workers
 }
 
 /** The three flags that decide which tests a command is talking about. */

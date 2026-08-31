@@ -105,6 +105,27 @@ describe('the exit code', () => {
   })
 })
 
+describe('asking for concurrency', () => {
+  it('refuses a --workers that is not a whole number of one or more', async () => {
+    const commands = await withProject()
+    for (const bad of ['0', '-2', 'auto', '2.5']) {
+      const { code, err } = await invoke(commands, 'run', ['--test', 'suites/health.yaml', '--workers', bad])
+      expect(code, `--workers ${bad}`).toBe(2)
+      expect(err).toContain(`got '${bad}'`)
+      expect(err).toContain('There is no auto')
+    }
+  })
+
+  // Refused before discovery, so a bad flag costs nothing and a good one is
+  // never half-applied: a run that quietly fell back to one worker after being
+  // asked for eight is a twenty-minute suite pretending to obey.
+  it('runs the suites when the number is one it can honour', async () => {
+    const commands = await withProject()
+    const { code } = await invoke(commands, 'run', ['--tags', 'smoke', '--workers', '4', '--reporter', ''])
+    expect(code).toBe(0)
+  })
+})
+
 describe('the console reporter', () => {
   it('prints a failed assertion under the test it belongs to', async () => {
     kit = await harness(cli)
