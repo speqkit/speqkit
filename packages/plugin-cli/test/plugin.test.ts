@@ -168,19 +168,79 @@ describe('the console reporter', () => {
     expect(printed).not.toContain('expected')
     expect(printed).not.toContain('(nothing)')
   })
+
+  it('holds a test until it is over, so two of them do not interleave on screen', async () => {
+    // The stream G4 permits: two suites in flight, their events alternating.
+    // Printed through as they arrive, this reads as one test's steps indented
+    // under another test's header — which is worse than no output at all,
+    // because it looks right.
+    const printed = await render([
+      { type: 'test.started', test: 'slow', source: 'suites/slow.yaml' },
+      { type: 'test.started', test: 'quick', source: 'suites/quick.yaml' },
+      { type: 'step.finished', test: 'slow', stepType: 'http', depth: 1, status: 'passed', durationMs: 40 },
+      { type: 'step.finished', test: 'quick', stepType: 'sql', depth: 1, status: 'passed', durationMs: 5 },
+      { type: 'test.finished', test: 'quick', status: 'passed', durationMs: 5 },
+      { type: 'step.finished', test: 'slow', stepType: 'http', depth: 1, status: 'passed', durationMs: 10 },
+      { type: 'test.finished', test: 'slow', status: 'passed', durationMs: 50 }
+    ])
+
+    expect(printed.split('\n').filter(Boolean)).toEqual([
+      'quick  suites/quick.yaml',
+      '  . sql 5ms',
+      'slow  suites/slow.yaml',
+      '  . http 40ms',
+      '  . http 10ms'
+    ])
+  })
+
+  it('keeps a diagnostic with the test it is about', async () => {
+    const printed = await render([
+      { type: 'test.started', test: 'one', source: 'suites/one.yaml' },
+      { type: 'test.started', test: 'two', source: 'suites/two.yaml' },
+      { type: 'test.finished', test: 'two', status: 'passed', durationMs: 1 },
+      { type: 'diagnostic', level: 'warn', source: 'one', message: 'cleanup did not complete' },
+      { type: 'test.finished', test: 'one', status: 'error', durationMs: 2 }
+    ])
+
+    const lines = printed.split('\n').filter(Boolean)
+    expect(lines.indexOf('one  suites/one.yaml')).toBeLessThan(
+      lines.findIndex((l) => l.includes('cleanup did not complete'))
+    )
+  })
+
+  it('prints what is still open when the run ends rather than losing it', async () => {
+    const printed = await render([
+      { type: 'test.started', test: 'never finished', source: 'suites/x.yaml' },
+      { type: 'step.finished', test: 'never finished', stepType: 'http', depth: 1, status: 'error', durationMs: 1, message: 'socket hang up' },
+      { type: 'run.finished', runId: 'r', status: 'error', passed: 0, failed: 0, errored: 1, skipped: 0, durationMs: 3 }
+    ])
+
+    expect(printed).toContain('never finished')
+    expect(printed).toContain('socket hang up')
+  })
 })
 
-/** Drive the console reporter over a stream and return what it printed. */
+
+/**
+ * Drive the console reporter over a stream and return what it printed.
+ *
+ * Both streams, in the order they were written to. A diagnostic goes to stderr
+ * and everything else to stdout, and where the diagnostic lands relative to the
+ * test it names is the thing worth asserting on.
+ */
 async function render(events: RunEvent[]): Promise<string> {
   kit = await harness(cli)
   const reporter = kit.registry.reporters.get('console')!
   const said: string[] = []
   const stdout = process.stdout.write.bind(process.stdout)
+  const stderr = process.stderr.write.bind(process.stderr)
   process.stdout.write = ((s: string) => { said.push(String(s)); return true }) as typeof process.stdout.write
+  process.stderr.write = ((s: string) => { said.push(String(s)); return true }) as typeof process.stderr.write
   try {
     for (const event of events) reporter.def.on(event)
   } finally {
     process.stdout.write = stdout
+    process.stderr.write = stderr
   }
   return said.join('').replace(/\x1b\[\d+m/g, '')
 }
