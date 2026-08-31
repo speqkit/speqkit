@@ -1,4 +1,7 @@
-import { definePlugin, type CommandDef, type CommandHost, type Diagnostic, type RunEvent } from '@speqkit/plugin-api'
+import {
+  definePlugin,
+  type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type RunEvent
+} from '@speqkit/plugin-api'
 
 const EXIT_OK = 0
 const EXIT_FAILED = 1
@@ -48,11 +51,7 @@ export default definePlugin({
       summary: 'run the tests',
       usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b]',
       async run(argv) {
-        const tests = await ctx.host.discover({
-          test: flag(argv, '--test'),
-          suite: flag(argv, '--suite'),
-          tags: list(flag(argv, '--tags'))
-        })
+        const tests = await ctx.host.discover(query(argv))
         if (tests.length === 0) {
           process.stderr.write('no tests matched\n')
           return EXIT_CONFIG
@@ -109,10 +108,21 @@ export default definePlugin({
       }
     })
 
+    /**
+     * The selection flags are the same three `run` takes, and that is the
+     * point rather than a convenience.
+     *
+     * These two commands used to call `discover()` with no query at all and
+     * ignore `--test`, `--suite` and `--tags` in silence — so `speq validate
+     * --test suites/one.yaml` checked the whole project and said nothing about
+     * it. A checking command that answers a question other than the one it was
+     * asked is worse than one that refuses: the answer looks right.
+     */
     cli.register('validate', {
       summary: 'check every test against the grammar the loaded plugins define',
-      async run() {
-        const tests = await ctx.host.discover()
+      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b]',
+      async run(argv) {
+        const tests = await ctx.host.discover(query(argv))
         const diagnostics = ctx.host.validate(tests)
 
         if (diagnostics.length === 0) {
@@ -126,8 +136,9 @@ export default definePlugin({
 
     cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      async run() {
-        const tests = await ctx.host.discover()
+      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b]',
+      async run(argv) {
+        const tests = await ctx.host.discover(query(argv))
         for (const test of tests) {
           const tags = test.tags?.length ? `  [${test.tags.join(', ')}]` : ''
           process.stdout.write(`${test.source ?? '?'}  ${test.name}${tags}\n`)
@@ -210,6 +221,15 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
     process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ?? ''}\n`)
   }
   process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
+}
+
+/** The three flags that decide which tests a command is talking about. */
+function query(argv: string[]): DiscoverQuery {
+  return {
+    test: flag(argv, '--test'),
+    suite: flag(argv, '--suite'),
+    tags: list(flag(argv, '--tags'))
+  }
 }
 
 function list(value: string | undefined): string[] | undefined {
