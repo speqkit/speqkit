@@ -31,7 +31,10 @@
     }
   },
   "devDependencies": {
-    "@speqkit/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/test-kit": "workspace:*",
+    "playwright": "^1.62.1",
+    "speqkit": "workspace:*"
   },
   "files": [
     "dist",
