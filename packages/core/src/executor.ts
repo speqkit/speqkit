@@ -36,9 +36,15 @@ export interface ExecutorOptions {
  * Executes steps, and hands plugins the ability to do the same.
  *
  * `runSteps` being re-entrant and public is what keeps control flow out of the
- * kernel: `loop`, `retry`, `parallel` and `try/catch` are ordinary step types
- * that call back into it with a child variable scope. The kernel therefore
- * contains no control constructs at all, and never needs to grow any.
+ * kernel: `loop`, `retry`, `if` and `try/catch` are ordinary step types that
+ * call back into it with a child variable scope. The kernel therefore contains
+ * no control constructs at all, and never needs to grow any.
+ *
+ * `parallel` is not on that list and cannot be. Every one of those constructs
+ * runs its children one at a time; a `parallel` step type would have to run
+ * two `runSteps` calls at once, and inside a test that is refused — see
+ * `concurrentRunSteps` below. Concurrency in speq is between suites, where
+ * nothing shares a frame.
  */
 export class Executor {
   readonly #registry: Registry

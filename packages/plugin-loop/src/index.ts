@@ -7,7 +7,9 @@ import { definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api
  * thing a naive "step type" contract cannot express. It works here because the
  * kernel's executor is re-entrant and handed to plugins as `ctx.runSteps`.
  * Everything else that looked like it would have to be built in — `retry`,
- * `if`, `parallel`, `try/catch` — follows from the same three lines.
+ * `if`, `try/catch` — follows from the same three lines. Everything else
+ * sequential, that is: `runSteps` runs one call at a time by design, so
+ * `parallel` is not on the list. Concurrency in speq is between suites.
  *
  * This plugin is written against the published API only. If it ever needs a
  * kernel change, the spine is wrong and the change belongs there, not here.
