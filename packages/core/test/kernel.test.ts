@@ -380,6 +380,92 @@ describe('a hook knows which suite it is firing in', () => {
   })
 })
 
+describe('suites are what run at once', () => {
+  /** A step that says when it started and when it stopped. */
+  function timed(order: string[]) {
+    return definePlugin({
+      name: 'timed',
+      setup(ctx) {
+        ctx.defineStepType('wait', {
+          async execute(_exec, input) {
+            const tag = String(input.tag)
+            order.push(`${tag} start`)
+            await new Promise((r) => setTimeout(r, Number(input.ms)))
+            order.push(`${tag} end`)
+            return { tag }
+          }
+        })
+      }
+    })
+  }
+
+  const suites = [
+    { name: 'slow', source: 'suites/slow.yaml', steps: [{ type: 'wait', tag: 'slow', ms: 40 }] },
+    { name: 'quick', source: 'suites/quick.yaml', steps: [{ type: 'wait', tag: 'quick', ms: 5 }] }
+  ]
+
+  it('runs one suite at a time unless asked otherwise', async () => {
+    const order: string[] = []
+    const registry = await registryWith(timed(order))
+    await runTests(registry, suites)
+    expect(order).toEqual(['slow start', 'slow end', 'quick start', 'quick end'])
+  })
+
+  it('overlaps two suites when asked, and the quick one does not wait', async () => {
+    const order: string[] = []
+    const registry = await registryWith(timed(order))
+    await runTests(registry, suites, { concurrency: 2 })
+    expect(order).toEqual(['slow start', 'quick start', 'quick end', 'slow end'])
+  })
+
+  it('reports them in the order they were discovered, not the order they finished', async () => {
+    const order: string[] = []
+    const registry = await registryWith(timed(order))
+    const outcome = await runTests(registry, suites, { concurrency: 2 })
+
+    // `outcomes.push(await …)` would have put 'quick' first, so the same two
+    // suites produced a different report on every run. A report is not the
+    // event log: the log is chronological because it records what happened,
+    // and the report is addressed by name.
+    expect(outcome.tests.map((t) => t.name)).toEqual(['slow', 'quick'])
+    expect(outcome.passed).toBe(2)
+  })
+
+  it('keeps each suite in order while the two of them interleave', async () => {
+    const order: string[] = []
+    const registry = await registryWith(timed(order))
+    const seen: string[] = []
+    registry.events.subscribe((e) => {
+      if (e.type === 'suite.started') seen.push(`${e.suite} open`)
+      if (e.type === 'test.started') seen.push(`${e.test} test`)
+      if (e.type === 'suite.finished') seen.push(`${e.suite} shut`)
+    })
+    await runTests(registry, suites, { concurrency: 2 })
+
+    // G4: different suites interleave, one suite does not. Whatever order the
+    // four groups arrive in, each suite's three events keep theirs.
+    const slow = seen.filter((s) => s.includes('slow'))
+    const quick = seen.filter((s) => s.includes('quick'))
+    expect(slow).toEqual(['suites/slow.yaml open', 'slow test', 'suites/slow.yaml shut'])
+    expect(quick).toEqual(['suites/quick.yaml open', 'quick test', 'suites/quick.yaml shut'])
+    expect(seen.indexOf('suites/quick.yaml open')).toBeLessThan(seen.indexOf('suites/slow.yaml shut'))
+  })
+
+  it('gives a failed suite its slot back instead of stopping the run', async () => {
+    const order: string[] = []
+    const registry = await registryWith(echo, timed(order))
+    const outcome = await runTests(registry, [
+      { name: 'breaks', source: 'suites/a.yaml', steps: [{ type: 'nope' }] },
+      { name: 'runs', source: 'suites/b.yaml', steps: [{ type: 'echo', value: 1 }] },
+      { name: 'also runs', source: 'suites/c.yaml', steps: [{ type: 'echo', value: 2 }] }
+    ], { concurrency: 2 })
+
+    expect(outcome.errored).toBe(1)
+    expect(outcome.passed).toBe(2)
+    expect(outcome.tests.map((t) => t.name)).toEqual(['breaks', 'runs', 'also runs'])
+  })
+})
+
 describe('a plugin contributes to a surface that may not be loaded', () => {
   const contributor = definePlugin({
     name: 'contributor',
