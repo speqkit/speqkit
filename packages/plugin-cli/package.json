@@ -25,7 +25,10 @@
     "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
-    "@speqkit/plugin-api": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/plugin-yaml": "workspace:*",
+    "@speqkit/test-kit": "workspace:*",
+    "speqkit": "workspace:*"
   },
   "files": [
     "dist",

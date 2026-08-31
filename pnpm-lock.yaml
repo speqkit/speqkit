@@ -107,6 +107,15 @@ importers:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      '@speqkit/plugin-yaml':
+        specifier: workspace:*
+        version: link:../plugin-yaml
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
 
   packages/plugin-data:
     devDependencies:
