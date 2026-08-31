@@ -1,4 +1,4 @@
-import type { RunEvent, EventListener } from '@speqkit/plugin-api'
+import type { AssertOutcome, RunEvent, EventListener } from '@speqkit/plugin-api'
 
 /** The one channel every surface — CLI, TUI, VS Code, reporters — listens on. */
 export class EventBus {
@@ -21,5 +21,21 @@ export class EventBus {
         process.stderr.write(`speq: reporter threw on ${event.type}: ${String(err)}\n`)
       }
     }
+  }
+}
+
+/**
+ * The values behind a failed assertion, on their way into the event stream.
+ *
+ * Only on failure, and only the keys the assertion actually set. A check that
+ * has nothing to compare — `visible`, `schema` — says so by leaving both
+ * undefined, and an event with `expected: undefined` in it is a reporter
+ * printing "expected undefined" at somebody.
+ */
+export function comparison(outcome: AssertOutcome): { expected?: unknown; actual?: unknown } {
+  if (outcome.passed) return {}
+  return {
+    ...(outcome.expected !== undefined ? { expected: outcome.expected } : {}),
+    ...(outcome.actual !== undefined ? { actual: outcome.actual } : {})
   }
 }

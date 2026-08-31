@@ -249,7 +249,18 @@ export type RunEvent =
   | { type: 'test.skipped'; test: string; reason: string }
   | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
   | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
-  | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string; stepId?: string }
+  /**
+   * `expected` and `actual` are carried only when the assertion failed.
+   *
+   * `AssertOutcome` has had both since the first commit and the event dropped
+   * them, so every surface downstream — the console, a UI panel, an agent
+   * repairing its own suite — had a sentence and no values, and the only way
+   * to see a diff was to run the test again with a proxy in front of it. They
+   * are absent on a passing assertion on purpose: a response body per
+   * assertion in `events.jsonl` buys nothing, because a diff is a thing you
+   * read about a failure.
+   */
+  | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string; stepId?: string; expected?: unknown; actual?: unknown }
   | { type: 'artifact.attached'; test: string; name: string; contentType: string; bytes: number; path?: string }
   | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number }
   | { type: 'suite.finished'; suite: string }
