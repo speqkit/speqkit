@@ -92,6 +92,17 @@ describe('the selection flags', () => {
     expect(smoke.out).not.toContain('orders can be listed')
     expect(smoke.out).toContain('1 test(s)')
   })
+
+  it('let list address one case by name', async () => {
+    const commands = await withProject()
+
+    // The other three flags say where to look or what to look for. After
+    // reading a report, what anybody wants is that one row.
+    const one = await invoke(commands, 'list', ['--name', 'health answers'])
+    expect(one.code).toBe(0)
+    expect(one.out).toContain('health answers')
+    expect(one.out).toContain('1 test(s)')
+  })
 })
 
 describe('the exit code', () => {
@@ -249,6 +260,23 @@ describe('the console reporter', () => {
  * and everything else to stdout, and where the diagnostic lands relative to the
  * test it names is the thing worth asserting on.
  */
+describe('a step that belongs to a suite', () => {
+  it('says where it is, since no test header stands above it', async () => {
+    const printed = await render([
+      { type: 'suite.started', suite: 'suites/menu' },
+      { type: 'step.finished', suite: 'suites/menu', stepId: 'tenant', stepType: 'http', depth: 1, phase: 'setup', status: 'passed', durationMs: 4 },
+      { type: 'test.started', test: 'items', source: 'suites/menu/items.yaml' },
+      { type: 'step.finished', test: 'items', stepType: 'http', depth: 1, status: 'passed', durationMs: 2 },
+      { type: 'test.finished', test: 'items', status: 'passed', durationMs: 2 }
+    ])
+
+    // A suite's setup runs before the first test in it, so there is no header
+    // above it to inherit. Buffering it would be worse: it belongs to no test.
+    expect(printed).toContain('tenant (http)')
+    expect(printed).toMatch(/tenant \(http\).*suites\/menu/)
+  })
+})
+
 async function render(events: RunEvent[]): Promise<string> {
   kit = await harness(cli)
   const reporter = kit.registry.reporters.get('console')!

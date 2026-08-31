@@ -16,9 +16,17 @@ const RESERVED_INPUT = new Set(['id', 'type', 'timeout', 'assert', 'meta'])
 
 export interface ExecutorOptions {
   registry: Registry
-  test: string
   /**
-   * The suite the test belongs to, carried so a step hook can name it.
+   * The test being run, or absent when a suite is running its own setup or
+   * cleanup — steps that belong to no test, because the suite exists before
+   * the first one and after the last.
+   *
+   * Every event the executor emits names one owner: the test when there is
+   * one, the suite otherwise.
+   */
+  test?: string
+  /**
+   * The suite the work belongs to, carried so a step hook can name it.
    *
    * A hook is registered once for the whole run, so under concurrency the same
    * function is called by two suites at a time. Without this it has the test
@@ -56,7 +64,7 @@ export interface ExecutorOptions {
  */
 export class Executor {
   readonly #registry: Registry
-  readonly #test: string
+  readonly #test: string | undefined
   readonly #suite: string
   readonly #resources: ResourceFrame
   readonly #meta: Record<string, unknown>
@@ -77,6 +85,11 @@ export class Executor {
     this.#meta = options.meta ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
     this.#attach = options.attach
+  }
+
+  /** Whichever of the two this executor's events belong to. Exactly one is set. */
+  #owner(): { test: string } | { suite: string } {
+    return this.#test === undefined ? { suite: this.#suite } : { test: this.#test }
   }
 
   /** Every result bound so far, flattened innermost-last for assertions. */
@@ -186,7 +199,7 @@ export class Executor {
     const entry = this.#registry.stepTypes.get(step.type)
     const started = Date.now()
     const base = {
-      test: this.#test,
+      ...this.#owner(),
       stepId: step.id,
       stepType: step.type,
       parentId: this.#parentId,
@@ -201,7 +214,7 @@ export class Executor {
     }
 
     this.#registry.events.emit({ type: 'step.started', ...base })
-    await this.#registry.runHooks('step:before', { test: this.#test, suite: this.#suite, step })
+    await this.#registry.runHooks('step:before', { ...this.#owner(), suite: this.#suite, step })
 
     const timeoutMs = readTimeout(step.timeout) ?? entry.def.timeoutMs ?? this.#defaultTimeoutMs
     const controller = new AbortController()
@@ -264,7 +277,7 @@ export class Executor {
       this.#parentId = previousParent
     }
 
-    await this.#registry.runHooks('step:after', { test: this.#test, suite: this.#suite, step, record })
+    await this.#registry.runHooks('step:after', { ...this.#owner(), suite: this.#suite, step, record })
     return record
   }
 
@@ -322,7 +335,7 @@ export class Executor {
       const latest = out.at(-1)!
       this.#registry.events.emit({
         type: 'assertion.evaluated',
-        test: this.#test,
+        ...this.#owner(),
         assertionType: assertion.type,
         passed: latest.passed,
         message: latest.message,
@@ -394,8 +407,8 @@ export class Executor {
 
   #fail(
     base: {
-      test: string; stepId?: string; stepType: string; parentId?: string; depth: number
-      meta?: Record<string, unknown>
+      test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string
+      depth: number; meta?: Record<string, unknown>
     },
     started: number,
     status: StepStatus,

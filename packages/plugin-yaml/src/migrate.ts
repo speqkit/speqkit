@@ -142,7 +142,7 @@ export function planMigration(from: string, out: string): Plan {
       const after = migrateFile(path, before, { survey, generators, notes })
       if (after === undefined) continue
       if (after === before) unchanged += 1
-      else outputs.push({ path, content: after, state: 'rewritten' })
+      else outputs.push({ path: renamed(path), content: after, state: 'rewritten' })
     }
   }
 
@@ -263,6 +263,17 @@ function migrateFile(path: string, content: string, rw: Rewrite): string | undef
     })
   }
   return rewritten
+}
+
+/**
+ * The file that describes a directory is called `suite.yaml` here, and was
+ * called `init.yaml` in v1. Renamed on the way through rather than left: the
+ * loader reads both, so nothing breaks either way, and a project migrated
+ * today should read like a project written today.
+ */
+function renamed(path: string): string {
+  const name = basename(path, extname(path))
+  return name === 'init' ? join(dirname(path), `suite${extname(path)}`) : path
 }
 
 /**

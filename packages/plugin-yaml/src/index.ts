@@ -1,5 +1,5 @@
 import { definePlugin } from '@speqkit/plugin-api'
-import { loadTests } from './load.js'
+import { loadSuite, loadTests, SUITE_FILES } from './load.js'
 import { registerMigrate } from './migrate.js'
 
 /**
@@ -18,7 +18,9 @@ export default definePlugin({
   setup(ctx) {
     ctx.defineLoader('yaml', {
       extensions: ['.yaml', '.yml'],
-      load: (file, content) => loadTests(file, content, { root: ctx.host.root })
+      load: loadTests,
+      suiteFiles: SUITE_FILES,
+      loadSuite
     })
 
     registerMigrate(ctx)
