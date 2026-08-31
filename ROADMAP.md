@@ -28,7 +28,7 @@ missing thing, which is scopes that survive being entered twice at once.
 
 ---
 
-## M5 — Suites at once — blocks 1.0
+## M5 — Suites at once — blocks 1.0 — **done**
 
 **The shape is decided.** Concurrency exists between suites and nowhere else.
 The seven sentences below are the decision; the items after them are what the
@@ -73,7 +73,7 @@ test-level concurrency — which is the point of deciding it this way.
 
 ### The items
 
-- [ ] **A resource acquired twice at once is one resource**
+- [x] **A resource acquired twice at once is one resource**
   - *Done when:* two suites acquiring the same resource concurrently get one
     value, and every resource that was set up is torn down exactly once.
   - *Where:* `packages/core/src/resources.ts`. Two faults, both load-bearing
@@ -84,11 +84,12 @@ test-level concurrency — which is the point of deciding it this way.
   - *Evidence:* a `test`-scoped resource whose setup takes 20 ms, acquired
     twice at once, reported `SETUPS 2` and `TORN DOWN [2, 2]`. Not one leak:
     resource 1 was never released and resource 2 was released twice.
-  - *Note:* the file's own doc comment already claims that data isolation under
-    parallel execution falls out of this model. Today it does not. Either the
-    code moves or the comment does, and the code is the one that should move.
+  - *Done:* frames are a tree, `close` is a method on the frame rather than a
+    scope name the manager has to guess, and the cache holds the promise. The
+    file's doc comment claimed since the first commit that data isolation under
+    parallel execution falls out of this model. It does now.
 
-- [ ] **A concurrent `runSteps` is refused, loudly**
+- [x] **A concurrent `runSteps` is refused, loudly**
   - *Done when:* a step type that starts a second `ctx.runSteps` before its
     first has returned gets an error naming the rule, instead of an answer.
   - *Why this and not documentation:* the contract cannot stop a plugin author
@@ -101,7 +102,7 @@ test-level concurrency — which is the point of deciding it this way.
     `retry` call `runSteps` from inside a running one. What is refused is
     siblings: a call that returns to a different depth than it left from.
 
-- [ ] **The promise about `parallel` is withdrawn where it was made**
+- [x] **The promise about `parallel` is withdrawn where it was made**
   - *Done when:* no document or comment tells a plugin author that `parallel` is
     an ordinary step type they may write.
   - *Where:* `packages/core/src/executor.ts` (the `runSteps` doc comment),
@@ -114,7 +115,7 @@ test-level concurrency — which is the point of deciding it this way.
     — it touches no frame doing so. `http.batch` stays writable, and that is
     where nearly all of the real demand for `parallel` was going.
 
-- [ ] **A suite hook knows which suite it is in**
+- [x] **A suite hook knows which suite it is in**
   - *Done when:* `test:before`, `test:after`, `step:before` and `step:after`
     carry the suite, so a hook holding per-suite state can key on it.
   - *Where:* `packages/core/src/runner.ts` and `executor.ts` — four call sites.
@@ -126,7 +127,7 @@ test-level concurrency — which is the point of deciding it this way.
     and says nothing across suites; a hook that cannot name its suite has no
     way to keep the two apart.
 
-- [ ] **Concurrency can be asked for**
+- [x] **Concurrency can be asked for**
   - *Done when:* `RunRequest.concurrency` exists and `speq run --workers N`
     reaches it, with 1 the default.
   - *Why 1 forever:* every framework surveyed defaults to the CPU count, because
@@ -135,7 +136,7 @@ test-level concurrency — which is the point of deciding it this way.
     timeouts start firing where they did not fire in sequence — concurrency
     would change verdicts. There is no `auto`.
 
-- [ ] **The reporters key on identity**
+- [x] **The reporters key on identity**
   - *Done when:* an interleaved stream renders the same report as a sequential
     one.
   - *Where:* `packages/plugin-junit/src/build.ts` holds `#case` and `#suite`,
@@ -143,20 +144,23 @@ test-level concurrency — which is the point of deciding it this way.
     of two tests and dropped the other — and the run still exits non-zero, so
     nobody opens the report to notice. It needs a map keyed by name, and
     `event.source` rather than the last `suite.started`.
-  - *And the console:* buffer per **test**, flush on `test.finished`, print a
-    suite header lazily on the first flush from that suite. Buffering per suite
-    means minutes of silence at eight workers.
+  - *And the console:* buffers per **test** and flushes on `test.finished`.
+    No suite header, which is where this deviated from the plan: a suite's
+    tests are not contiguous in the output any more, so a header printed once
+    would head one block and be missing from the next. Adjacency is what this
+    milestone takes away, and a reporter must not put it back. Each test's own
+    header already carries its source.
   - *Note:* both are wrong today for a reason that has nothing to do with
     concurrency, which is why neither needs a contract change to fix.
 
-- [ ] **The report does not depend on who finished first**
+- [x] **The report does not depend on who finished first**
   - *Done when:* two runs of the same suites at `--workers 4` produce the same
     report.
   - *Where:* `packages/core/src/runner.ts` — `outcomes.push(await …)` becomes a
     write at the test's own index. The event log stays chronological; the report
     is not the event log.
 
-- [ ] **The gate: a plugin from outside proves it**
+- [x] **The gate: a plugin from outside proves it**
   - *Done when:* a plugin published from outside this repository, defining a
     `suite`-scoped resource and a suite hook, runs correctly under
     `--workers 4` with no kernel changes — one resource per suite, torn down
@@ -165,8 +169,14 @@ test-level concurrency — which is the point of deciding it this way.
     forbids it. The claim that this milestone is done cannot be checked from
     inside the repository that makes it. It was believed for months last time
     because nobody had written the plugin.
+  - *Done:* `packages/core/test/parallel-gate.test.ts` writes a plain `.mjs`
+    plugin — no build, no bundler, no kernel import — into a project under
+    `examples/basic`, and drives the real binary at `--workers 4`. Its own
+    ledger is the evidence: four tenants for four suites, each torn down once,
+    no tenant crossing a suite, each hook counting its own two tests, and every
+    suite set up before any was torn down. The JUnit file is read off disk.
 
-- [ ] **Shards** — *any time, does not block 1.0*
+- [ ] **Shards** — *any time, does not block 1.0; the only item left here*
   - *Done when:* `speq run --shard 2/4` runs a quarter of the tests, and four
     shards between them run each test exactly once.
   - *Why it is here:* it is the answer thesis (5) points at, and it is the only

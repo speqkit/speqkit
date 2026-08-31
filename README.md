@@ -192,6 +192,24 @@ was not defined. The executor discarded the test's own bindings the moment its
 last step finished — before assertions run, and nowhere else. Fixed, with the
 two tests that were missing.
 
+`speq run --workers 4` runs four suites at once, from a shared queue: whoever
+finishes takes the next, so a suite that fails frees its slot rather than
+stopping the run. Concurrency is between suites and nowhere else — a test runs
+whole, the tests inside one suite stay sequential, and a step type that starts
+a second `runSteps` beside one still running is refused rather than answered.
+One worker by default and no `auto`: every other runner defaults to the CPU
+count because its bottleneck is the local processor, and speq's is somebody
+else's service, where four workers is four times the load and enough for step
+timeouts to fire where they did not fire in sequence. The number can change a
+verdict, so only the person who knows the system under test picks it.
+
+What it cost is written next to `RunEvent`: events of different suites may
+interleave, one suite's never do. Both reporters in the box had been reading
+adjacency instead of identity — JUnit held one open case, so an interleaved
+stream produced a file with one of two tests in it — and neither needed a
+contract change to fix, which is the tell that they were wrong before anything
+ran at once.
+
 ## Writing a plugin
 
 ```bash
