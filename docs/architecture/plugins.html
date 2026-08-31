@@ -490,7 +490,7 @@ table.ledger td:first-child{font-family:"IBM Plex Mono",ui-monospace,monospace;f
       <thead><tr><th>Package</th><th>What it is</th><th>Status</th></tr></thead>
       <tbody>
         <tr><td>speqkit</td><td>The kernel and the <code>speq</code> binary</td><td><span class="chip fixed">written</span></td></tr>
-        <tr><td>@speqkit/plugin-api</td><td>The public contract, types only</td><td><span class="chip fixed">written, 0.5.0</span></td></tr>
+        <tr><td>@speqkit/plugin-api</td><td>The public contract, types only</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>@speqkit/installer</td><td>Resolve, verify, store, lock</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>@speqkit/test-kit</td><td>Runs a plugin inside the real kernel</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>create-speqkit-plugin</td><td>The scaffold for plugin authors</td><td><span class="chip fixed">written</span></td></tr>
@@ -503,9 +503,9 @@ table.ledger td:first-child{font-family:"IBM Plex Mono",ui-monospace,monospace;f
     <table class="ledger">
       <thead><tr><th>Plugin</th><th>What it contributes</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>plugin-yaml</td><td>The test format: the spine, <code>meta</code>, a per-directory <code>init.yaml</code> — and <code>speq migrate</code>, the codemod from v1</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-yaml</td><td>The test format: the spine, <code>meta</code> — and <code>speq migrate</code>, the codemod from v1. The per-directory manifest is still to come, and will be <code>suite.yaml</code>: <code>speq init</code> already exists and means something else</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>plugin-http</td><td>The <code>http</code> step, <code>status</code>, <code>duration_under</code>, multipart, and retrying on 502/503/504</td><td><span class="chip fixed">written</span></td></tr>
-        <tr><td>plugin-use</td><td>Composition, all of it: <code>use</code> by file and by action, modules, <code>returns</code>, fixtures. The wrappers turned out not to belong here — <code>setup</code> and <code>cleanup</code> went into the kernel</td><td><span class="chip fixed">written, 0.1.0</span></td></tr>
+        <tr><td>plugin-use</td><td>Composition, all of it: <code>use</code> by file and by action, modules, <code>returns</code>, fixtures. The wrappers turned out not to belong here — <code>setup</code> and <code>cleanup</code> went into the kernel</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>plugin-assert</td><td>The vocabulary of checks over any result: equality, order, membership, text, presence, size, type and JSON Schema — 21 words over one selector</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>plugin-data</td><td>Where values come from: <code>gen</code> (uuid, string, int, email, date), <code>env</code> and <code>vars</code>. Providers only — fixtures went to <code>use</code></td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>plugin-loop</td><td><code>loop</code> and <code>retry</code> — control flow</td><td><span class="chip fixed">written</span></td></tr>
@@ -515,7 +515,7 @@ table.ledger td:first-child{font-family:"IBM Plex Mono",ui-monospace,monospace;f
       </tbody>
     </table>
   </div>
-  <p>Five of the nine are published; four are the work of M4. That is the whole of it: <b>the language closes with four more plugins</b>, not twenty.</p>
+  <p>All nine are written and on npm. <b>The language is closed</b> — what is left is layer two, and the ecosystem around it, which is M4.</p>
 
   <div class="tier"><b>Layer 2</b> official · on demand</div>
   <div class="tablewrap">
