@@ -59,6 +59,38 @@ describe('typechecking does not require a build', () => {
   })
 })
 
+describe('the ledger says what is there', () => {
+  /** One row of `docs/architecture/plugins.html`: the package, and its chip. */
+  function ledgerRows(): { name: string; written: boolean }[] {
+    const page = readFileSync(join(repo, 'docs/architecture/plugins.html'), 'utf8')
+    const ledger = /<section id="ledger">([\s\S]*?)<\/section>/.exec(page)?.[1] ?? ''
+    return [...ledger.matchAll(/<tr><td>([^<]+)<\/td>[\s\S]*?<span class="chip ([a-z]+)">([^<]*)<\/span>/g)]
+      .map((row) => ({ name: short(row[1]!.trim()), written: row[3]!.trim().startsWith('written') }))
+  }
+
+  /** `@speqkit/plugin-api` and `plugin-api` are the same package on that page. */
+  const short = (name: string) => name.replace(/^@speqkit\//, '')
+
+  it('names every package this repository publishes', () => {
+    const listed = new Set(ledgerRows().map((r) => r.name))
+    const missing = workspacePackages().map((p) => short(p.name)).filter((name) => !listed.has(name))
+
+    // The ledger is the page a stranger reads to find out what exists. It had
+    // drifted twice over: the contract's version was four minors stale, and
+    // the count said five of nine were published when all nine were. A page
+    // that is wrong about what we ship is worse than no page, because it is
+    // the one thing nobody thinks to check.
+    expect(missing, 'add a row to the ledger in docs/architecture/plugins.html').toEqual([])
+  })
+
+  it('does not call a package written when it is not here', () => {
+    const here = new Set(workspacePackages().map((p) => short(p.name)))
+    const claimed = ledgerRows().filter((r) => r.written && !here.has(r.name)).map((r) => r.name)
+
+    expect(claimed, 'these are marked written and have no package').toEqual([])
+  })
+})
+
 describe('a release says what changed', () => {
   it('names the version being released in CHANGELOG.md', () => {
     const version = JSON.parse(readFileSync(join(repo, 'packages/core/package.json'), 'utf8')).version as string
