@@ -250,6 +250,38 @@ export interface ResourceContext {
 /* Events — the contract every surface consumes                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * What a reporter may rely on about the order these arrive in.
+ *
+ * The union alone was never enough to write a reporter against. Every reporter
+ * in this repository was written while runs were sequential, and each one
+ * quietly assumed more than that: that the last `suite.started` names the suite
+ * the next `test.started` belongs to, that a step event belongs to the test
+ * whose header was printed most recently. Those assumptions are adjacency, and
+ * adjacency is exactly what suites running at once takes away.
+ *
+ * So the ordering is written down here, next to the shapes, and it is part of
+ * the contract:
+ *
+ * - **G1** — `run.started` is the first event; `run.finished` is the last.
+ * - **G2** — For any test, `test.started` precedes every event naming it and
+ *   `test.finished` follows all of them.
+ * - **G3** — For any suite, `suite.started` precedes the `test.started` of
+ *   every test in it, and `suite.finished` follows every `test.finished`.
+ * - **G4** — Events of *different* suites may interleave in any order. Within
+ *   one suite the stream is totally ordered, and a reporter may rely on that.
+ * - **G5** — Within a test, step events are ordered. Nesting is expressed by
+ *   `parentId` and `depth`, never by adjacency.
+ * - **G6** — Every event belonging to a test names it; a test names its suite
+ *   once, as `source` on `test.started`; a name identifies a test for the whole
+ *   run.
+ *
+ * G4 is the one that costs something, and it is deliberately weaker than it
+ * would be if tests ran concurrently: a reporter that groups by suite still
+ * sees each suite's story in order, and only has to hold more than one story at
+ * a time. Buffering per test and flushing on `test.finished` satisfies every
+ * one of these without any state a sequential reporter did not already keep.
+ */
 export type RunEvent =
   | { type: 'run.started'; runId: string; tests: number; at: number }
   | { type: 'suite.started'; suite: string }
@@ -524,6 +556,16 @@ export interface DiscoverQuery {
 export interface RunRequest {
   /** Reporters to drive, by the name their plugin registered. */
   reporters?: readonly string[]
+  /**
+   * How many suites may be in flight at once. One by default.
+   *
+   * Concurrency in speq is between suites and nowhere else: a test runs whole,
+   * interleaved with nothing, and steps inside a test never overlap. Raising
+   * this multiplies the load on the system under test by the same factor, so
+   * there is no `auto` — the number belongs to whoever knows what that system
+   * can take.
+   */
+  concurrency?: number
 }
 
 export interface RecordedRun {

@@ -51,7 +51,11 @@ export function createHost(registry: Registry, session: HostSession): Host {
       // `artifactDir` is the host's to decide, not the caller's: a plugin that
       // could redirect where runs are written would break `speq report`, which
       // finds them by looking in exactly one place.
-      return runTests(registry, tests, { artifactDir: reportDir, reporters: options.reporters ?? [] })
+      return runTests(registry, tests, {
+        artifactDir: reportDir,
+        reporters: options.reporters ?? [],
+        ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency })
+      })
     },
 
     runs(): RecordedRun[] {

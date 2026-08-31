@@ -27,6 +27,18 @@ export interface RunOptions {
    * and what `speq run` never does.
    */
   reporters?: readonly string[]
+  /**
+   * How many suites may be in flight at once. One by default, and one is not
+   * a placeholder for a better default arriving later.
+   *
+   * Every framework surveyed defaults to the CPU count, because their
+   * bottleneck is the local processor. Ours is somebody else's service. Eight
+   * workers is eight times the load on the system under test, and step
+   * timeouts start firing where they did not fire in sequence — so a default
+   * above one would let the machine decide verdicts. Whoever knows what the
+   * system under test can take asks for the number.
+   */
+  concurrency?: number
 }
 
 export async function runTests(
@@ -58,29 +70,65 @@ export async function runTests(
     await registry.runHooks('run:before', {})
 
     const runFrame = registry.resources.open('run')
-    const outcomes: TestOutcome[] = []
+
+    // Written at the test's own discovery position rather than pushed, so the
+    // report reads the same however the run was scheduled. The event log stays
+    // chronological — it is a log of what happened — and the report is not the
+    // event log.
+    const outcomes: TestOutcome[] = new Array<TestOutcome>(tests.length)
+
+    // Suites are the middle scope, and they are real: a resource declared
+    // `suite` is set up once for the group and torn down when it ends. The
+    // grouping is by source file and consecutive, so nothing is reordered.
+    const groups = groupIntoSuites(tests)
+    const failures: unknown[] = []
+
+    async function runSuite(group: SuiteGroup): Promise<void> {
+      registry.events.emit({ type: 'suite.started', suite: group.suite })
+      await registry.runHooks('suite:before', { suite: group.suite })
+      const suiteFrame = runFrame.open('suite')
+      try {
+        for (const [i, test] of group.tests.entries()) {
+          outcomes[group.at + i] = await runOne(registry, test, group.suite, artifacts, suiteFrame)
+        }
+      } finally {
+        await suiteFrame.close(configFor)
+      }
+      await registry.runHooks('suite:after', { suite: group.suite })
+      registry.events.emit({ type: 'suite.finished', suite: group.suite })
+    }
 
     try {
-      // Suites are the middle scope, and they are real: a resource declared
-      // `suite` is set up once for the group and torn down when it ends. The
-      // grouping is by source file and consecutive, so nothing is reordered.
-      for (const group of groupIntoSuites(tests)) {
-        registry.events.emit({ type: 'suite.started', suite: group.suite })
-        await registry.runHooks('suite:before', { suite: group.suite })
-        const suiteFrame = runFrame.open('suite')
-        try {
-          for (const test of group.tests) {
-            outcomes.push(await runOne(registry, test, group.suite, artifacts, suiteFrame))
+      // One shared cursor and N workers pulling from it, which is what makes a
+      // failure free a slot instead of stopping the run: whoever finishes takes
+      // the next suite, and a suite that ends badly ends just as fast.
+      let next = 0
+      const workers = Math.max(1, Math.min(Math.trunc(options.concurrency ?? 1), groups.length))
+      await Promise.all(Array.from({ length: workers }, async () => {
+        for (let i = next++; i < groups.length; i = next++) {
+          try {
+            await runSuite(groups[i]!)
+          } catch (err) {
+            // A suite should not be able to throw — every layer below catches
+            // its own. If one does, the other workers are mid-suite with
+            // resources open, and abandoning them is how a run leaves a
+            // database full of half-written rows. Record it, drain the queue,
+            // and raise it once everything has been taken down.
+            failures.push(err)
+            registry.events.emit({
+              type: 'diagnostic',
+              level: 'error',
+              source: groups[i]!.suite,
+              message: `suite did not complete: ${err instanceof Error ? err.message : String(err)}`
+            })
           }
-        } finally {
-          await suiteFrame.close(configFor)
         }
-        await registry.runHooks('suite:after', { suite: group.suite })
-        registry.events.emit({ type: 'suite.finished', suite: group.suite })
-      }
+      }))
     } finally {
       await runFrame.close(configFor)
     }
+
+    if (failures[0] !== undefined) throw failures[0]
 
     const counts = tally(outcomes)
     const status: StepStatus =
@@ -104,15 +152,17 @@ export async function runTests(
 interface SuiteGroup {
   suite: string
   tests: TestDef[]
+  /** Where this group's first test sits in the discovered order. */
+  at: number
 }
 
 function groupIntoSuites(tests: TestDef[]): SuiteGroup[] {
   const groups: SuiteGroup[] = []
-  for (const test of tests) {
+  for (const [at, test] of tests.entries()) {
     const suite = test.source ?? '(inline)'
     const current = groups.at(-1)
     if (current?.suite === suite) current.tests.push(test)
-    else groups.push({ suite, tests: [test] })
+    else groups.push({ suite, tests: [test], at })
   }
   return groups
 }
