@@ -1,0 +1,18 @@
+# A blank issue is almost always one of the four below, minus the one field
+# that would have answered it. The links cover the two cases that are not
+# issues at all: a question the documentation already answers, and a
+# vulnerability, which must not be filed in public.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation
+    url: https://speqkit.github.io/speqkit/
+    about: Quick start, writing declarative tests, and how anything gets released.
+
+  - name: I want to extend speqkit
+    url: https://github.com/speqkit/speqkit/blob/main/CONTRIBUTING.md#most-contributions-do-not-belong-in-this-repository
+    about: Step types, assertions, reporters and protocols are plugins. You publish those yourself — no issue needed.
+
+  - name: Report a vulnerability
+    url: https://github.com/speqkit/speqkit/security/advisories/new
+    about: Privately, so a fix and its advisory can be prepared first. Please do not open a public issue.

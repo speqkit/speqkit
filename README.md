@@ -435,6 +435,20 @@ caught one commit before shipping, and it runs against any directory:
 node scripts/check-plugin-package.mjs ../speqkit-plugin-kafka
 ```
 
+## Contributing
+
+Most of what people want to add is a plugin, and a plugin needs nothing from
+us: `npm create speqkit-plugin`, then publish it from your own repository with
+the workflow the scaffold already wrote. Tell us and we will link it.
+
+For the rest — the kernel, the installer, the binary, the in-box plugins —
+[CONTRIBUTING.md](CONTRIBUTING.md) has the setup, how to run the same gate CI
+runs, and the two things about the contract that are deliberately closed.
+[CHANGELOG.md](CHANGELOG.md) is what each release contained.
+[SECURITY.md](SECURITY.md) is where a vulnerability goes, privately, instead of
+the issue tracker. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
 MIT.

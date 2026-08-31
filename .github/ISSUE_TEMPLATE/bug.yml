@@ -1,0 +1,57 @@
+name: Something is broken
+description: speq did something other than what it says it does.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One thing before you start: if the misbehaviour is inside a plugin that
+        is not ours, its own repository will get you a faster fix.
+        `speq doctor` prints where every loaded plugin came from.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+      placeholder: |
+        The assertion passed, and the response body was empty.
+        I expected it to fail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: speq doctor
+      description: >-
+        Paste the whole thing. It carries the Node version, the contract
+        version, the store, the lock, and which plugin came from where — which
+        is most of what we would otherwise ask for one question at a time.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How speq got onto the machine
+      options:
+        - Homebrew (speqkit/tap)
+        - install.sh
+        - npm i -g speqkit
+        - Built from a clone of this repository
+        - Something else — described below
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: The smallest test file that shows it
+      description: >-
+        With the command you ran and its output. A suite we can run beats a
+        description of one every time — and if the file has to reach a service
+        we cannot, say so, because that changes what we can do with it.
+      render: yaml
+    validations:
+      required: true

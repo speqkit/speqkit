@@ -1,0 +1,48 @@
+name: I published a plugin
+description: Tell us about it and we will link it.
+labels: [plugin]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A plugin we did not write and cannot break is the point of the
+        architecture. No approval involved here — this issue exists so the
+        thing can be found.
+
+  - type: input
+    id: package
+    attributes:
+      label: npm package
+      placeholder: speqkit-plugin-kafka
+    validations:
+      required: true
+
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      placeholder: https://github.com/acme/speqkit-plugin-kafka
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What it contributes
+      placeholder: |
+        Step types: kafka.publish, kafka.consume
+        Assertions: kafka.message_matches
+        Resources: a broker connection, scoped to the suite
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you post
+      options:
+        - label: >-
+            The conformance check passes. Both release paths run it for you —
+            the reusable workflow and `release-plugin.sh` — and it catches the
+            ways a plugin publishes successfully and then fails to load.
+        - label: The package carries the `speqkit-plugin` keyword, so it can be found without this issue too.

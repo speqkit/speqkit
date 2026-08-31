@@ -1,0 +1,64 @@
+name: The contract is in the way
+description: You were writing a plugin and the plugin API would not let you through.
+labels: [contract]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable issue anyone opens here. Every hole found in
+        the test model so far — assertions on a step, setup and cleanup,
+        test-level variables, arbitrary metadata — was found by somebody trying
+        to write a plugin and running out of contract. None of them were found
+        by reading the kernel.
+
+        Please describe the plugin, not the API change you have in mind. The
+        four fixes above all turned out to be a field on the spine, and none of
+        them were the thing originally asked for.
+
+  - type: textarea
+    id: plugin
+    attributes:
+      label: What you were trying to write
+      description: The plugin, and what a test using it would look like.
+      placeholder: |
+        A `kafka.consume` step that waits for a message matching a filter, and
+        an assertion over what it read.
+    validations:
+      required: true
+
+  - type: textarea
+    id: wall
+    attributes:
+      label: Where it stopped
+      description: >-
+        Which contribution point, which type, and what was missing from it.
+        If you found a way around it, say what the workaround costs — that is
+        usually the strongest part of the argument.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: point
+    attributes:
+      label: Which of the eight it involves
+      multiple: true
+      options:
+        - defineStepType
+        - defineAssertionType
+        - defineValueProvider
+        - defineReporter
+        - defineResource
+        - defineLoader
+        - defineCommand
+        - defineService
+        - None of them — that is the problem
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: '@speqkit/plugin-api version you are building against'
+      placeholder: 0.9.0
+    validations:
+      required: true

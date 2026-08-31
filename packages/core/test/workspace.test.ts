@@ -58,3 +58,20 @@ describe('typechecking does not require a build', () => {
     }
   })
 })
+
+describe('a release says what changed', () => {
+  it('names the version being released in CHANGELOG.md', () => {
+    const version = JSON.parse(readFileSync(join(repo, 'packages/core/package.json'), 'utf8')).version as string
+    const headings = readFileSync(join(repo, 'CHANGELOG.md'), 'utf8').match(/^##+ .*$/gm) ?? []
+
+    // The kernel's version is what names a release: when it moves, four
+    // executables, a tag and the Homebrew formula follow it, automatically and
+    // with nobody in the loop. The one thing that arrangement cannot generate
+    // is the sentence saying what changed — so the gate asks for it before the
+    // release exists, rather than a human remembering afterwards.
+    expect(
+      headings.some((h) => h.includes(version)),
+      `add a "## [${version}] — <date>" section to CHANGELOG.md; merging this bump publishes it`
+    ).toBe(true)
+  })
+})

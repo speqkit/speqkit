@@ -1,0 +1,56 @@
+# Dependency updates, batched into few enough pull requests that they get read.
+#
+# A bump here never publishes anything: a release is triggered by a version in
+# a package.json moving, and dependabot does not touch those. What it can do is
+# turn the gate red, which is the entire point — this repository's promise is
+# that `speq` runs on a machine with nothing else installed, and the way that
+# stops being true is a transitive dependency, quietly.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    # The root holds the toolchain; every package holds its own runtime
+    # dependencies and the peer range on the contract.
+    directories:
+      - '/'
+      - '/packages/*'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One pull request for the build and test toolchain, which moves often
+      # and together. A red gate on this group is nearly always a real
+      # incompatibility rather than five separate ones.
+      toolchain:
+        patterns:
+          - typescript
+          - vitest
+          - tsx
+          - esbuild
+          - '@types/*'
+      # Everything else, minor and patch, in one. A major arrives on its own,
+      # because a major is a decision.
+      dependencies:
+        update-types: [minor, patch]
+        exclude-patterns:
+          - typescript
+          - vitest
+          - tsx
+          - esbuild
+          - '@types/*'
+    ignore:
+      # Pinned exactly, and the pin is the point: postject injects the SEA blob
+      # into a Node binary, and the alpha we build against is the one the
+      # release artefacts were verified with. Moving it is a change to how the
+      # executable is produced, not a dependency update.
+      - dependency-name: postject
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
