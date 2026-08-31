@@ -22,9 +22,10 @@ ready to be taken.
 | **blocks 1.0** | Moves the contract or the event stream. Landing it after 1.0 costs a major. |
 | **any time** | Cheap now, cheap later. Ordered by what a stranger hits first, not by size. |
 
-The dependency in one sentence: **M5 unblocks M6, and both unblock most of
-M4** — nested suites, parametrization and a device farm are all the same
-missing thing, which is scopes that survive being entered twice at once.
+The dependency in one sentence: **M5 unblocked M6, and both unblock most of
+M4** — nested suites, parametrization and a device farm were all the same
+missing thing, which is scopes that survive being entered twice at once. The
+first two have landed; what is left in M4 is the ecosystem itself.
 
 ---
 
@@ -200,12 +201,19 @@ test-level concurrency — which is the point of deciding it this way.
   against somebody else's service. Processes buy crash containment, which
   shards already give, and CPU parallelism, which this workload does not use.
 
-## M6 — The spine closes — blocks 1.0
+## M6 — The spine closes — blocks 1.0 — **done**
 
 Four items, all of which move `RunEvent`. **Land them in one release** so that
 reporters break once rather than four times. Each is a field on the spine, in
 the same tradition as the four holes already found and closed that way — none
 of them opens a ninth contribution point.
+
+*Landed in one release, as written.* The stream moved in four places at once:
+`suite.started` gained `parent`, `title` and `pending`; `test.started` gained
+`group`; and `step.started`, `step.finished`, `assertion.evaluated` and
+`artifact.attached` made `test` optional beside a new `suite`, because a
+suite's own setup is work that belongs to no test. G3 and G6 were amended
+next to the union rather than left to be discovered.
 
 - [x] **A failed assertion says what it expected and what it got**
   - *Done when:* a reporter can render a diff without re-running the test.
@@ -225,7 +233,7 @@ of them opens a ninth contribution point.
     spends none of the "reporters break once" budget. The diagnostic names the
     file the first one is in, because that is the only useful thing to say.
 
-- [ ] **A suite is a thing, not a file path**
+- [x] **A suite is a thing, not a file path**
   - *Done when:* a directory can declare its own `setup`, `cleanup`, `meta`,
     `tags` and `pending` once, nested suites inherit them outside-in, and a
     report can show which suite a test belongs to.
@@ -242,10 +250,36 @@ of them opens a ninth contribution point.
     it as `@speqkit/plugin-suite`, outside the kernel. If it works, it is the
     strongest demonstration of the whole architecture. If it does not, the exact
     place where the contract gets in the way is the issue CONTRIBUTING asks for.
+  - *What that experiment found — it cannot be a plugin, and the reason is
+    worth keeping.* An executing context on `HookPayload` would have let a
+    plugin run a directory's declared steps, and that was the smaller half.
+    The larger half is that a suite is **grouping, identity and inheritance**,
+    and all three are decided before any hook fires. `groupIntoSuites` derives
+    the group from `test.source` and no contribution point can change it, so a
+    `suite:before` hook fires once per *file* and can never fire once per
+    directory. Inheritance is worse: a suite's `pending` parks the tests below
+    it, and a test's `pending` is settled at discovery — there is no point at
+    which a plugin may alter a `TestDef`, and adding one would be a ninth
+    contribution point for rewriting the spine, which is the thing this design
+    exists to refuse. What stays a plugin is the part that always was: the
+    *format*. `LoaderDef.loadSuite` reads the fields out of YAML and stops
+    there, so a TypeScript loader declares suites without reimplementing any of
+    what they mean.
+  - *Done:* a directory holding `suite.yaml` is a suite. Suites nest and are
+    opened outside-in and closed inside-out, once each however many of their
+    files run at the same time — the node counts the files left below it and
+    whoever brings that count to zero closes it, because with `--workers` above
+    one the last file to finish is not knowable in advance. `setup` and
+    `cleanup` run in the suite's own scope, which the tests below cannot read:
+    a test that could see `${tenant.id}` from the directory above it would be a
+    different test when run alone. A failed suite setup blocks every test below
+    it, reported per test as `error`, with the cleanup still running.
   - *File name:* `suite.yaml`, not `init.yaml` — `speq init` already exists and
-    means something else.
+    means something else. `init.yaml` is still read, because a project written
+    against it would otherwise start running its manifest as an empty test, and
+    `speq migrate` now writes the new name.
 
-- [ ] **One test, many inputs**
+- [x] **One test, many inputs**
   - *Done when:* a test declares its cases, each case runs as its own test with
     its own status, setup, cleanup and `pending`, and a report can group them
     back together.
@@ -261,6 +295,16 @@ of them opens a ninth contribution point.
     An index shifts the day somebody inserts a case in the middle, and a report
     read next quarter is comparing against a name.
   - *Not `foreach`:* see [Not doing](#not-doing).
+  - *Done:* `cases` is a field on the spine and the kernel expands it during
+    discovery — before validation and before anything counts tests — so a case
+    is an ordinary test in every place that matters. `group` on `test.started`
+    and on `TestOutcome` puts the rows back together. Addressing arrived as
+    `DiscoverQuery.names` and `--name`, which takes the test's own name rather
+    than a file: `speq run --name 'menu.create[jpy]'`.
+  - *A malformed table is left unexpanded* and reported by `speq validate`
+    instead — a missing id, a duplicate id, an empty table. Expanding first and
+    checking afterwards would leave nothing to point at, and two rows called
+    `eur` would be two tests with one name.
 
 ## M7 — The first five minutes — any time, do first — **done**
 
@@ -355,8 +399,9 @@ runs*. That property is real and currently unreachable from outside the process.
   - *Done when:* a device driver and a session are resources, and taps and
     assertions are step types — the shape `plugin-playwright` already proved
     with a browser and a page.
-  - *Blocked on:* M5 above all — a device farm exists to run in parallel — and
-    on suite-level parameterization for a device matrix. Two smaller facts to
+  - *Unblocked:* M5 gave it parallel suites and M6 gave it the device matrix —
+    a `cases` table is a device per row, and a `suite.yaml` holds the driver
+    the rows share. Two smaller facts to
     know first: `acquire` caches one value per name, so a plugin that wants a
     pool of devices builds it itself; and `ArtifactStore.put` writes the whole
     buffer at once, which is fine for a screenshot and not for a video.

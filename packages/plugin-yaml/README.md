@@ -84,25 +84,84 @@ steps:
       x-owner: "${meta:owner}"
 ```
 
-## A directory that describes itself
+## A directory that is a suite
 
-`init.yaml` describes the directory it sits in and is never a test:
+`suite.yaml` describes the directory it sits in, and is never a test:
 
 ```yaml
-# suites/menu/init.yaml
+# suites/menu/suite.yaml
+title: The menu
 epic: menu
-owner: mira
+tags: [menu]
+setup:
+  - type: http
+    method: POST
+    url: /admin/tenants
+cleanup:
+  - type: http
+    method: DELETE
+    url: /admin/tenants/current
 ```
 
-Every test under `suites/menu/` inherits both. The nearer file wins over the
-one above it, and the test wins over both — so `epic` is written once on the
-directory that *is* the menu group, rather than copied into twelve files where
-the thirteenth will be forgotten.
+`epic` is an annotation and reaches every test under `suites/menu/`. The nearer
+directory wins over the one above it, and the test wins over both — so it is
+written once on the directory that *is* the menu group, rather than copied into
+twelve files where the thirteenth will be forgotten. `tags` are unioned rather
+than replaced, and `pending` parks every test below with one reason.
 
-It is read from disk rather than from whatever the run happened to walk, so
-`speq run --test suites/menu/items/lists.yaml` sees exactly the annotations
-that file gets in a full run. A report that depended on how the run was started
-would be worse than no report.
+`setup` and `cleanup` run once for the suite: before the first test anywhere
+under it, and after the last, whatever happened to them. They run in a scope of
+their own, which the tests below cannot read — a test that could see
+`${tenant.id}` from the suite above it would be a different test when run
+alone, and running one test alone is how a failure gets looked at. What crosses
+that line is a `suite`-scoped resource, which is declared and named.
+
+The manifest is read from disk rather than from whatever the run happened to
+walk, so `speq run --test suites/menu/items/lists.yaml` sees exactly the suites
+that file is in during a full run. A report that depended on how the run was
+started would be worse than no report.
+
+`init.yaml` was the name in the first release and is still read, so a project
+written against it keeps working. `speq migrate` writes the new one.
+
+The loader reads the fields and stops there. What a suite *means* — the tree,
+the identity, when its setup runs, what is inherited — belongs to the kernel,
+which is what lets a loader for another format declare suites without
+reimplementing any of it.
+
+## One test, many inputs
+
+```yaml
+id: menu.create
+title: creates an item
+cases:
+  - id: eur
+    variables: { currency: EUR }
+  - id: usd
+    variables: { currency: USD }
+  - id: jpy
+    variables: { currency: JPY }
+    pending: no yen in staging
+steps:
+  - type: http
+    method: POST
+    url: /items
+    body: { currency: "${currency}" }
+```
+
+Three tests, named `menu.create[eur]`, `menu.create[usd]` and
+`menu.create[jpy]`, each with its own status, its own setup and cleanup, and
+its own row in the report. A case's `variables` are laid over the test's rather
+than instead of them; its `tags` and `meta` are merged; its `pending` and
+`title` override.
+
+The id is written and never counted. An index would move the day somebody
+inserts a row above it, and a report read next quarter is comparing this run
+against a name. That name is also how one case is re-run:
+
+```bash
+speq run --name 'menu.create[jpy]'
+```
 
 ## speq migrate
 

@@ -652,7 +652,7 @@ http:
   <ul class="points">
     <li><span class="name">test</span><span class="what">The set of fields is closed by the spine — <code>id</code>, <code>title</code>, <code>tags</code>, <code>variables</code>, <code>setup</code>, <code>steps</code>, <code>assert</code>, <code>cleanup</code>. Everything else is <b>metadata by default</b> and goes into <code>meta</code>. Nothing has to be declared: write <code>epic: menu</code> and it is there.</span></li>
     <li><span class="name">step and assertion</span><span class="what">Here an unfamiliar field <b>already belongs to the plugin</b> that owns the <code>type:</code> — it is that plugin's input, not metadata. So on a step, metadata is written under a reserved <code>meta:</code>, and the kernel lifts it out before the schema is checked: otherwise <code>plugin-http</code>'s <code>additionalProperties: false</code> rejects <code>owner:</code>, and is right to.</span></li>
-    <li><span class="name">directory</span><span class="what"><code>init.yaml</code> hands metadata to every test beneath it — an <code>epic</code> for a directory is written once instead of in twelve files. A test overrides what it inherited.</span></li>
+    <li><span class="name">directory</span><span class="what"><code>suite.yaml</code> makes the directory a suite: it hands metadata and tags to every test beneath it — an <code>epic</code> written once instead of in twelve files — and declares a <code>setup</code> and <code>cleanup</code> that run once around all of them. A test overrides what it inherited.</span></li>
   </ul>
 
   <h3>Where it ends up</h3>
