@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "speqkit": "workspace:*",
+    "@speqkit/plugin-assert": "workspace:*",
     "@speqkit/plugin-cli": "workspace:*",
     "@speqkit/plugin-http": "workspace:*",
     "@speqkit/plugin-junit": "workspace:*",

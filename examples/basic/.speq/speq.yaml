@@ -3,6 +3,7 @@ version: 1
 plugins:
   - yaml          # the authoring format is itself a plugin
   - http          # the smoke set that ships in the box
+  - assert        # the vocabulary a check is written in, and nothing HTTP-shaped
   - cli           # the terminal surface
   - loop          # control flow, contributed rather than built in
   - playwright    # a UI capability, added without the kernel learning what a browser is

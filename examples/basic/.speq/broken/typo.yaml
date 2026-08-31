@@ -1,0 +1,17 @@
+# Deliberately wrong, and deliberately not under `suites/`.
+#
+#   speq validate --suite broken
+#
+# It lives here so that `speq validate` with no arguments is green — a project
+# whose default check is red has no default check, because nobody can tell the
+# example's own broken file from the one they just wrote. Pointing the flag at
+# this directory is what shows the two typos below being caught with no
+# network involved at all.
+name: catches a typo before the network
+steps:
+  - id: whoops
+    type: htpp
+    url: /posts/1
+assert:
+  - type: statuss
+    expected: 200

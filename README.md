@@ -228,7 +228,8 @@ Or against the sources, which is the faster loop while developing:
 cd examples/basic
 
 node --import tsx ../../packages/core/src/bin.ts plugins   # what is loaded
-node --import tsx ../../packages/core/src/bin.ts validate  # catches typos, no network
+node --import tsx ../../packages/core/src/bin.ts validate  # the suites, green, no network
+node --import tsx ../../packages/core/src/bin.ts validate --suite broken   # two typos caught
 node --import tsx ../../packages/core/src/bin.ts run --env local --test suites/loop.yaml
 node --import tsx ../../packages/core/src/bin.ts run --env ci --reporter console,junit \
   --test suites/health.yaml

@@ -32,6 +32,9 @@ importers:
 
   examples/basic:
     dependencies:
+      '@speqkit/plugin-assert':
+        specifier: workspace:*
+        version: link:../../packages/plugin-assert
       '@speqkit/plugin-cli':
         specifier: workspace:*
         version: link:../../packages/plugin-cli
