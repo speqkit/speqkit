@@ -314,6 +314,14 @@ export type HookName =
 
 export interface HookPayload {
   test?: string
+  /**
+   * The suite the hook is firing inside — on every hook that has one, which
+   * is all of them but `run:before` and `run:after`.
+   *
+   * A hook is registered once for the whole run, so two suites running at the
+   * same time call the same function. A hook holding per-suite state has to
+   * key on something, and the test name is not it.
+   */
   suite?: string
   step?: StepDef
   record?: StepRecord

@@ -222,6 +222,7 @@ export class Harness {
     this.#executor ??= new Executor({
       registry: this.registry,
       test: '(harness)',
+      suite: '(harness)',
       resources: this.#frame(),
       attach: (name, body, contentType) => {
         this.#attached.push({ name, body, contentType })
