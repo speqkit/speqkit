@@ -147,6 +147,11 @@ past their first run.
     the broken file, and both HTTP suites against a stub on localhost — a gate
     that crosses the public internet reports somebody else's outage as our
     broken example.
+  - *Found by running it:* the job went red on a machine that had never built,
+    and it was right to. `bin` named `dist/bin.js`, which does not exist when
+    install runs, so a fresh clone got twenty "Failed to create bin" warnings
+    and no `speq` on its path — invisible to anyone whose second install came
+    after a build. The manifest now names a committed launcher.
 - [x] **A failed request says which URL failed and why**
   - *Done when:* a connection error names the URL and the underlying cause
     instead of two words.
