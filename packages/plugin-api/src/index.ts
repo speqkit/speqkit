@@ -15,7 +15,7 @@ export const PLUGIN_API_VERSION = 1 as const
 export interface StepDef {
   id?: string
   type: string
-  /** Present when a step type nests others (loop, retry, parallel). */
+  /** Present when a step type nests others (loop, retry, if). */
   steps?: StepDef[]
   /**
    * Checks against this step's own result, evaluated the moment it finishes.
@@ -180,8 +180,16 @@ export interface ExecContext {
   /**
    * Run nested steps in a child variable scope.
    *
-   * This is what makes control flow a plugin concern: `loop`, `retry`,
-   * `parallel` and `try/catch` are ordinary step types that call this.
+   * This is what makes control flow a plugin concern: `loop`, `retry`, `if`
+   * and `try/catch` are ordinary step types that call this.
+   *
+   * One call at a time. A step type may nest — call this from inside a call
+   * that is still running, which is what `retry` around a `loop` is — but it
+   * may not start a second call beside one already in flight, and the kernel
+   * refuses that rather than answering it. A test is the unit speq runs
+   * atomically; concurrency is between suites. What is fine, and is usually
+   * what was wanted, is concurrent I/O inside a single `execute`: fan out the
+   * requests, await them together, return one result. That touches no frame.
    */
   runSteps(steps: StepDef[], options?: RunStepsOptions): Promise<StepRecord[]>
 

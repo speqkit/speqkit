@@ -55,8 +55,12 @@ author is boxed in.
 
 A loop is not a protocol client. It wraps *other* steps, which is the one thing
 a naive "step type" contract cannot express — and if the kernel had needed a
-change to allow it, then `if`, `parallel` and `try/catch` would all have been
+change to allow it, then `if`, `retry` and `try/catch` would all have been
 kernel features too, and "everything is a plugin" would have been a slogan.
+
+`parallel` is not in that list. Every construct here runs its children one at a
+time, and `runSteps` refuses a second call beside one still running: a test is
+the unit speq runs atomically. Concurrency is between suites.
 
 It works because the executor is re-entrant and handed to plugins as
 `ctx.runSteps(steps, { vars, label })`. Both step types here are that call plus

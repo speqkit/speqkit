@@ -405,7 +405,7 @@ footer{
       <tr><td>The plugin registry</td><td>npm. We are not writing a registry. A naming convention, <code>speqkit-plugin-*</code>, plus a keyword</td><td><span class="chip fixed">decided</span></td></tr>
       <tr><td>Installation</td><td>Our own installer: <code>speq.lock</code> plus a global cache in <code>~/.speq</code>. Zero Node artifacts in the service's repository</td><td><span class="chip fixed">decided</span></td></tr>
       <tr><td>Where tests live</td><td><code>in-repo</code> by default: <code>.speq/</code> inside the service's repository. Carried over from the current speq as it is</td><td><span class="chip fixed">decided</span></td></tr>
-      <tr><td>Control constructs</td><td>Loop, condition, retry, parallel — all plugins. The kernel's executor is re-entrant and available to a plugin</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Control constructs</td><td>Loop, condition, retry, try/catch — all plugins. The kernel's executor is re-entrant and available to a plugin. Not <code>parallel</code>: <code>runSteps</code> runs one call at a time, and concurrency is between suites</td><td><span class="chip fixed">decided</span></td></tr>
       <tr><td>The repository</td><td>A pnpm monorepo in a new GitHub organisation. A separate directory locally</td><td><span class="chip fixed">decided</span></td></tr>
       <tr><td>The test format</td><td>YAML by default, with <code>defineLoader</code> in the spine from day one → TypeScript tests are possible as a plugin</td><td><span class="chip open">to confirm</span></td></tr>
       <tr><td>The name and the npm scope</td><td>Keep the <code>speq</code> brand or take a new name. The <code>@speq</code> scope has to be claimed</td><td><span class="chip open">to decide</span></td></tr>
@@ -520,7 +520,7 @@ step.started carries parentId → nested steps are drawn as a tree</code></pre>
     <li><strong>Events nest.</strong> A <code>parentId</code> on <code>step.started</code>, or neither a TUI nor a report can draw the tree.</li>
   </ul>
 
-  <p>Which implies: <code>if</code>, <code>retry</code>, <code>parallel</code>, <code>try/catch</code>, <code>repeat-until</code>, <code>foreach-file</code> — all plugins. There is not one control construct in the kernel, and there will never be a need to add one.</p>
+  <p>Which implies: <code>if</code>, <code>retry</code>, <code>try/catch</code>, <code>repeat-until</code>, <code>foreach-file</code> — all plugins. There is not one control construct in the kernel, and there will never be a need to add one. Not <code>parallel</code>, though: each of those runs its children one at a time, and a second <code>runSteps</code> beside one still in flight is refused. A test runs atomically; suites are what run at once.</p>
 
   <div class="note warn">
     <span class="tag">Open question</span>

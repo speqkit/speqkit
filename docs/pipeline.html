@@ -896,7 +896,7 @@ ${env:BASE_URL}         <span class="c">// a value provider, by prefix</span></c
       <span class="num">6</span>
       <div class="body">
         <h3>Nested steps: why a loop is a plugin <span class="chip plug">plugin</span></h3>
-        <p>The executor is re-entrant and handed to plugins as <code>exec.runSteps</code>. From these three lines follow <code>loop</code>, <code>retry</code>, <code>parallel</code>, <code>if</code> and <code>try/catch</code> — there is not one control construct in the kernel, and there will never need to be.</p>
+        <p>The executor is re-entrant and handed to plugins as <code>exec.runSteps</code>. From these three lines follow <code>loop</code>, <code>retry</code>, <code>if</code> and <code>try/catch</code> — there is not one control construct in the kernel, and there will never need to be. One call at a time, though: a step type that starts a second <code>runSteps</code> beside one still running is refused, because a test is the unit speq runs atomically.</p>
 <pre><code><span class="k">for</span> (<span class="k">const</span> [index, item] <span class="k">of</span> items.entries()) {
   <span class="k">const</span> records = <span class="k">await</span> exec.runSteps(children, {
     vars: { [alias]: item, [<span class="s">`${alias}Index`</span>]: index },
