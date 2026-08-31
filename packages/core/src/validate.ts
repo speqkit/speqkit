@@ -19,11 +19,32 @@ export type { Diagnostic }
  */
 export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
+  /** Where each name was first seen, so the second one can say where to look. */
+  const named = new Map<string, string>()
 
   for (const test of tests) {
     const file = test.source ?? '(unknown)'
     if (!test.name) {
       diagnostics.push({ file, path: 'name', message: 'test has no name' })
+    } else {
+      // Every event a run emits is keyed by this name, and nothing checked it
+      // was unique. Two tests sharing one made a report where the second
+      // overwrote the first — one line instead of two, with no sign that
+      // anything had been lost. It costs more once a name is generated rather
+      // than typed, which is where parametrization is going.
+      const first = named.get(test.name)
+      if (first !== undefined) {
+        diagnostics.push({
+          file,
+          path: 'name',
+          message: `duplicate test name '${test.name}'`,
+          hint: first === file
+            ? ' — already used in this file; every event a run emits is keyed by the name'
+            : ` — already used in ${first}; every event a run emits is keyed by the name`
+        })
+      } else {
+        named.set(test.name, file)
+      }
     }
     if (!Array.isArray(test.steps) || test.steps.length === 0) {
       diagnostics.push({ file, path: 'steps', message: 'test has no steps' })
