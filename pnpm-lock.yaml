@@ -149,6 +149,9 @@ importers:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
 
   packages/plugin-loop:
     devDependencies:

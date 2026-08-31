@@ -262,6 +262,32 @@ describe('validation uses the grammar the plugins defined', () => {
     ])
     expect(diagnostics.some((d) => d.message.includes("duplicate step id 'x'"))).toBe(true)
   })
+
+  it('catches two tests sharing a name, and says where the first one is', async () => {
+    const registry = await registryWith(echo)
+    const diagnostics = validateTests(registry, [
+      { name: 'orders.create', source: 'a.yaml', steps: [{ type: 'echo' }] },
+      { name: 'orders.create', source: 'b.yaml', steps: [{ type: 'echo' }] }
+    ])
+
+    // Every event a run emits is keyed by the name, and nothing checked it was
+    // unique: two tests sharing one produced a report where the second
+    // overwrote the first, with no sign that anything had been lost.
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]).toMatchObject({ file: 'b.yaml', path: 'name' })
+    expect(diagnostics[0]!.message).toBe("duplicate test name 'orders.create'")
+    expect(diagnostics[0]!.hint).toContain('a.yaml')
+  })
+
+  it('reports the same name in one file too, since a file holds many tests', async () => {
+    const registry = await registryWith(echo)
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 'a.yaml', steps: [{ type: 'echo' }] },
+      { name: 't', source: 'a.yaml', steps: [{ type: 'echo' }] }
+    ])
+
+    expect(diagnostics[0]!.hint).toContain('in this file')
+  })
 })
 
 describe('a plugin checks its own inputs, beyond their shape', () => {
