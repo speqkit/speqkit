@@ -10,8 +10,8 @@ steps:
 assert:
   - type: status
     expected: 200
-  - type: jsonpath
-    path: id
+  - type: equals
+    path: body.id
     expected: 1
   - type: duration_under
     ms: 5000

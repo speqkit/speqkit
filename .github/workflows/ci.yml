@@ -57,6 +57,55 @@ jobs:
       # the only step here that tests what a stranger would actually install.
       - run: node scripts/verify-publish.mjs
 
+  # The one path every newcomer takes, and until now the one path nothing ran.
+  # `examples/basic` had been red for weeks — `jsonpath` moved into
+  # plugin-assert and the example's plugin list was never updated — which
+  # nobody saw, because the README is where it is described and the gate is
+  # where it is not.
+  #
+  # It runs against a stub on localhost rather than jsonplaceholder: a gate
+  # that goes over the public internet reports somebody else's outage as our
+  # broken example. The `ci` environment already reads ${env:API_URL}, so this
+  # changes nothing a reader of the example has to know.
+  example:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/basic
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm build
+        working-directory: .
+
+      # The binary out of dist, with plain node — what the README tells a
+      # stranger to type, not a tsx loader we happen to have configured.
+      - run: ./node_modules/.bin/speq plugins
+      - run: ./node_modules/.bin/speq validate
+
+      # The example's own broken file, which is there to be caught. A green
+      # exit here would mean validation had stopped checking anything.
+      - name: the typo is still caught
+        run: |
+          if ./node_modules/.bin/speq validate --suite broken; then
+            echo "broken/typo.yaml validated clean — validation is not checking" >&2
+            exit 1
+          fi
+
+      - name: the suites run
+        run: |
+          node ../../scripts/example-api.mjs -- \
+            ./node_modules/.bin/speq run --env ci --test suites/health.yaml
+          node ../../scripts/example-api.mjs -- \
+            ./node_modules/.bin/speq run --env ci --test suites/loop.yaml
+
   # The binary is a second way of shipping the same kernel, and it breaks in
   # ways the packages cannot: a bundler rewriting `import()` would leave every
   # plugin unloadable while `pnpm test` stayed green. One platform is enough
