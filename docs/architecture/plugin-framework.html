@@ -1,4 +1,4 @@
-<title>Плагинный фреймворк speqkit</title>
+<title>The speqkit plugin framework</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
@@ -361,29 +361,29 @@ footer{
 <div class="wrap">
 
 <header class="masthead">
-  <span class="eyebrow">Имя закреплено · M2 · август 2026</span>
-  <h1>Плагинный тестовый фреймворк</h1>
-  <p class="lede">Ядро — только загрузчик плагинов. HTTP, CLI, UI-тесты, отчёты, TUI и даже управляющие конструкции вроде цикла — всё это плагины. Новый продукт без монетизации — фреймворк для комьюнити тестировщиков от тестировщиков. <code>speq-cli</code> продолжает жить своим циклом, его v1.4 и v1.5 заморожены.</p>
+  <span class="eyebrow">The name is settled · M2 · August 2026</span>
+  <h1>A plugin test framework</h1>
+  <p class="lede">The kernel is nothing but a plugin loader. HTTP, the CLI, UI tests, reports, a TUI and even control constructs like a loop are all plugins. A new product with no monetisation — a framework for the testing community, by testers. <code>speq-cli</code> goes on living its own cycle; its v1.4 and v1.5 are frozen.</p>
   <div class="meta">
-    <span><b>Стек</b> &nbsp;TypeScript · Node 20+ · pnpm</span>
-    <span><b>Реестр</b> &nbsp;npm</span>
-    <span><b>Установка</b> &nbsp;свой installer + глобальный кэш</span>
-    <span><b>Раскладка</b> &nbsp;in-repo по умолчанию</span>
+    <span><b>Stack</b> &nbsp;TypeScript · Node 20+ · pnpm</span>
+    <span><b>Registry</b> &nbsp;npm</span>
+    <span><b>Installation</b> &nbsp;our own installer + a global cache</span>
+    <span><b>Layout</b> &nbsp;in-repo by default</span>
   </div>
 </header>
 
-<nav class="toc" aria-label="Содержание">
+<nav class="toc" aria-label="On this page">
   <ol>
-    <li><a href="#decisions">Зафиксировано</a></li>
-    <li><a href="#spine">Хребет</a></li>
-    <li><a href="#freedom">Свобода плагина</a></li>
-    <li><a href="#lifecycle">Жизненный цикл</a></li>
-    <li><a href="#files">Файловая структура</a></li>
-    <li><a href="#org">Организация и репы</a></li>
-    <li><a href="#commands">Команды</a></li>
-    <li><a href="#versioning">Версионирование</a></li>
-    <li><a href="#open">Открытые вопросы</a></li>
-    <li><a href="#plan">Вехи</a></li>
+    <li><a href="#decisions">Settled</a></li>
+    <li><a href="#spine">The spine</a></li>
+    <li><a href="#freedom">A plugin author's freedom</a></li>
+    <li><a href="#lifecycle">The lifecycle</a></li>
+    <li><a href="#files">The file layout</a></li>
+    <li><a href="#org">The organisation and the repositories</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li><a href="#versioning">Versioning</a></li>
+    <li><a href="#open">Open questions</a></li>
+    <li><a href="#plan">Milestones</a></li>
   </ol>
 </nav>
 
@@ -391,26 +391,26 @@ footer{
 
 <!-- ============ 1 ============ -->
 <section id="decisions">
-  <span class="sect-label">Итог обсуждения</span>
-  <h2>Что зафиксировано</h2>
-  <p>Всё, к чему пришли, одной таблицей. Синим — принято, охрой — ждёт решения и упоминается ниже отдельно.</p>
+  <span class="sect-label">Where the discussion landed</span>
+  <h2>What is settled</h2>
+  <p>Everything we arrived at, in one table. Blue is decided; ochre is waiting on a decision and is discussed separately below.</p>
 
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Вопрос</th><th>Решение</th><th>Статус</th></tr></thead>
+    <thead><tr><th>Question</th><th>Decision</th><th>Status</th></tr></thead>
     <tbody>
-      <tr><td>Форма продукта</td><td>Новый продукт, а не эволюция <code>speq-cli</code>. Ядро = загрузчик плагинов, всё остальное — плагины</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Язык ядра</td><td>TypeScript / Node 20+, ESM. Playwright Node-native, авторы плагинов пишут на TS, npm даёт реестр бесплатно</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Композиция плагинов</td><td>Фасад <code>PluginContext</code>. Реестр, сервисы и опциональная инъекция — свои ~170 строк; Cordis внутрь фасада можно вложить позже, <code>plugin-api</code> этого не заметит</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Реестр плагинов</td><td>npm. Свой реестр не пишем. Соглашение об имени <code>speqkit-plugin-*</code> + keyword</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Установка</td><td>Свой installer: <code>speq.lock</code> + глобальный кэш <code>~/.speq</code>. В репозитории сервиса — ноль артефактов Node</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Раскладка тестов</td><td><code>in-repo</code> по умолчанию: <code>.speq/</code> внутри репозитория сервиса. Переносится из нынешнего speq как есть</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Управляющие конструкции</td><td>Цикл, условие, retry, parallel — плагины. Исполнитель ядра реентрантный и доступен плагину</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Репозиторий</td><td>Монорепа pnpm в новой организации GitHub. Отдельный каталог локально</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Формат тестов</td><td>YAML по умолчанию, <code>defineLoader</code> в хребте с первого дня → TS-тесты возможны как плагин</td><td><span class="chip open">подтвердить</span></td></tr>
-      <tr><td>Название и npm-скоуп</td><td>Сохраняем бренд <code>speq</code> или новое имя. Скоуп <code>@speq</code> надо застолбить</td><td><span class="chip open">решить</span></td></tr>
-      <tr><td>Судьба v1.4 / v1.5</td><td><strong>Заморожены и в текущем проекте игнорируются.</strong> <code>--parallel</code> и ATDD-harness переделываются новым продуктом с нуля</td><td><span class="chip fixed">принято</span></td></tr>
-      <tr><td>Монетизация</td><td><strong>Отказ.</strong> Фреймворк для комьюнити тестировщиков от тестировщиков. Линии OSS / Pro нет, платного тира нет, plugin API открыт целиком</td><td><span class="chip fixed">принято</span></td></tr>
+      <tr><td>The shape of the product</td><td>A new product rather than an evolution of <code>speq-cli</code>. Kernel = plugin loader; everything else is a plugin</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>The kernel's language</td><td>TypeScript / Node 20+, ESM. Playwright is Node-native, plugin authors write TypeScript, and npm gives us a registry for free</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Composing plugins</td><td>A <code>PluginContext</code> facade. The registry, services and optional injection are ~170 lines of our own; Cordis can be slid in behind the facade later and <code>plugin-api</code> will not notice</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>The plugin registry</td><td>npm. We are not writing a registry. A naming convention, <code>speqkit-plugin-*</code>, plus a keyword</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Installation</td><td>Our own installer: <code>speq.lock</code> plus a global cache in <code>~/.speq</code>. Zero Node artifacts in the service's repository</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Where tests live</td><td><code>in-repo</code> by default: <code>.speq/</code> inside the service's repository. Carried over from the current speq as it is</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Control constructs</td><td>Loop, condition, retry, parallel — all plugins. The kernel's executor is re-entrant and available to a plugin</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>The repository</td><td>A pnpm monorepo in a new GitHub organisation. A separate directory locally</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>The test format</td><td>YAML by default, with <code>defineLoader</code> in the spine from day one → TypeScript tests are possible as a plugin</td><td><span class="chip open">to confirm</span></td></tr>
+      <tr><td>The name and the npm scope</td><td>Keep the <code>speq</code> brand or take a new name. The <code>@speq</code> scope has to be claimed</td><td><span class="chip open">to decide</span></td></tr>
+      <tr><td>What happens to v1.4 / v1.5</td><td><strong>Frozen, and ignored in the current project.</strong> <code>--parallel</code> and the ATDD harness are rebuilt from scratch by the new product</td><td><span class="chip fixed">decided</span></td></tr>
+      <tr><td>Monetisation</td><td><strong>No.</strong> A framework for the testing community, by testers. There is no OSS / Pro split, no paid tier, and the plugin API is open in full</td><td><span class="chip fixed">decided</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -418,66 +418,66 @@ footer{
 
 <!-- ============ 2 ============ -->
 <section id="spine">
-  <span class="sect-label">Контракт ядра</span>
-  <h2>Хребет</h2>
-  <p>«Всё — плагин» никогда не бывает буквальным: в VS Code точки вклада зашиты, в pytest неизменен цикл <code>collect → fixture → runtest → report</code>. Если тестовая модель тоже плагин, два пользователя одного фреймворка пишут несовместимые тесты. Поэтому хребет фиксируется и не меняется.</p>
+  <span class="sect-label">The kernel's contract</span>
+  <h2>The spine</h2>
+  <p>"Everything is a plugin" is never literally true: VS Code hard-wires its contribution points, and pytest's <code>collect → fixture → runtest → report</code> cycle does not move. If the test model is a plugin too, two users of one framework write incompatible tests. So the spine is fixed and does not change.</p>
 
-  <h4>Что ядро содержит — исчерпывающий список</h4>
-<pre><code><span class="c">Plugin registry + lifecycle</span>   загрузка, порядок, зависимости между плагинами
-<span class="c">Config</span>                        speq.yaml, extends, профили окружений
-<span class="c">Test model</span>                    Suite → Test → Step → Assertion, адресуемые id
-<span class="c">Execution</span>                     порядок, контекст, привязка результатов по id,
-                              интерполяция ${...}, бюджет таймаутов,
-                              <span class="p">реентрантный runSteps() — доступен плагинам</span>
-<span class="c">Resource lifecycle</span>            объекты со сроком жизни run | suite | test
-<span class="c">Event bus</span>                     поток событий прогона, версионированный
-<span class="c">Result + artifacts</span>            модель исхода и вложений (включая бинарные)
-<span class="c">Validation</span>                    плагин отдаёт схему, ядро проверяет тест до запуска
-<span class="c">Installer</span>                     резолв версий, lock, кэш плагинов</code></pre>
+  <h4>What the kernel contains — the exhaustive list</h4>
+<pre><code><span class="c">Plugin registry + lifecycle</span>   loading, order, dependencies between plugins
+<span class="c">Config</span>                        speq.yaml, extends, environment profiles
+<span class="c">Test model</span>                    Suite → Test → Step → Assertion, addressable ids
+<span class="c">Execution</span>                     order, context, binding results by id,
+                              ${...} interpolation, the timeout budget,
+                              <span class="p">a re-entrant runSteps() — available to plugins</span>
+<span class="c">Resource lifecycle</span>            objects living for run | suite | test
+<span class="c">Event bus</span>                     the run's event stream, versioned
+<span class="c">Result + artifacts</span>            the model of an outcome and its attachments (binary included)
+<span class="c">Validation</span>                    a plugin hands over a schema, the kernel checks a test before the run
+<span class="c">Installer</span>                     version resolution, the lock, the plugin cache</code></pre>
 
-  <p>Ядро <strong>не содержит</strong>: ни одного протокола, ни одной команды CLI, ни одного формата отчёта, ни одной управляющей конструкции, ни одного UI.</p>
+  <p>The kernel contains <strong>none of</strong>: a protocol, a CLI command, a report format, a control construct, a UI.</p>
 
-  <h4>Восемь точек вклада — и больше в v1 не открывать</h4>
-  <p>Каждая открытая точка становится контрактом навсегда: закрыть обратно нельзя. Восьми достаточно, чтобы написать <code>http</code>, <code>playwright</code>, <code>postgres</code>, <code>loop</code>, <code>tui</code> и <code>vscode</code>.</p>
+  <h4>Eight contribution points — and no more opened in v1</h4>
+  <p>Every point that is opened becomes a contract forever: it cannot be closed again. Eight are enough to write <code>http</code>, <code>playwright</code>, <code>postgres</code>, <code>loop</code>, <code>tui</code> and <code>vscode</code>.</p>
 
   <ul class="points">
-    <li><span class="name">defineStepType</span><span class="what">id, схема входа, <code>execute(ctx, input)</code> → результат, привязываемый по id</span></li>
-    <li><span class="name">defineAssertion</span><span class="what">id, вид цели, схема, <code>evaluate(target, expected)</code></span></li>
-    <li><span class="name">defineResource</span><span class="what">scope <code>run | suite | test</code>, setup/teardown. Браузер, пул коннектов, транзакция</span></li>
-    <li><span class="name">defineReporter</span><span class="what">подписка на шину событий → вывод в любом формате</span></li>
-    <li><span class="name">defineValueProvider</span><span class="what">резолверы <code>${...}</code>: env, vault, faker, свои источники</span></li>
-    <li><span class="name">defineLoader</span><span class="what">как находятся и парсятся файлы тестов. YAML — реализация по умолчанию</span></li>
-    <li><span class="name">defineCommand</span><span class="what">вклад в CLI-поверхность через опциональную зависимость от сервиса <code>cli</code></span></li>
-    <li><span class="name">defineHook</span><span class="what">before/after на уровне run, suite, test, step — для трейсинга, скриншотов при падении, очистки</span></li>
+    <li><span class="name">defineStepType</span><span class="what">an id, an input schema, <code>execute(ctx, input)</code> → a result bound by id</span></li>
+    <li><span class="name">defineAssertion</span><span class="what">an id, the kind of target, a schema, <code>evaluate(target, expected)</code></span></li>
+    <li><span class="name">defineResource</span><span class="what">a <code>run | suite | test</code> scope, setup/teardown. A browser, a connection pool, a transaction</span></li>
+    <li><span class="name">defineReporter</span><span class="what">a subscription to the event bus → output in any format</span></li>
+    <li><span class="name">defineValueProvider</span><span class="what"><code>${...}</code> resolvers: env, a vault, faker, your own sources</span></li>
+    <li><span class="name">defineLoader</span><span class="what">how test files are found and parsed. YAML is the default implementation</span></li>
+    <li><span class="name">defineCommand</span><span class="what">a contribution to the CLI surface, through an optional dependency on the <code>cli</code> service</span></li>
+    <li><span class="name">defineHook</span><span class="what">before/after at the run, suite, test and step level — for tracing, screenshots on failure, cleanup</span></li>
   </ul>
 
   <div class="note">
-    <span class="tag">Опциональные зависимости — работает</span>
-    <p>Плагин <code>postgres</code> хочет добавить команду <code>speq db:seed</code>, но CLI может быть не загружен — в VS Code его нет. Плагин объявляет <em>опциональную</em> зависимость через <code>ctx.inject(['cli'], …)</code>: команда регистрируется, только если сервис поднят, и плагин остаётся полностью работоспособным, если нет. Это шаблон <code>inject</code> из Cordis, реализованный за фасадом двухфазной загрузкой — оба случая закрыты тестами.</p>
+    <span class="tag">Optional dependencies — this works</span>
+    <p>The <code>postgres</code> plugin wants to add a <code>speq db:seed</code> command, but the CLI may not be loaded — inside VS Code it is not. The plugin declares an <em>optional</em> dependency through <code>ctx.inject(['cli'], …)</code>: the command is registered only if the service is up, and the plugin stays fully usable if it is not. This is Cordis's <code>inject</code> pattern, implemented behind the facade by loading in two phases — both cases are covered by tests.</p>
   </div>
 
   <div class="note">
-    <span class="tag">Обратное направление — <code>ctx.host</code></span>
-    <p>Восемь точек выше — это то, что плагин <em>даёт</em> ядру. <code>ctx.host</code> — то, что он у ядра <em>берёт</em>: <code>discover</code>, <code>validate</code>, <code>run</code>, <code>runs</code>, <code>replay</code>, плюс корень проекта, каталог отчётов и текущее окружение. Этой стороны в контракте не было, и <code>plugin-cli</code> взял недостающее единственным доступным способом — <code>import { bootstrap, runTests } from 'speqkit'</code>. Плагин исполняется <em>внутри</em> уже поднятого ядра и не может привезти своё, поэтому на <code>Host</code> нет и не будет <code>bootstrap</code>: это текущая сессия, а не способ открыть вторую. Договариваются плагин и ядро по-прежнему об одном — о мажоре <code>plugin-api</code>, который проверяется как <code>apiVersion</code>. Никакой версии ядра плагину не нужно.</p>
+    <span class="tag">The other direction — <code>ctx.host</code></span>
+    <p>The eight points above are what a plugin <em>gives</em> the kernel. <code>ctx.host</code> is what it <em>takes</em>: <code>discover</code>, <code>validate</code>, <code>run</code>, <code>runs</code>, <code>replay</code>, plus the project root, the report directory and the current environment. That side was missing from the contract, and <code>plugin-cli</code> took what it needed the only way available — <code>import { bootstrap, runTests } from 'speqkit'</code>. A plugin runs <em>inside</em> a kernel that is already up and cannot bring its own, which is why <code>Host</code> has no <code>bootstrap</code> and never will: it is the current session, not a way to open a second one. What a plugin and the kernel agree on is still one thing — the major of <code>plugin-api</code>, checked as <code>apiVersion</code>. A plugin needs no kernel version at all.</p>
   </div>
 
-  <h4>Поток событий</h4>
+  <h4>The event stream</h4>
 <pre><code>run.started → suite.started → test.started → step.started
   → step.finished → assertion.evaluated → artifact.attached
   → test.finished → suite.finished → run.finished
   ⊥ diagnostic
 
-step.started несёт parentId → вложенные шаги рисуются деревом</code></pre>
-  <p>На этом контракте стоят CLI, TUI, VS Code, будущий агрегатор и любой сторонний репортер — одинаково. Если сделать правильно только это, «много поверхностей» получается само.</p>
+step.started carries parentId → nested steps are drawn as a tree</code></pre>
+  <p>The CLI, the TUI, VS Code, a future aggregator and any third-party reporter all stand on this one contract, equally. Get only this right and "many surfaces" follows on its own.</p>
 </section>
 
 <!-- ============ 3 ============ -->
 <section id="freedom">
-  <span class="sect-label">Требование</span>
-  <h2>Автор плагина не ограничен</h2>
-  <p>Проверка требования на самом жёстком случае: не хватает <strong>цикла</strong>. Цикл — не тип шага в обычном смысле, он оборачивает <em>другие</em> шаги. Если это выражается плагином, выражается всё.</p>
+  <span class="sect-label">The requirement</span>
+  <h2>A plugin author is not fenced in</h2>
+  <p>Testing the requirement on the hardest case: what is missing is a <strong>loop</strong>. A loop is not a step type in the ordinary sense — it wraps <em>other</em> steps. If that is expressible as a plugin, everything is.</p>
 
-  <h4>Что пишет автор</h4>
+  <h4>What the author writes</h4>
 <pre><code><span class="k">export default</span> definePlugin({
   name: <span class="s">'loop'</span>,
   setup(ctx) {
@@ -486,7 +486,7 @@ step.started несёт parentId → вложенные шаги рисуютс�
         over:  z.string().optional(),    <span class="c">// ${users}</span>
         times: z.number().optional(),
         as:    z.string().default(<span class="s">'item'</span>),
-        steps: ctx.schema.steps           <span class="c">// дочерние шаги — тип из хребта</span>
+        steps: ctx.schema.steps           <span class="c">// child steps — a type from the spine</span>
       }),
       <span class="k">async</span> execute(ctx, input) {
         <span class="k">const</span> items = input.over ? ctx.resolve(input.over) : range(input.times)
@@ -500,71 +500,71 @@ step.started несёт parentId → вложенные шаги рисуютс�
   }
 })</code></pre>
 
-  <h4>Что получает пользователь</h4>
+  <h4>What the user gets</h4>
 <pre><code>steps:
   - id: seed
-    type: loop              <span class="c"># из speqkit-plugin-loop</span>
+    type: loop              <span class="c"># from speqkit-plugin-loop</span>
     over: ${users}
     as: user
     steps:
       - id: create
-        type: http          <span class="c"># из plugin-http</span>
+        type: http          <span class="c"># from plugin-http</span>
         method: POST
         url: /users
         body: { name: <span class="s">"${user.name}"</span> }</code></pre>
 
-  <p>Чего это требует от хребта — и почему решение принять надо сейчас, а не потом:</p>
+  <p>What this asks of the spine — and why the decision has to be taken now rather than later:</p>
   <ul>
-    <li><strong><code>steps</code> — рекурсивный тип первого класса.</strong> Дочерние шаги парсит и валидирует ядро, а не плагин. Плагин получает их уже разобранными.</li>
-    <li><strong><code>ctx.runSteps(steps, { vars })</code> — реентрантный исполнитель</strong> с дочерней областью переменных.</li>
-    <li><strong>События вкладываются.</strong> <code>parentId</code> в <code>step.started</code>, иначе TUI и отчёты не нарисуют дерево.</li>
+    <li><strong><code>steps</code> is a first-class recursive type.</strong> Child steps are parsed and validated by the kernel, not by the plugin. The plugin receives them already parsed.</li>
+    <li><strong><code>ctx.runSteps(steps, { vars })</code> is a re-entrant executor</strong> with a child variable scope.</li>
+    <li><strong>Events nest.</strong> A <code>parentId</code> on <code>step.started</code>, or neither a TUI nor a report can draw the tree.</li>
   </ul>
 
-  <p>Следствие: <code>if</code>, <code>retry</code>, <code>parallel</code>, <code>try/catch</code>, <code>repeat-until</code>, <code>foreach-file</code> — всё это плагины. В ядре нет ни одной управляющей конструкции, и добавлять их туда никогда не понадобится.</p>
+  <p>Which implies: <code>if</code>, <code>retry</code>, <code>parallel</code>, <code>try/catch</code>, <code>repeat-until</code>, <code>foreach-file</code> — all plugins. There is not one control construct in the kernel, and there will never be a need to add one.</p>
 
   <div class="note warn">
-    <span class="tag">Открытый вопрос</span>
-    <p>Адресация результатов внутри вложенных шагов. <code>${seed.results[0].create.body.id}</code> — рабочий, но громоздкий вариант; альтернатива — плоские алиасы, которые плагин объявляет сам. Решить до M1, потому что это часть публичного DSL.</p>
+    <span class="tag">Open question</span>
+    <p>Addressing results inside nested steps. <code>${seed.results[0].create.body.id}</code> works but is unwieldy; the alternative is flat aliases that the plugin declares itself. To be decided before M1, because it is part of the public DSL.</p>
   </div>
 </section>
 
 <!-- ============ 4 ============ -->
 <section id="lifecycle">
-  <span class="sect-label">Главный сценарий</span>
-  <h2>От «хочу писать тесты» до зелёного CI</h2>
-  <p>Микросервис <code>payments-service</code> на Go. Node в репозитории не появляется ни на одном шаге.</p>
+  <span class="sect-label">The main scenario</span>
+  <h2>From "I want to write tests" to a green CI</h2>
+  <p>A <code>payments-service</code> microservice written in Go. Node appears in the repository at no point.</p>
 
   <ol class="steps">
 
     <li class="step">
       <div class="num">0</div>
       <div class="body">
-        <h3>Поставить фреймворк</h3>
-<pre><code>brew install speqkit       <span class="c"># или curl … | sh</span></code></pre>
-        <p class="under"><b>Под капотом:</b> один исполняемый файл со встроенным рантаймом: 116 МБ на диске, 37 МБ в архиве. Умеет он ровно четыре вещи: прочитать конфиг, поставить плагины, поднять их, отдать им управление. Ставится <code>speqkit</code>, на PATH ложится <code>speq</code> — то же разделение, что у <code>@angular/cli</code> и <code>ng</code>, и по той же причине: имя проекта не обязано быть тем, что набирают пятьдесят раз в день.</p>
-        <p class="under">Рантайм внутри — конкретная версия Node, прибитая в <code>scripts/build-binary.mjs</code> и скачиваемая с nodejs.org под проверку <code>SHASUMS256.txt</code>. Не тот <code>node</code>, что оказался на сборочной машине: у пакетного менеджера он бывает 66-килобайтной обёрткой над общей библиотекой, внутрь которой нечего внедрять, — и версия рантайма у пользователей стала бы свойством сборочной машины вместо решения, записанного в диффе.</p>
+        <h3>Install the framework</h3>
+<pre><code>brew install speqkit       <span class="c"># or curl … | sh</span></code></pre>
+        <p class="under"><b>Underneath:</b> one executable with the runtime built in: 116 MB on disk, 37 MB in the archive. It can do exactly four things: read the config, install the plugins, bring them up, hand over control. You install <code>speqkit</code> and <code>speq</code> lands on your PATH — the same split as <code>@angular/cli</code> and <code>ng</code>, for the same reason: the name of a project does not have to be the thing typed fifty times a day.</p>
+        <p class="under">The runtime inside is a specific version of Node, pinned in <code>scripts/build-binary.mjs</code> and downloaded from nodejs.org against a <code>SHASUMS256.txt</code> check. Not whichever <code>node</code> happened to be on the build machine: a package manager's can be a 66 KB wrapper around a shared library with nothing to inject into — and the runtime version our users get would have become a property of the build machine instead of a decision written down in a diff.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">1</div>
       <div class="body">
-        <h3>Инициализировать в репозитории сервиса</h3>
+        <h3>Initialise it in the service's repository</h3>
 <pre><code>cd payments-service
 speq init
 
-<span class="c">? Режим …………… in-repo (тесты рядом с кодом)</span>
-<span class="c">? Пресет ………… @acme/speqkit-preset</span>
-<span class="c">? Плагины ……… http, cli  (+ из пресета: postgres, allure)</span>
-✔ создано .speq/ · speq.yaml · speq.lock · suites/health.yaml</code></pre>
-        <p class="under"><b>Под капотом:</b> <code>init</code> живёт в загрузчике, а не в плагине — иначе его неоткуда было бы вызвать до установки плагинов.</p>
+<span class="c">? Mode ……………… in-repo (tests next to the code)</span>
+<span class="c">? Preset ………… @acme/speqkit-preset</span>
+<span class="c">? Plugins ……… http, cli  (+ from the preset: postgres, allure)</span>
+✔ created .speq/ · speq.yaml · speq.lock · suites/health.yaml</code></pre>
+        <p class="under"><b>Underneath:</b> <code>init</code> lives in the bootstrap rather than in a plugin — otherwise there would be nowhere to call it from before the plugins are installed.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">2</div>
       <div class="body">
-        <h3>Подтянуть плагины</h3>
+        <h3>Fetch the plugins</h3>
 <pre><code>speq install
 
   resolving 4 plugins …
@@ -573,14 +573,14 @@ speq init
   ✔ @speqkit/plugin-postgres    1.3.2   downloaded
   ✔ @acme/speqkit-plugin-kafka  0.4.1   downloaded
   → speq.lock updated</code></pre>
-        <p class="under"><b>Под капотом:</b> реестр — npm, установщик — свой. Плагины ложатся в <code>~/.speq/plugins/</code>, а не в репозиторий. Коммитится только <code>speq.lock</code> с точными версиями и хешами.</p>
+        <p class="under"><b>Underneath:</b> the registry is npm, the installer is ours. Plugins land in <code>~/.speq/plugins/</code> rather than in the repository. The only thing committed is <code>speq.lock</code>, with exact versions and hashes.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">3</div>
       <div class="body">
-        <h3>Написать тест</h3>
+        <h3>Write a test</h3>
 <pre><code><span class="c"># .speq/suites/checkout.yaml</span>
 name: checkout
 steps:
@@ -589,7 +589,7 @@ steps:
     method: POST
     url: /auth
   - id: order
-    type: sql               <span class="c"># появился вместе с plugin-postgres</span>
+    type: sql               <span class="c"># arrived with plugin-postgres</span>
     query: <span class="s">"select status from orders where id = ${login.body.orderId}"</span>
 assert:
   - type: status
@@ -597,73 +597,73 @@ assert:
   - type: row_equals
     path: status
     expected: PAID</code></pre>
-        <p class="under"><b>Под капотом:</b> схемы плагинов уезжают в yaml-language-server, поэтому автодополнение <code>type: sql</code> и его полей появляется в редакторе само, без правок расширения.</p>
+        <p class="under"><b>Underneath:</b> plugin schemas are handed to yaml-language-server, so completion for <code>type: sql</code> and its fields appears in the editor on its own, with no change to the extension.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">4</div>
       <div class="body">
-        <h3>Проверить, ничего не запуская</h3>
+        <h3>Check it without running anything</h3>
 <pre><code>speq validate
 
   .speq/suites/checkout.yaml:8  unknown step type 'ui'
-    ↳ не найден среди загруженных плагинов
-    ↳ возможно: speq add @speqkit/plugin-playwright</code></pre>
-        <p class="under"><b>Под капотом:</b> ядро собирает полную грамматику DSL из загруженных плагинов до первого сетевого вызова. Опечатка ловится за миллисекунды, а не в середине прогона.</p>
+    ↳ not found among the loaded plugins
+    ↳ perhaps: speq add @speqkit/plugin-playwright</code></pre>
+        <p class="under"><b>Underneath:</b> the kernel assembles the full grammar of the DSL out of the loaded plugins before the first network call. A typo is caught in milliseconds rather than halfway through a run.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">5</div>
       <div class="body">
-        <h3>Прогнать локально</h3>
+        <h3>Run it locally</h3>
 <pre><code>speq run --env local
 speq run --test suites/checkout.yaml
-speq tui                     <span class="c"># если поставлен plugin-tui</span></code></pre>
-        <p class="under"><b>Под капотом:</b> открываются ресурсы scope <code>run</code> (пул коннектов), на каждый тест — scope <code>test</code> (транзакция), после теста транзакция откатывается. Изоляция данных при параллельном прогоне получается из этой же модели.</p>
+speq tui                     <span class="c"># if plugin-tui is installed</span></code></pre>
+        <p class="under"><b>Underneath:</b> <code>run</code>-scoped resources are opened (the connection pool), each test gets its <code>test</code> scope (a transaction), and the transaction is rolled back after the test. Data isolation under a parallel run falls out of the same model.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">6</div>
       <div class="body">
-        <h3>Понадобился ещё плагин</h3>
+        <h3>One more plugin turns out to be needed</h3>
 <pre><code>speq add @speqkit/plugin-playwright
-speq add github:acme/speqkit-plugin-legacy   <span class="c"># из git</span>
-speq plugins                              <span class="c"># что загружено и что вносит</span></code></pre>
-        <p class="under"><b>Под капотом:</b> <code>add</code> правит <code>speq.yaml</code>, пересчитывает <code>speq.lock</code> и обновляет кэш. Приватный скоуп компании, git-URL и локальный путь работают одинаково — это всё умеет npm-резолв.</p>
+speq add github:acme/speqkit-plugin-legacy   <span class="c"># from git</span>
+speq plugins                              <span class="c"># what is loaded and what it contributes</span></code></pre>
+        <p class="under"><b>Underneath:</b> <code>add</code> edits <code>speq.yaml</code>, recomputes <code>speq.lock</code> and updates the cache. A company's private scope, a git URL and a local path all work the same way — npm resolution handles all of it.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">7</div>
       <div class="body">
-        <h3>Возможности не хватило — пишем свой плагин</h3>
-<pre><code>npm create speqkit-plugin loop     <span class="c"># скаффолд: src, схема, тесты, CI</span>
+        <h3>Nothing covers it — so write a plugin</h3>
+<pre><code>npm create speqkit-plugin loop     <span class="c"># scaffold: src, schema, tests, CI</span>
 cd speqkit-plugin-loop &amp;&amp; npm run dev
 
 cd ../payments-service
-speq link ../speqkit-plugin-loop   <span class="c"># подключить без публикации</span>
-speq run                        <span class="c"># сразу видно в тестах</span>
+speq link ../speqkit-plugin-loop   <span class="c"># wire it in without publishing</span>
+speq run                        <span class="c"># visible in the tests immediately</span>
 
 cd ../speqkit-plugin-loop
-npx speq-test-kit               <span class="c"># конформанс: таймауты, error, артефакты</span>
-npm publish                     <span class="c"># → доступно всем</span></code></pre>
-        <p class="under"><b>Под капотом:</b> <code>speq link</code> — единственное, что отличает разработку плагина от его использования. Публикация — обычный <code>npm publish</code>; ничего согласовывать с вами автору не нужно.</p>
+npx speq-test-kit               <span class="c"># conformance: timeouts, error, artifacts</span>
+npm publish                     <span class="c"># → available to everyone</span></code></pre>
+        <p class="under"><b>Underneath:</b> <code>speq link</code> is the only thing that separates developing a plugin from using one. Publishing is an ordinary <code>npm publish</code>; the author has nothing to agree with you about.</p>
       </div>
     </li>
 
     <li class="step">
       <div class="num">8</div>
       <div class="body">
-        <h3>Поставить в CI</h3>
+        <h3>Put it in CI</h3>
 <pre><code><span class="c"># .github/workflows/tests.yml</span>
 - uses: acme/setup-speq@v1
   with: { version: <span class="s">'2.1.0'</span> }
-- run: speq install --frozen        <span class="c"># строго по lock, как npm ci</span>
+- run: speq install --frozen        <span class="c"># strictly the lock, like npm ci</span>
 - run: speq run --env ci --reporter console,junit</code></pre>
-        <p class="under"><b>Под капотом:</b> <code>--frozen</code> падает, если <code>speq.lock</code> разошёлся с <code>speq.yaml</code>. Exit code — из хребта; репортеры — плагины. Побитовая воспроизводимость набора плагинов, чего у нынешнего <code>brew install speq</code> нет в принципе.</p>
+        <p class="under"><b>Underneath:</b> <code>--frozen</code> fails if <code>speq.lock</code> has drifted from <code>speq.yaml</code>. The exit code comes from the spine; the reporters are plugins. Bit-for-bit reproducibility of the plugin set, which the current <code>brew install speq</code> cannot offer in principle.</p>
       </div>
     </li>
 
@@ -672,35 +672,35 @@ npm publish                     <span class="c"># → доступно всем<
 
 <!-- ============ 5 ============ -->
 <section id="files">
-  <span class="sect-label">Раскладка</span>
-  <h2>Файловая структура</h2>
-  <p>Три разных репозитория, три разные раскладки. Локально — новый каталог рядом с текущим, <code>~/speqkit/</code>; в нынешнем <code>~/speq/</code> ничего не трогаем.</p>
+  <span class="sect-label">Layout</span>
+  <h2>The file structure</h2>
+  <p>Three different repositories, three different layouts. Locally, a new directory beside the current one, <code>~/speqkit/</code>; nothing in today's <code>~/speq/</code> is touched.</p>
 
-  <h3>А. Монорепа фреймворка</h3>
-<pre><code>speqkit/                        <span class="c"># новая организация GitHub</span>
+  <h3>A. The framework monorepo</h3>
+<pre><code>speqkit/                        <span class="c"># the new GitHub organisation</span>
 ├── packages/
-│   ├── core/           <span class="p">speqkit</span>              ядро + bin `speq`
-│   ├── plugin-api/     <span class="p">@speqkit/plugin-api</span>        только типы — публичный контракт
-│   ├── installer/      <span class="p">@speqkit/installer</span>         резолв, lock, кэш
-│   ├── plugin-http/    <span class="p">@speqkit/plugin-http</span>       смоук-набор из коробки
+│   ├── core/           <span class="p">speqkit</span>              the kernel + the `speq` bin
+│   ├── plugin-api/     <span class="p">@speqkit/plugin-api</span>        types only — the public contract
+│   ├── installer/      <span class="p">@speqkit/installer</span>         resolve, lock, cache
+│   ├── plugin-http/    <span class="p">@speqkit/plugin-http</span>       the smoke set, in the box
 │   ├── plugin-cli/     <span class="p">@speqkit/plugin-cli</span>        run · validate · list · report
-│   ├── plugin-playwright/ <span class="p">@speqkit/plugin-playwright</span> браузер, ресурсы, скриншоты
+│   ├── plugin-playwright/ <span class="p">@speqkit/plugin-playwright</span> browser, resources, screenshots
 │   ├── plugin-tui/     <span class="p">@speqkit/plugin-tui</span>
-│   ├── create-plugin/  <span class="p">@speqkit/create-plugin</span>     скаффолд для авторов
-│   └── test-kit/       <span class="p">@speqkit/plugin-test-kit</span>   конформанс-тесты
-├── examples/                     эталонные проекты, e2e
-├── docs/                         спека хребта, гайд автора плагина
+│   ├── create-plugin/  <span class="p">@speqkit/create-plugin</span>     the scaffold for authors
+│   └── test-kit/       <span class="p">@speqkit/plugin-test-kit</span>   conformance tests
+├── examples/                     reference projects, e2e
+├── docs/                         the spine's spec, the plugin author's guide
 ├── pnpm-workspace.yaml
-└── .changeset/                   версионирование пакетов</code></pre>
-  <p>Монорепа — сознательный разворот относительно нынешнего speq. Мультирепа правильна для стабильного продукта и убийственна для нового: первый год <code>plugin-api</code> будет меняться постоянно, и нужны атомарные правки ядра и пяти плагинов одним коммитом. Сторонние плагины живут в своих репозиториях с первого дня.</p>
+└── .changeset/                   package versioning</code></pre>
+  <p>The monorepo is a deliberate reversal of what today's speq does. Multi-repo is right for a stable product and fatal for a new one: for the first year <code>plugin-api</code> will be changing constantly, and we need atomic edits to the kernel and five plugins in one commit. Third-party plugins live in their own repositories from day one.</p>
 
-  <h3>Б. Репозиторий сервиса</h3>
-<pre><code>payments-service/                 <span class="c"># Go. Ни package.json, ни node_modules</span>
+  <h3>B. The service's repository</h3>
+<pre><code>payments-service/                 <span class="c"># Go. No package.json, no node_modules</span>
 ├── go.mod  cmd/  internal/
 ├── .github/workflows/tests.yml
 └── .speq/
-    ├── speq.yaml                 extends пресета + что специфично сервису
-    ├── speq.lock                 точные версии + хеши · коммитится
+    ├── speq.yaml                 extends the preset + whatever is specific to the service
+    ├── speq.lock                 exact versions + hashes · committed
     ├── environments/
     │   ├── local.yaml
     │   └── ci.yaml
@@ -711,111 +711,111 @@ npm publish                     <span class="c"># → доступно всем<
     ├── schemas/
     └── reports/                  .gitignore</code></pre>
 
-<pre><code><span class="c"># .speq/speq.yaml — всё, что пишет команда сервиса</span>
+<pre><code><span class="c"># .speq/speq.yaml — everything the service's team writes</span>
 version: 1
-extends: <span class="s">"@acme/speqkit-preset"</span>       <span class="c"># плагины и их версии — одной строкой</span>
+extends: <span class="s">"@acme/speqkit-preset"</span>       <span class="c"># the plugins and their versions, in one line</span>
 
 http:
   baseUrl: http://localhost:8080</code></pre>
 
   <div class="note">
-    <span class="tag">Пресет организации решает проблему тридцати репозиториев</span>
-    <p>Без него через полгода в тридцати сервисах тридцать разных версий плагинов и никакой возможности обновить централизованно. Пресет — обычный npm-пакет во внутреннем скоупе: платформенная команда бампает его, обновляются все сервисы. Это же естественная точка, где компания навязывает стандарты — обязательные репортеры, аллоулист плагинов, общие фикстуры. <code>extends</code> надо заложить в хребет сразу: прикручивать его потом к плоскому конфигу больно.</p>
+    <span class="tag">An organisation's preset solves the thirty-repository problem</span>
+    <p>Without one, in six months thirty services carry thirty different plugin versions with no way to update them centrally. A preset is an ordinary npm package in an internal scope: the platform team bumps it and every service updates. It is also the natural place for a company to impose its standards — mandatory reporters, an allowlist of plugins, shared fixtures. <code>extends</code> has to go into the spine straight away: bolting it onto a flat config afterwards hurts.</p>
   </div>
 
-  <h3>В. Репозиторий стороннего плагина</h3>
+  <h3>C. A third-party plugin's repository</h3>
 <pre><code>speqkit-plugin-kafka/
 ├── package.json         name: speqkit-plugin-kafka
 │                        keywords: [<span class="s">"speqkit-plugin"</span>]
 │                        peerDependencies: { <span class="s">"@speqkit/plugin-api"</span>: <span class="s">"^1"</span> }
 ├── src/index.ts         definePlugin({ … })
-├── schema/              JSON Schema — генерится из zod при сборке
-├── tests/               прогон @speqkit/plugin-test-kit
-├── examples/            рабочий пример для доков
+├── schema/              JSON Schema — generated from zod at build time
+├── tests/               a run of @speqkit/plugin-test-kit
+├── examples/            a working example for the docs
 └── README.md</code></pre>
 
-  <h3>Где какие тесты живут</h3>
+  <h3>Which tests live where</h3>
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Уровень</th><th>Где лежит</th><th>Против чего бежит</th><th>Кто запускает</th></tr></thead>
+    <thead><tr><th>Level</th><th>Where it lives</th><th>What it runs against</th><th>Who runs it</th></tr></thead>
     <tbody>
-      <tr><td>Компонентные</td><td><code>.speq/</code> сервиса</td><td>сервис локально, зависимости замоканы</td><td>CI сервиса, каждый PR</td></tr>
-      <tr><td>Контрактные</td><td><code>.speq/</code> сервиса</td><td>схема/спека, без сети</td><td>CI сервиса, каждый PR</td></tr>
-      <tr><td>Сквозные E2E</td><td>отдельный репозиторий</td><td>развёрнутый стенд</td><td>CI стенда, после деплоя</td></tr>
+      <tr><td>Component</td><td>the service's <code>.speq/</code></td><td>the service locally, dependencies mocked</td><td>the service's CI, every PR</td></tr>
+      <tr><td>Contract</td><td>the service's <code>.speq/</code></td><td>a schema or spec, no network</td><td>the service's CI, every PR</td></tr>
+      <tr><td>End-to-end</td><td>a separate repository</td><td>a deployed environment</td><td>the environment's CI, after a deploy</td></tr>
     </tbody>
   </table>
   </div>
-  <p>Сквозные E2E в репозиторий одного сервиса класть нельзя — они не принадлежат ни одному из них, и владелец быстро находится по принципу «кто последний сломал». Это то место, где режим <code>test-repo</code> остаётся нужен.</p>
+  <p>End-to-end tests cannot go in one service's repository — they belong to none of them, and an owner is found soon enough on the "whoever broke it last" principle. That is the place where a <code>test-repo</code> mode is still needed.</p>
 </section>
 
 <!-- ============ 6 ============ -->
 <section id="org">
-  <span class="sect-label">Инфраструктура</span>
-  <h2>Организация и репозитории</h2>
-  <p>Новая организация GitHub. Текущая <code>speq-tms</code> продолжает жить: там <code>speq-cli</code>, его issues и его пользователи.</p>
+  <span class="sect-label">Infrastructure</span>
+  <h2>The organisation and the repositories</h2>
+  <p>A new GitHub organisation. The current <code>speq-tms</code> goes on living: <code>speq-cli</code> is there, with its issues and its users.</p>
 
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Репозиторий</th><th>Что внутри</th></tr></thead>
+    <thead><tr><th>Repository</th><th>What is in it</th></tr></thead>
     <tbody>
-      <tr><td><code>speq</code></td><td>Монорепа: ядро, plugin-api, installer, официальные плагины, доки</td></tr>
-      <tr><td><code>setup-speq</code></td><td>GitHub Action: ставит бинарник нужной версии, кэширует <code>~/.speq</code></td></tr>
-      <tr><td><code>homebrew-tap</code></td><td>Формула для brew. Рендерится здесь из <code>packaging/homebrew/speqkit.rb</code> и приезжает туда копией — сам тап кода не содержит</td></tr>
-      <tr><td><code>awesome-speq</code></td><td>Курируемый список плагинов комьюнити — пока нет реестра, это и есть discovery</td></tr>
-      <tr><td><code>&lt;org&gt;.github.io</code></td><td>Документация, гайд автора плагина, спека хребта</td></tr>
+      <tr><td><code>speq</code></td><td>The monorepo: the kernel, plugin-api, the installer, the official plugins, the docs</td></tr>
+      <tr><td><code>setup-speq</code></td><td>A GitHub Action: installs the binary at the requested version, caches <code>~/.speq</code></td></tr>
+      <tr><td><code>homebrew-tap</code></td><td>The brew formula. Rendered here from <code>packaging/homebrew/speqkit.rb</code> and pushed there as a copy — the tap itself contains no code</td></tr>
+      <tr><td><code>awesome-speq</code></td><td>A curated list of community plugins — until there is a registry, this is discovery</td></tr>
+      <tr><td><code>&lt;org&gt;.github.io</code></td><td>Documentation, the plugin author's guide, the spec of the spine</td></tr>
     </tbody>
   </table>
   </div>
 
   <div class="note warn">
-    <span class="tag">Проверено на месте</span>
-    <p>Имя <code>speq</code> в npm <strong>занято</strong>: заброшенный placeholder версии 0.0.0 без мейнтейнеров, описание «promise-happy test DSL». Отдельно существует чужой <code>@speq-ai/speq</code> — другой продукт под тем же словом. Свободны были <code>@speqkit/*</code> и <code>create-speqkit-plugin</code>; скоуп с тех пор застолблён публикацией, <code>create-speqkit-plugin</code> написан и ждёт публикации вместе с китом. Переименование больше не стоит одну замену по репозиторию — оно стоит депрекации в реестре.</p>
+    <span class="tag">Checked on the spot</span>
+    <p>The name <code>speq</code> on npm is <strong>taken</strong>: an abandoned 0.0.0 placeholder with no maintainers, described as a "promise-happy test DSL". Separately there is somebody else's <code>@speq-ai/speq</code> — a different product under the same word. <code>@speqkit/*</code> and <code>create-speqkit-plugin</code> were free; the scope has since been claimed by publishing, and <code>create-speqkit-plugin</code> is written and waiting to be published along with the kit. Renaming no longer costs one search-and-replace across the repository — it costs a deprecation in the registry.</p>
   </div>
 </section>
 
 <!-- ============ 7 ============ -->
 <section id="commands">
-  <span class="sect-label">Поверхность</span>
-  <h2>Команды</h2>
-  <p>Разделение принципиальное: загрузчик владеет тем, что должно работать <em>до</em> того, как плагины подняты. Всё остальное приходит из плагинов — и если <code>plugin-cli</code> не подключён, этих команд просто нет.</p>
+  <span class="sect-label">The surface</span>
+  <h2>Commands</h2>
+  <p>The split is a matter of principle: the bootstrap owns whatever has to work <em>before</em> the plugins are up. Everything else comes from plugins — and if <code>plugin-cli</code> is not wired in, those commands simply do not exist.</p>
 
-  <h4>Загрузчик — <code>speqkit</code></h4>
+  <h4>The bootstrap — <code>speqkit</code></h4>
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
     <tbody>
-      <tr><td><code>speq init</code></td><td>Скаффолд <code>.speq/</code>; спрашивает режим, пресет, плагины</td></tr>
-      <tr><td><code>speq install [--frozen]</code></td><td>Резолвит плагины по <code>speq.yaml</code> → пишет <code>speq.lock</code> → кладёт в кэш</td></tr>
-      <tr><td><code>speq add / remove &lt;plugin&gt;</code></td><td>Правит <code>speq.yaml</code> и переустанавливает</td></tr>
-      <tr><td><code>speq link &lt;path&gt;</code></td><td>Подключить локальный плагин без публикации — режим разработки</td></tr>
-      <tr><td><code>speq unlink &lt;name&gt;</code></td><td>Отключить его обратно</td></tr>
-      <tr><td><code>speq plugins</code></td><td>Что загружено, какие версии, что каждый вносит</td></tr>
-      <tr><td><code>speq doctor</code></td><td>Окружение, состояние кэша, совместимость версий</td></tr>
+      <tr><td><code>speq init</code></td><td>Scaffolds <code>.speq/</code>; asks about the mode, the preset, the plugins</td></tr>
+      <tr><td><code>speq install [--frozen]</code></td><td>Resolves plugins from <code>speq.yaml</code> → writes <code>speq.lock</code> → puts them in the cache</td></tr>
+      <tr><td><code>speq add / remove &lt;plugin&gt;</code></td><td>Edits <code>speq.yaml</code> and reinstalls</td></tr>
+      <tr><td><code>speq link &lt;path&gt;</code></td><td>Wire in a local plugin without publishing — development mode</td></tr>
+      <tr><td><code>speq unlink &lt;name&gt;</code></td><td>Take it back out</td></tr>
+      <tr><td><code>speq plugins</code></td><td>What is loaded, at which versions, and what each contributes</td></tr>
+      <tr><td><code>speq doctor</code></td><td>The environment, the state of the cache, version compatibility</td></tr>
     </tbody>
   </table>
   </div>
 
-  <h4>Из <code>@speqkit/plugin-cli</code> — входит в дефолтный пресет</h4>
+  <h4>From <code>@speqkit/plugin-cli</code> — part of the default preset</h4>
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
     <tbody>
       <tr><td><code>speq run</code></td><td><code>--env --test --suite --tags --reporter</code></td></tr>
-      <tr><td><code>speq validate</code></td><td>Проверка тестов по грамматике из плагинов, без сети</td></tr>
-      <tr><td><code>speq list</code></td><td>Какие тесты видны и как адресуются</td></tr>
-      <tr><td><code>speq report</code></td><td>Пересобрать отчёт из сохранённого результата</td></tr>
+      <tr><td><code>speq validate</code></td><td>Checks the tests against the grammar the plugins define, with no network</td></tr>
+      <tr><td><code>speq list</code></td><td>Which tests are visible and how they are addressed</td></tr>
+      <tr><td><code>speq report</code></td><td>Rebuild a report from a saved result</td></tr>
     </tbody>
   </table>
   </div>
 
-  <h4>Для автора плагина</h4>
+  <h4>For a plugin author</h4>
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
     <tbody>
-      <tr><td><code>npm create speqkit-plugin &lt;name&gt;</code></td><td>Скаффолд: исходники, схема, тесты, CI, README. Пять минут до зелёного теста</td></tr>
-      <tr><td><code>npx speq-test-kit</code></td><td>Конформанс: соблюдён ли таймаут, маппится ли падение в <code>error</code>, валидны ли артефакты</td></tr>
-      <tr><td><code>npm publish</code></td><td>Публикация. Согласования ни с кем не требуется</td></tr>
+      <tr><td><code>npm create speqkit-plugin &lt;name&gt;</code></td><td>The scaffold: sources, schema, tests, CI, README. Five minutes to a green test</td></tr>
+      <tr><td><code>npx speq-test-kit</code></td><td>Conformance: is the timeout respected, does a crash map to <code>error</code>, are the artifacts valid</td></tr>
+      <tr><td><code>npm publish</code></td><td>Publishing. Nothing needs to be agreed with anyone</td></tr>
     </tbody>
   </table>
   </div>
@@ -823,131 +823,131 @@ http:
 
 <!-- ============ 8 ============ -->
 <section id="versioning">
-  <span class="sect-label">Контракт</span>
-  <h2>Версионирование и совместимость</h2>
-  <p>Версионируются независимо три вещи. Путаница между ними — самая частая причина, по которой плагинные экосистемы становятся неподдерживаемыми.</p>
+  <span class="sect-label">The contract</span>
+  <h2>Versioning and compatibility</h2>
+  <p>Three things are versioned independently. Confusing them is the most common reason plugin ecosystems become unmaintainable.</p>
 
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Что</th><th>Правило</th><th>Кто ломает</th></tr></thead>
+    <thead><tr><th>What</th><th>The rule</th><th>Who breaks it</th></tr></thead>
     <tbody>
-      <tr><td><code>@speqkit/plugin-api</code></td><td>Строгий semver. Минор — только добавление, мажор — разрешённый слом</td><td>Вы, редко и осознанно</td></tr>
-      <tr><td><code>speqkit</code></td><td>Своя версия. Может расти мажорами, не трогая плагины, пока <code>plugin-api</code> тот же</td><td>Вы, свободно</td></tr>
-      <tr><td>Каждый плагин</td><td>Своя версия. Объявляет <code>peerDependencies: @speqkit/plugin-api</code></td><td>Его автор</td></tr>
-      <tr><td>DSL</td><td><code>version: 1</code> в <code>speq.yaml</code>. Миграции с внятным сообщением</td><td>Вы, на мажорах</td></tr>
-      <tr><td>Схема событий</td><td>Версионируется отдельно — на ней стоят внешние потребители</td><td>Вы, аддитивно</td></tr>
+      <tr><td><code>@speqkit/plugin-api</code></td><td>Strict semver. A minor adds only; a major is a permitted break</td><td>You, rarely and deliberately</td></tr>
+      <tr><td><code>speqkit</code></td><td>Its own version. It can climb through majors without touching the plugins, as long as <code>plugin-api</code> is the same</td><td>You, freely</td></tr>
+      <tr><td>Each plugin</td><td>Its own version. Declares <code>peerDependencies: @speqkit/plugin-api</code></td><td>Its author</td></tr>
+      <tr><td>The DSL</td><td><code>version: 1</code> in <code>speq.yaml</code>. Migrations with a clear message</td><td>You, at majors</td></tr>
+      <tr><td>The event schema</td><td>Versioned separately — external consumers stand on it</td><td>You, additively</td></tr>
     </tbody>
   </table>
   </div>
 
-  <h4>Правила совместимости</h4>
+  <h4>The compatibility rules</h4>
   <ul>
-    <li>Плагин совместим с ядром <strong>тогда и только тогда</strong>, когда совпадает мажор <code>plugin-api</code>.</li>
-    <li>Ядро сверяет это при загрузке и <strong>отказывается</strong> грузить несовместимый плагин с внятным сообщением — а не падает в середине прогона.</li>
-    <li>Ядро поддерживает <strong>N−1 мажор</strong> <code>plugin-api</code> минимум 12 месяцев. Без окна депрекации серьёзные авторы плагинов вкладываться не будут.</li>
-    <li><code>speq.lock</code> хранит точные версии и хеши; <code>--frozen</code> в CI даёт побитовую воспроизводимость.</li>
-    <li>Пресет организации пиннит версии для всех сервисов сразу.</li>
+    <li>A plugin is compatible with the kernel <strong>if and only if</strong> the major of <code>plugin-api</code> matches.</li>
+    <li>The kernel checks that at load time and <strong>refuses</strong> to load an incompatible plugin with a clear message — rather than falling over halfway through a run.</li>
+    <li>The kernel supports the <strong>N−1 major</strong> of <code>plugin-api</code> for at least 12 months. Without a deprecation window, serious plugin authors will not invest.</li>
+    <li><code>speq.lock</code> holds exact versions and hashes; <code>--frozen</code> in CI gives bit-for-bit reproducibility.</li>
+    <li>An organisation's preset pins versions for every service at once.</li>
   </ul>
 
   <div class="note">
-    <span class="tag">Обещание стабильности — объявить вслух</span>
-    <p><code>0.x</code> — ломаем что угодно и без предупреждения. <code>1.0</code> — <code>plugin-api</code> заморожен на мажор. Пока этой строчки нет в README, экосистемы не будет: никто не станет писать плагин против контракта, который может исчезнуть.</p>
+    <span class="tag">The stability promise has to be said out loud</span>
+    <p><code>0.x</code> — we break anything, without warning. <code>1.0</code> — <code>plugin-api</code> is frozen for the major. Until that line is in the README there will be no ecosystem: nobody writes a plugin against a contract that might vanish.</p>
   </div>
 </section>
 
 <!-- ============ 9 ============ -->
 <section id="open">
-  <span class="sect-label">Требует решения</span>
-  <h2>Открытые вопросы</h2>
-  <p>Осталось три: первый закрыт. Два прежних и один, который нашёл гейт. Два снятых остаются снятыми: монетизации не будет, v1.4&nbsp;/&nbsp;v1.5 заморожены.</p>
+  <span class="sect-label">Needs a decision</span>
+  <h2>Open questions</h2>
+  <p>Three are left, and the first of them is closed. Two old ones and one the gate found. The two that were dropped stay dropped: there will be no monetisation, and v1.4&nbsp;/&nbsp;v1.5 are frozen.</p>
   <ol>
-    <li><strong>Название — <span style="color:var(--good)">решено</span>.</strong> Проект называется <code>speqkit</code>, команда в терминале — <code>speq</code>. Скоуп <code>@speqkit</code> в npm и организация <code>github.com/speqkit</code> заняты нами. Так вышло не от хорошей жизни: из девяноста проверенных кандидатов ни одно словарное английское слово в npm не свободно, а <code>speq</code> занят заброшенным placeholder'ом 0.0.0 и живым чужим <code>@speq-ai/speq</code>. Разделение имени пакета и имени бинарника — обычная практика (<code>@angular/cli</code> даёт <code>ng</code>), и оно даёт чистое пространство имён на всех четырёх осях при четырёх символах под пальцами. Ядро публикуется как <code>speqkit</code> без скоупа, чтобы строка установки читалась <code>npm i -g speqkit</code>, а не как установка чужих потрохов; скоуп <code>@speqkit</code> остаётся за плагинами и контрактом. Имя команды вообще не является ничьим пространством имён, и отнимать его не у кого.</li>
-    <li><strong>Адресация результатов внутри вложенных шагов.</strong> Сейчас работает <code>${seed.results[0][0].body.id}</code> — точно, но громоздко. Альтернатива: плагин объявляет плоский алиас сам. Часть публичного DSL, поэтому до 1.0.</li>
-    <li><strong>Скриншот при падении: что видит хук.</strong> Найдено гейтом, а не придумано. <code>HookPayload</code> в <code>test:after</code> не несёт ни исхода теста, ни <code>attach</code> — плагин физически не может узнать, что тест упал, и приложить снимок, доказывающий это. Два пути: либо хук получает исход и возможность приложить артефакт, либо перехват падения становится шагом — <code>try/catch</code> как тип шага, ровно тем же приёмом, что и <code>loop</code>. Второй честнее по отношению к принципу «управление потоком — это плагин», но требует, чтобы шаг мог поймать падение соседнего. Часть публичного контракта, поэтому до 1.0.</li>
-    <li><strong>Cordis — внутрь фасада или нет.</strong> Реестр реализован своими ~170 строками за интерфейсом <code>PluginContext</code>; сервисы и опциональная инъекция уже работают. Замена внутренностей на Cordis — правка одного файла, <code>plugin-api</code> её не увидит. M2 прошёл, и потребности в HMR так и не возникло: решение снова отложено, теперь до заморозки 1.0. Фасад ровно для того и делался, чтобы откладывание ничего не стоило.</li>
+    <li><strong>The name — <span style="color:var(--good)">decided</span>.</strong> The project is called <code>speqkit</code> and the terminal command is <code>speq</code>. The <code>@speqkit</code> scope on npm and the <code>github.com/speqkit</code> organisation are ours. It did not come about out of abundance: of ninety candidates checked, not one dictionary English word is free on npm, and <code>speq</code> is held by an abandoned 0.0.0 placeholder and by a live, unrelated <code>@speq-ai/speq</code>. Splitting the package name from the binary name is ordinary practice (<code>@angular/cli</code> gives you <code>ng</code>), and it buys a clean namespace on all four axes with four characters under the fingers. The kernel is published as unscoped <code>speqkit</code> so that the install line reads <code>npm i -g speqkit</code> rather than like installing somebody's internals; the <code>@speqkit</code> scope stays for the plugins and the contract. A command name is nobody's namespace at all, and there is no one to take it from.</li>
+    <li><strong>Addressing results inside nested steps.</strong> Today <code>${seed.results[0][0].body.id}</code> works — precise, but unwieldy. The alternative is for a plugin to declare a flat alias itself. Part of the public DSL, so before 1.0.</li>
+    <li><strong>Screenshot on failure: what the hook can see.</strong> Found by the gate, not invented. <code>HookPayload</code> in <code>test:after</code> carries neither the test's outcome nor <code>attach</code> — a plugin physically cannot learn that the test failed and attach the image proving it. Two ways out: either the hook gets the outcome and the ability to attach an artifact, or catching a failure becomes a step — <code>try/catch</code> as a step type, by exactly the same move as <code>loop</code>. The second is more honest towards "control flow is a plugin", but it requires a step to be able to catch its neighbour's failure. Part of the public contract, so before 1.0.</li>
+    <li><strong>Cordis — behind the facade or not.</strong> The registry is ~170 lines of our own behind the <code>PluginContext</code> interface; services and optional injection already work. Swapping the internals for Cordis is a one-file change and <code>plugin-api</code> would not see it. M2 came and went and the need for HMR never arose: the decision is deferred again, now until the 1.0 freeze. The facade was built precisely so that deferring costs nothing.</li>
   </ol>
 </section>
 
 <!-- ============ 10 ============ -->
 <section id="plan">
-  <span class="sect-label">План</span>
-  <h2>Вехи</h2>
+  <span class="sect-label">The plan</span>
+  <h2>Milestones</h2>
 
   <ol class="steps">
     <li class="step">
       <div class="num">M0</div>
       <div class="body">
-        <h3>Прототип хребта · <span style="color:var(--good)">сделано</span></h3>
-        <p>Ядро с реестром <code>type</code>, два фиктивных плагина, один YAML-тест. Цель — увидеть, держит ли хребет, до решений по названию и заморозке roadmap.</p>
+        <h3>A prototype of the spine · <span style="color:var(--good)">done</span></h3>
+        <p>A kernel with a <code>type</code> registry, two dummy plugins, one YAML test. The goal was to see whether the spine holds, before deciding on the name and freezing the roadmap.</p>
       </div>
     </li>
     <li class="step">
       <div class="num">M1</div>
       <div class="body">
-        <h3>Хребет стоит · <span style="color:var(--good)">сделано</span></h3>
-        <p><code>core</code> + <code>plugin-api</code> + <code>plugin-yaml</code> + <code>plugin-http</code> + <code>plugin-cli</code> + <code>plugin-loop</code>. YAML-тест проходит end-to-end против реального API; в ядре нет ни одного упоминания HTTP. 12 архитектурных тестов зелёные, типизация чистая.</p>
+        <h3>The spine stands · <span style="color:var(--good)">done</span></h3>
+        <p><code>core</code> + <code>plugin-api</code> + <code>plugin-yaml</code> + <code>plugin-http</code> + <code>plugin-cli</code> + <code>plugin-loop</code>. A YAML test passes end to end against a real API, and there is not one mention of HTTP in the kernel. 12 architecture tests green, types clean.</p>
       </div>
     </li>
     <li class="step">
       <div class="num">M2</div>
       <div class="body">
-        <h3>Установщик · <span style="color:var(--good)">сделано</span></h3>
-        <p>Главный технический риск оказался ровно там, где ожидался, и в основном взят. <code>speq install</code> ходит в npm-реестр по HTTP сам: резолвит диапазон, качает tarball, сверяет sha512, распаковывает, раскладывает стор и пишет <code>speq.lock</code>. Ни <code>npm</code>, ни <code>pnpm</code>, ни <code>yarn</code> не вызываются — требовать тот самый пакетный менеджер, который мы заменяем, значило бы отменить всю затею.</p>
-        <p><strong>Раскладка стора — pnpm'овская, и по pnpm'овской причине.</strong> Зависимость — это симлинк <em>внутри</em> каталога самого зависящего пакета, поэтому обычный резолв Node, который ходит по реальным путям, её находит, а два плагина могут хотеть разные версии одной библиотеки. Ссылки относительные, стор остаётся переносимым. Проверено вживую: <code>chalk@^4.1.2</code> с шестью транзитивными зависимостями ставится и импортируется из стора.</p>
-        <p><strong>Пресеты задали форму установщику.</strong> <code>extends</code> называет npm-пакет — значит конфиг нельзя прочитать, пока этот пакет не на диске. Установщик принимает не два списка, а два колбэка, и сам делает проходы в правильном порядке.</p>
-        <p>Работают <code>--frozen</code> (ставит строго по локу и падает на расхождении с <code>speq.yaml</code>), <code>add</code>/<code>remove</code> (правят <code>speq.yaml</code> через YAML-документ, комментарии выживают), <code>link</code> (побеждает и стор, и node_modules), <code>doctor</code> (говорит, какие плагины приехали из node_modules и потому не воспроизведутся в CI).</p>
-        <p><strong>Дорога до зелёного CI закрыта — и она нашла третью дыру того же рода, что дважды находил гейт.</strong> <code>environments/</code> создавался с M0 и не читался никем: флага <code>--env</code> не существовало вовсе. Теперь окружение — это слой настроек поверх <code>speq.yaml</code>, и <em>только</em> настроек: добавить плагин оно не может, потому что набор плагинов фиксирует <code>speq.lock</code>, а <code>speq install --frozen</code> отрабатывает в CI раньше, чем кто-либо сказал, какое окружение возьмёт прогон. Окружение, умеющее втащить плагин, породило бы лок, верный для <code>local</code> и неполный на один пакет для <code>ci</code>. В конфигах раскрываются <code>${env:NAME}</code> и <code>${env:NAME:-fallback}</code>, а незаданная переменная — это ошибка, а не пустая строка: иначе набор молча целится в localhost и зеленеет против ничего. <code>${login.body.id}</code> при этом не трогается — этот синтаксис принадлежит прогону.</p>
-        <p><strong><code>defineReporter</code> лежал в контракте с первого коммита, и его не вызывал ни один плагин.</strong> Консольный вывод ходил напрямую в <code>events.subscribe</code> — мимо механизма, а не через него. Это ровно то же, что гейт нашёл в <code>attach</code> и в scope <code>suite</code>, и чинится так же: консоль стала обычным репортером и значением <code>--reporter</code> по умолчанию, чтобы механизм проходил самый частый путь. <code>ReporterDef</code> получил необязательный <code>init(ctx)</code> с <code>runId</code>, <code>outputDir</code> и <code>runDir</code> — репортер, пишущий файл, не мог узнать, куда писать. Необязательный метод, поэтому <code>plugin-api</code> 0.3.0, а <code>PLUGIN_API_VERSION</code> остаётся 1.</p>
-        <p><strong>Каждый прогон пишет свои события в <code>events.jsonl</code>, и <code>speq report</code> проигрывает их заново в ту же шину.</strong> Это не удобство, а способ проверить главное утверждение архитектуры. Если поток событий действительно тот контракт, на котором стоят репортеры, TUI и панель VS Code, то отчёт, собранный из записи, обязан совпасть с отчётом живого прогона. <code>@speqkit/plugin-junit</code> строит XML только из <code>RunEvent</code>, без доступа к результату раннера, а тест требует побайтового совпадения. В день, когда поток событий перестанет описывать прогон целиком, это выяснится там, а не в чужом плагине через полгода.</p>
-        <p><strong>Сборка и проверка публикации.</strong> Все тесты репозитория ходят в <code>src</code> через алиас сборщика — и ровно это спрятало, что <code>exports</code> указывали на TypeScript, а Node отказывается снимать типы внутри <code>node_modules</code>: опубликованный так пакет не загрузился бы вообще. Пакеты собираются проектными ссылками (<code>tsc -b</code>) в <code>dist</code>, а <code>scripts/verify-publish.mjs</code> не верит ничему: пакует настоящие тарболы, поднимает временный реестр по HTTP, ставит в одноразовый стор и запускает CLI из <code>dist</code> обычным <code>node</code> в каталоге, где нет ни одного <code>node_modules</code>. «Установщик проверен на чужих пакетах, но не на наших» — закрыто.</p>
-        <p><strong>Стенд нашёл четвёртую дыру того же рода, и на этот раз не гейт.</strong> <code>plugin-cli</code> объявлял <code>speqkit</code> обычной зависимостью — потому что контракт не давал плагину никакого способа дотянуться до работающего ядра. Цена оказалась двойной и совершенно тихой: установщик честно положил вторую копию ядра в стор и запинил её в <code>speq.lock</code>, а сам плагин звал <code>bootstrap()</code> внутри процесса, который уже загрузился. Два реестра, каждый плагин загружен дважды за вызов, и отвечает не то ядро, которое поставил пользователь, а то, которое пинит лок. Всё зелёное — и всё неверно. Починка та же, что и в трёх предыдущих случаях: недостающее направление добавлено в контракт, а не обойдено. Появился <code>ctx.host</code>, <code>plugin-cli</code> не импортирует ядро ни строкой, и его package.json называет только <code>plugin-api</code> в peer. Инвариант закреплён с двух сторон: тест падает, если манифест любого плагина упоминает ядро, стенд падает, если ядро вообще оказалось в сторе. Только добавления, поэтому <code>plugin-api</code> 0.4.0, а <code>PLUGIN_API_VERSION</code> остаётся 1.</p>
-        <p><strong>Шаг 0 закрыт.</strong> <code>scripts/build-binary.mjs</code> собирает единственный исполняемый файл: ядро, установщик и <code>yaml</code> бандлятся в один CommonJS, Node SEA кладёт его блобом внутрь официального рантайма, postject внедряет, macOS переподписывает. Плагины внутрь <em>не</em> попадают намеренно — они по-прежнему грузятся в рантайме по абсолютному пути из <code>~/.speq</code>, и <code>import()</code> из блоба достаёт настоящую файловую систему. Бинарник с вшитыми плагинами был бы другим продуктом — ровно тем, ради отсутствия которого всё это писалось.</p>
-        <p>Доказательство не отдельное, а то же самое: <code>verify-publish.mjs</code> получил флаг <code>--binary</code> и гоняет по исполняемому файлу ту же батарею, что по опубликованным пакетам, с <code>PATH=''</code>. Установка из временного реестра, шесть пакетов в стор, четыре плагина оттуда, прогон набора, <code>--frozen</code> при недоступном реестре — всё это там, где <code>node</code> недостижим в принципе. Два способа доставки, одно определение слова «работает». Старт — 30 мс: блоб несёт V8-кэш, поэтому и собирается тем же рантаймом, в который внедряется.</p>
-        <p>Доставка: <code>packaging/install.sh</code> (<code>curl … | sh</code>, sha256 сверяется, при расхождении не ставится ничего), <code>packaging/homebrew/speqkit.rb</code> и <code>scripts/render-formula.mjs</code>, который отказывается рендерить формулу, если в релизе не хватает хотя бы одной из четырёх платформ: тап, верный на трёх и молча отсутствующий на четвёртой, хуже, чем никакого тапа. <code>release.yml</code> собирает darwin/linux × arm64/x64 на родных раннерах — кросс-компиляция невозможна из-за того же V8-кэша и из-за того, что переподписывать Mach-O умеет только macOS.</p>
-        <p>Подпись под macOS — ad-hoc, и это конечное состояние, а не незакрытый пункт. Нотаризация стоит аккаунта Apple Developer и сертификата в CI, а покупает ноль на обоих путях, которыми ставят на самом деле: brew снимает атрибут карантина сам, а у файла, скачанного через curl, его и не появляется. Gatekeeper останавливает только скачанное браузером — и ответ на это install-скрипт, а не сертификат. <strong>Решено: нотаризации не будет.</strong></p>
-        <p><strong>Плагин теперь может приехать не из реестра.</strong> <code>github:acme/plugin#v2</code>, <code>gitlab:</code>, <code>bitbucket:</code>, <code>git+ssh://…#main</code>, <code>git+file://</code> и тарбол по URL. Ref резолвится в коммит на установке, и в лок пишется только коммит: <code>#main</code> через месяц значит другое, а <code>--frozen</code> в CI обязан поставить то, что ревьюили. Коммит уходит в ключ стора как semver build metadata — <code>1.4.0+8f2c1ade9b7c</code>, — потому что два коммита могут нести одинаковый <code>version</code>, а зависимость, просящая <code>^1.4.0</code>, должна остаться удовлетворённой.</p>
-        <p>Git-специи вызывают <code>git</code> — и это сознательное исключение из правила, которому подчинено всё остальное. Реестр мы обходим сами, потому что npm — это ровно тот инструмент, который заменяется; требовать его значило бы отменить затею. Git не заменяется ничем, он уже стоит у того, чей это репозиторий, и обращение к нему покупает три вещи, которых не даст никакой самописный HTTP: приватные репозитории работают через уже настроенные креды и ssh-агент, самохостед не требует диалекта API под каждого вендора, а коммит проверяет git, а не вендорский JSON. Нужен он только git-специям — больше нигде, включая standalone-бинарник.</p>
-        <p>Сборка не запускается никогда. Отказ выполнять install-скрипты — это и есть то, что делает установку из репозитория защитимой, поэтому репозиторий без закоммиченного entry point отвергается на установке с объяснением, а не ставится чисто и падает через несколько минут внутри загрузчика плагинов, который не может сказать почему. Тарбол по URL хешируется на приёме, и хеш идёт в лок: реестра, который бы за него поручился, здесь нет. Токен реестра при этом не уходит на хост, который не реестр, — раньше уходил на любой, чей URL оказался в паке.</p>
-        <p><strong>Не сделано:</strong> из каналов доставки нет Docker-образа и <code>setup-speq</code> — и то и другое обёртки вокруг уже собранного артефакта, и живут они в отдельных репозиториях. Не читается <code>.npmrc</code>; приватный реестр работает через <code>SPEQ_REGISTRY</code> и <code>NPM_TOKEN</code>.</p>
+        <h3>The installer · <span style="color:var(--good)">done</span></h3>
+        <p>The main technical risk turned out to be exactly where it was expected, and is largely taken. <code>speq install</code> talks to the npm registry over HTTP itself: resolves a range, downloads the tarball, checks sha512, extracts, lays out the store and writes <code>speq.lock</code>. Neither <code>npm</code> nor <code>pnpm</code> nor <code>yarn</code> is invoked — requiring the very package manager we are replacing would cancel the whole idea.</p>
+        <p><strong>The store's layout is pnpm's, and for pnpm's reason.</strong> A dependency is a symlink <em>inside</em> the directory of the package that depends on it, so ordinary Node resolution, which walks real paths, finds it — and two plugins can want different versions of one library. The links are relative, so the store stays portable. Verified for real: <code>chalk@^4.1.2</code> with six transitive dependencies installs and imports out of the store.</p>
+        <p><strong>Presets shaped the installer.</strong> <code>extends</code> names an npm package, which means the config cannot be read until that package is on disk. So the installer takes two callbacks rather than two lists, and makes the passes in the right order itself.</p>
+        <p>Working: <code>--frozen</code> (installs strictly from the lock and fails on any drift from <code>speq.yaml</code>), <code>add</code>/<code>remove</code> (edit <code>speq.yaml</code> through the YAML document, so comments survive), <code>link</code> (beats both the store and node_modules), <code>doctor</code> (says which plugins came from node_modules and therefore will not reproduce in CI).</p>
+        <p><strong>The road to a green CI is closed — and it found the third hole of the same kind the gate found twice.</strong> <code>environments/</code> had existed since M0 and nobody read it: there was no <code>--env</code> flag at all. An environment is now a layer of settings on top of <code>speq.yaml</code>, and <em>only</em> settings: it cannot add a plugin, because the plugin set is fixed by <code>speq.lock</code> and <code>speq install --frozen</code> runs in CI before anyone has said which environment the run will use. An environment able to drag in a plugin would produce a lock that is correct for <code>local</code> and one package short for <code>ci</code>. Config files expand <code>${env:NAME}</code> and <code>${env:NAME:-fallback}</code>, and an unset variable is an error rather than an empty string: otherwise the suite quietly aims at localhost and goes green against nothing. <code>${login.body.id}</code> is left alone — that syntax belongs to the run.</p>
+        <p><strong><code>defineReporter</code> had been in the contract since the first commit, and not one plugin called it.</strong> Console output went straight to <code>events.subscribe</code> — around the mechanism rather than through it. That is exactly what the gate found in <code>attach</code> and in the <code>suite</code> scope, and it is fixed the same way: the console became an ordinary reporter and the default value of <code>--reporter</code>, so that the mechanism carries the most travelled path. <code>ReporterDef</code> gained an optional <code>init(ctx)</code> with <code>runId</code>, <code>outputDir</code> and <code>runDir</code> — a reporter writing a file had no way to learn where to write it. An optional method, hence <code>plugin-api</code> 0.3.0, with <code>PLUGIN_API_VERSION</code> still 1.</p>
+        <p><strong>Every run writes its events to <code>events.jsonl</code>, and <code>speq report</code> replays them into the same bus.</strong> That is not a convenience, it is how the architecture's central claim gets checked. If the event stream really is the contract that reporters, the TUI and a VS Code panel stand on, then a report built from the recording has to match the report of a live run. <code>@speqkit/plugin-junit</code> builds its XML out of <code>RunEvent</code> alone, with no access to the runner's result, and the test demands a byte-for-byte match. On the day the event stream stops describing a run in full, it will be found there rather than in somebody else's plugin six months later.</p>
+        <p><strong>Building and verifying what gets published.</strong> Every test in the repository reaches <code>src</code> through a bundler alias — and precisely that hid the fact that <code>exports</code> pointed at TypeScript while Node refuses to strip types inside <code>node_modules</code>: a package published that way would not have loaded at all. The packages are built with project references (<code>tsc -b</code>) into <code>dist</code>, and <code>scripts/verify-publish.mjs</code> trusts none of it: it packs the real tarballs, brings up a throwaway registry over HTTP, installs into a throwaway store, and runs the CLI out of <code>dist</code> with plain <code>node</code> in a directory that has no <code>node_modules</code> anywhere in it. "The installer is tested against other people's packages but not our own" is closed.</p>
+        <p><strong>The harness found a fourth hole of the same kind, and this time it was not the gate.</strong> <code>plugin-cli</code> declared <code>speqkit</code> as an ordinary dependency — because the contract gave a plugin no way whatsoever to reach the kernel it was running in. The cost was double and completely silent: the installer faithfully put a second copy of the kernel into the store and pinned it in <code>speq.lock</code>, while the plugin itself called <code>bootstrap()</code> inside a process that had already booted. Two registries, every plugin loaded twice per invocation, and the kernel answering is not the one the user installed but the one the lock pins. All green, and all wrong. The fix is the same as in the three earlier cases: the missing direction was added to the contract rather than worked around. <code>ctx.host</code> appeared, <code>plugin-cli</code> does not import the kernel in a single line, and its package.json names only <code>plugin-api</code> as a peer. The invariant is pinned from both sides: a test fails if any plugin's manifest mentions the kernel, and the harness fails if the kernel ever ends up in the store. Additions only, hence <code>plugin-api</code> 0.4.0, with <code>PLUGIN_API_VERSION</code> still 1.</p>
+        <p><strong>Step zero is closed.</strong> <code>scripts/build-binary.mjs</code> builds a single executable: the kernel, the installer and <code>yaml</code> are bundled into one CommonJS file, Node SEA places it as a blob inside the official runtime, postject injects it, macOS re-signs it. Plugins deliberately do <em>not</em> go inside — they are still loaded at runtime by absolute path out of <code>~/.speq</code>, and an <code>import()</code> from inside the blob reaches the real filesystem. A binary with the plugins baked in would be a different product — precisely the one all of this was written to avoid.</p>
+        <p>The proof is not a separate thing but the same one: <code>verify-publish.mjs</code> gained a <code>--binary</code> flag and points the same battery at the executable with <code>PATH=''</code>. Install from a throwaway registry, six packages into the store, four plugins loaded out of it, a suite run, <code>--frozen</code> with the registry unreachable — all of it where <code>node</code> cannot be reached in principle. Two delivery routes, one definition of the word "works". Startup is 30 ms: the blob carries a V8 cache, which is also why it is built by the very runtime it is injected into.</p>
+        <p>Delivery: <code>packaging/install.sh</code> (<code>curl … | sh</code>, sha256 checked, and on a mismatch nothing is installed), <code>packaging/homebrew/speqkit.rb</code>, and <code>scripts/render-formula.mjs</code>, which refuses to render a formula if the release is missing any one of the four platforms: a tap that is correct on three and silently absent on the fourth is worse than no tap. <code>release.yml</code> builds darwin/linux × arm64/x64 on native runners — cross-compilation is impossible because of that same V8 cache, and because only macOS can re-sign a Mach-O.</p>
+        <p>The macOS signature is ad-hoc, and that is a final state rather than an open item. Notarisation costs an Apple Developer account and a certificate in CI, and buys nothing on either of the routes people actually install by: brew clears the quarantine attribute itself, and a file fetched with curl never gets one. Gatekeeper stops only what a browser downloaded — and the answer to that is the install script, not a certificate. <strong>Decided: there will be no notarisation.</strong></p>
+        <p><strong>A plugin can now come from somewhere other than a registry.</strong> <code>github:acme/plugin#v2</code>, <code>gitlab:</code>, <code>bitbucket:</code>, <code>git+ssh://…#main</code>, <code>git+file://</code>, and a tarball by URL. A ref is resolved to a commit at install time and only the commit goes into the lock: <code>#main</code> means something else a month later, and <code>--frozen</code> in CI has to install what was reviewed. The commit goes into the store key as semver build metadata — <code>1.4.0+8f2c1ade9b7c</code> — because two commits can carry the same <code>version</code>, while a dependency asking for <code>^1.4.0</code> has to stay satisfied.</p>
+        <p>The git specifiers call <code>git</code> — a deliberate exception to the rule everything else obeys. We go around the registry ourselves because npm is exactly the tool being replaced; requiring it would cancel the idea. Git is not being replaced by anything, it is already installed by whoever owns the repository, and calling it buys three things no hand-written HTTP would give: private repositories work through credentials and an ssh agent that are already configured, self-hosted instances need no per-vendor API dialect, and the commit is verified by git rather than by a vendor's JSON. It is needed only by the git specifiers — nowhere else, the standalone binary included.</p>
+        <p>A build is never run. Refusing to execute install scripts is what makes installing from a repository defensible in the first place, so a repository with no committed entry point is rejected at install time with an explanation, rather than installed cleanly and failing minutes later inside a plugin loader that cannot say why. A tarball by URL is hashed on arrival and the hash goes into the lock: there is no registry here to vouch for it. And the registry token no longer travels to a host that is not the registry — it used to go to whichever host's URL happened to be in the packument.</p>
+        <p><strong>Not done:</strong> of the delivery channels there is no Docker image and no <code>setup-speq</code> — both are wrappers around an artifact that is already built, and both live in separate repositories. <code>.npmrc</code> is not read; a private registry works through <code>SPEQ_REGISTRY</code> and <code>NPM_TOKEN</code>.</p>
       </div>
     </li>
     <li class="step">
       <div class="num">M3</div>
       <div class="body">
-        <h3>Гейт · <span style="color:var(--good)">пройден</span></h3>
-        <p><code>plugin-loop</code> прошёл первым: цикл и retry написаны против опубликованного API, ядро не менялось ни разу, вложенные шаги исполняются в дочернем скоупе. <code>plugin-playwright</code> добил вторую половину — ресурсы со scope и бинарные артефакты, те части хребта, которых цикл не касался. Живой Chromium, два теста, PNG 1280×720 доезжает до диска байт в байт.</p>
-        <p><strong>Ресурсы прошли без единой правки ядра.</strong> Три scope, ресурс, зависящий от ресурса (<code>page → context → browser</code>), конфиг доезжает до <code>setup</code>, teardown в обратном порядке даже когда тест падает, ассерт достаёт <code>page</code> сам — без шага перед ним. Один браузер на весь прогон: второй тест открывает страницу за 222&nbsp;мс против 2463&nbsp;мс у первого.</p>
-        <p><strong>Артефакты не прошли — но это оказалась не ошибка хребта, а невыполненное обещание ядра.</strong> <code>ctx.attach</code> лежал в контракте с первого дня, только тело выбрасывалось: в событие уходило число байт, а сами байты — никуда. Чинить в плагине было нечего. Ядро теперь пишет файл, в событии появилось поле <code>path</code>. Сигнатура <code>attach(name, body, contentType)</code> не изменилась ни на символ — поэтому это <code>@speqkit/plugin-api</code> 0.2.0, а не 1.x: правило «добавление — минор» отработало на первом же настоящем случае.</p>
-        <p><strong>Заодно выяснилось, что scope <code>suite</code> был объявлен и никогда не открывался</strong> — в контракте три scope, в раннере два. Раннер теперь группирует тесты по файлу, шлёт <code>suite.started</code> / <code>suite.finished</code> и открывает scope между ними.</p>
-        <p>Чего гейт <em>не</em> смог — скриншот при падении: хук не видит ни исхода теста, ни способа приложить файл. Записано в открытые вопросы, а не обойдено костылём. Правило «ну один маленький хук» не применялось ни разу.</p>
+        <h3>The gate · <span style="color:var(--good)">passed</span></h3>
+        <p><code>plugin-loop</code> went first: the loop and retry were written against the published API, the kernel did not change once, and nested steps execute in a child scope. <code>plugin-playwright</code> finished off the other half — scoped resources and binary artifacts, the parts of the spine the loop never touched. A live Chromium, two tests, and a 1280×720 PNG that reaches the disk byte for byte.</p>
+        <p><strong>Resources passed without a single kernel edit.</strong> Three scopes, a resource depending on a resource (<code>page → context → browser</code>), config reaching <code>setup</code>, teardown in reverse order even when the test fails, an assertion fetching <code>page</code> itself with no step in front of it. One browser for the whole run: the second test opens a page in 222&nbsp;ms against the first test's 2463&nbsp;ms.</p>
+        <p><strong>Artifacts did not pass — but it turned out to be an unkept promise of the kernel rather than a fault in the spine.</strong> <code>ctx.attach</code> had been in the contract from day one, only the body was thrown away: the event carried a byte count and the bytes themselves went nowhere. There was nothing to fix in the plugin. The kernel now writes the file and the event gained a <code>path</code> field. The signature <code>attach(name, body, contentType)</code> did not change by one character — which is why this is <code>@speqkit/plugin-api</code> 0.2.0 rather than 1.x: the "an addition is a minor" rule worked on the first real case.</p>
+        <p><strong>It also emerged that the <code>suite</code> scope was declared and never opened</strong> — three scopes in the contract, two in the runner. The runner now groups tests by file, emits <code>suite.started</code> / <code>suite.finished</code>, and opens the scope between them.</p>
+        <p>What the gate could <em>not</em> do — a screenshot on failure: a hook sees neither the test's outcome nor any way to attach a file. Written down in the open questions rather than worked around with a hack. The "well, just one small hook" rule was not applied once.</p>
       </div>
     </li>
     <li class="step">
       <div class="num">M4</div>
       <div class="body">
-        <h3>Экосистема · <span style="color:var(--accent-ink)">начата</span></h3>
-        <p><strong><code>@speqkit/test-kit</code> и <code>create-speqkit-plugin</code> сделаны.</strong> Кит запускает плагин внутри настоящего ядра — тот же <code>Registry</code>, тот же <code>Executor</code>, тот же раннер, что у <code>speq run</code>. Фейков в нём нет намеренно: мок <code>ExecContext</code> был бы второй реализацией <code>plugin-api</code>, написанной нами и расходящейся с первой, и доказывал бы он только то, что плагин согласен с нашим моком. Кит добавляет к ядру ровно две вещи, которых у автора плагина иначе нет: корень проекта на диске — потому что <code>ctx.host</code> у собранного руками реестра бросает исключение — и стек скоупов, удерживаемый открытым между вызовами, чтобы <code>${id.поле}</code> работало так же, как в файле теста. Поэтому <code>speqkit</code> у кита в peer, а не в dependencies: автор проверяет плагин против того ядра, которое собирается поддерживать.</p>
-        <p><code>npm create speqkit-plugin kafka</code> выдаёт пакет, в котором уже приняты решения, которые легче всего принять неправильно: контракт в peer, ядро не в зависимостях, у типа шага и у ассерта есть схемы, keyword <code>speqkit-plugin</code> на месте. Тесты в нём написаны против кита и проходят. Версии, которые генератор прописывает в <code>package.json</code>, захардкожены — в момент запуска <code>npm create</code> никакой воркспейс прочитать нельзя, — и прибиты тестом к настоящим версиям пакетов, чтобы не протухли.</p>
-        <p><strong>Кит нашёл четвёртую дыру того же рода, что гейт нашёл дважды.</strong> <code>AssertContext.results</code> был описан в контракте как «результаты всех шагов» и всегда был пуст, а <code>${a.value}</code> в блоке <code>assert:</code> отвечал, что <code>a</code> не определено. Исполнитель заводил кадр на каждый вызов <code>runSteps</code> и снимал его на выходе — включая самый внешний, тот, в котором лежат привязки шагов самого теста. Ассерты читаются после него. Внутри одного <code>runSteps</code> кадр ещё на месте, поэтому шаги всегда видели друг друга и дыра пряталась ровно в одном месте, куда никто не смотрел. Внешний вызов теперь работает в базовом кадре, вложенные — по-прежнему в дочерних. Плюс два теста, которых не хватало.</p>
-        <p>Заодно у <code>plugin-loop</code> и <code>plugin-yaml</code> появились собственные тесты — у шести опубликованных плагинов их не было ни одного, — написанные так, как их писал бы сторонний автор: через кит, без единой ссылки на внутренности ядра. Структурный запрет «плагин не зависит от ядра» пришлось сузить до того, что ставит себе пользователь: <code>dependencies</code>, <code>peerDependencies</code>, <code>optionalDependencies</code> и импорты в исходниках. <code>devDependencies</code> из него вышли — тесты плагина поднимают настоящее ядро, и в этом весь смысл кита.</p>
-        <p><strong>Три кейса авторов проверены так же, как гейт проверял хребет — плагинами, а не рассуждением.</strong> Клиент, которого мы не выпускали (mongodb): проходит целиком, ресурс на весь прогон, конфиг, <code>exec.signal</code>, а зависимость плагина реально ставится и линкуется в сторе — <code>yaml@2.9.0</code> лежит там под <code>plugin-yaml</code>, драйвер приедет так же, а тяжёлый можно объявить опциональным peer'ом, как <code>playwright</code>. Схемы в <code>.speq/</code>: <code>ctx.host.root</code> доступен уже в <code>setup()</code>, файл читается на ассерте. Переменные, записываемые тестом: пишутся через <code>defineValueProvider</code> плюс своё состояние, и живут дольше теста, чего результаты шагов не умеют.</p>
-        <p><strong>Из четырёх найденных дыр закрыта первая и самая дорогая.</strong> Плагину было негде сообщить об ошибке, которую схема не ловит: что файла схемы нет, что <code>over</code> и <code>times</code> заданы оба. Выяснялось это в середине прогона, из типа шага, который не может назвать файл. Теперь у <code>StepTypeDef</code> и <code>AssertionTypeDef</code> есть <code>validate</code> — контракт 0.5.0, добавление, <code>PLUGIN_API_VERSION</code> остаётся 1. Обход ядра тут был бы естественным (дать плагину самому обходить дерево), и его не сделали: обход и адресация остаются за ядром, плагин возвращает сообщения и максимум путь внутри своего шага, поэтому соврать про место он не может. Синхронно намеренно — проверка идёт перед каждым прогоном, прочитать файл можно, сходить по сети нельзя. Бросивший валидатор становится диагностикой про плагин, а не падением всей валидации. <code>plugin-loop</code> уже им пользуется.</p>
-        <p><strong>Вторая дыра закрыта, и с ней ушёл единственный блокер заморозки.</strong> <code>ValueProviderDef.resolve</code> всегда был объявлен как <code>unknown | Promise&lt;unknown&gt;</code>, а <code>lookupPath</code> его не ждал: асинхронный провайдер клал <code>Promise</code> прямо в тело запроса, молча. Ждать решили честно, а не сужать тип до синхронного: секрет из vault'а и строка из базы — ровно тот случай, ради которого провайдер и заведён. Чтобы асинхронность при этом не протекла в контракт, резолвинг разложен надвое: <code>prime</code> спрашивает провайдеров и ждёт их всех разом, а обход, подставляющий значения в <code>${...}</code>, остаётся синхронным и читает готовые ответы. Поэтому <code>ExecContext.resolve</code>, <code>resolveDeep</code> и <code>AssertContext.resolve</code> не поменяли сигнатуру — ни один плагин не стал асинхронным из-за провайдера, которым не пользуется, — и типы контракта не изменились вовсе: ядро наконец делает то, что там было написано с самого начала.</p>
-        <p>Три решения, которые пришлось принять по дороге. Провайдера спрашивают <em>один раз на проход</em>, а не на каждое упоминание: он лоокап, а не генератор, — но проход шириной ровно в один шаг, поэтому значение, изменившееся между двумя шагами, второй прочитает заново. Все ключи одного шага уходят к провайдерам одновременно, а не по очереди, и ошибка приходит первая по порядку в шаблоне, а не первая по времени, — иначе диагностика зависела бы от того, кто быстрее ответил. Ожидание идёт под таймаутом шага: провайдер, ушедший в сеть и не вернувшийся, — это шаг, который слишком долго идёт, а не повисший прогон.</p>
-        <p><strong>Остались две дыры, обе — добавления после 1.0.</strong> Шаг не может положить значение в собственный скоуп: <code>${vars:token}</code> работает, <code>${token}</code> — нет, <code>exec.set()</code> нет. <code>exec.vars</code> отдаёт только внутренний кадр, хотя <code>${...}</code> резолвит весь стек. Ни одна не ломает контракт, поэтому обе ложатся после заморозки.</p>
-        <p><strong>Осталось:</strong> доки, <code>awesome-speq</code>, заморозка <code>plugin-api</code> на 1.0 — последнее упирается в три открытых вопроса, два из которых меняют публичный контракт. Дальше — <code>plugin-vscode</code>, <code>plugin-tui</code>, TS-загрузчик, параллельный прогон. Репортеры оттуда уехали: механизм есть, JUnit есть, остальные форматы — обычные плагины, которые может написать кто угодно.</p>
+        <h3>The ecosystem · <span style="color:var(--accent-ink)">started</span></h3>
+        <p><strong><code>@speqkit/test-kit</code> and <code>create-speqkit-plugin</code> are done.</strong> The kit runs a plugin inside the real kernel — the same <code>Registry</code>, the same <code>Executor</code>, the same runner <code>speq run</code> uses. There are deliberately no fakes in it: a mock <code>ExecContext</code> would be a second implementation of <code>plugin-api</code>, written by us and drifting from the first, and all it would prove is that the plugin agrees with our mock. The kit adds exactly two things the kernel does not otherwise give a plugin author: a project root on disk — because <code>ctx.host</code> on a hand-assembled registry throws — and a scope stack held open between calls, so that <code>${id.field}</code> works the way it does in a test file. Which is why <code>speqkit</code> is a peer of the kit rather than a dependency: an author checks their plugin against the kernel they intend to support.</p>
+        <p><code>npm create speqkit-plugin kafka</code> produces a package with the decisions that are easiest to get wrong already made: the contract is a peer, the kernel is not among the dependencies, the step type and the assertion carry schemas, and the <code>speqkit-plugin</code> keyword is in place. The tests in it are written against the kit and they pass. The versions the generator writes into <code>package.json</code> are hard-coded — at the moment <code>npm create</code> runs there is no workspace to read — and pinned by a test to the real package versions so they cannot go stale.</p>
+        <p><strong>The kit found the fourth hole of the same kind the gate found twice.</strong> <code>AssertContext.results</code> was described in the contract as "the results of every step" and was always empty, and <code>${a.value}</code> in an <code>assert:</code> block answered that <code>a</code> was not defined. The executor opened a frame on every <code>runSteps</code> call and popped it on the way out — including the outermost one, the frame holding the bindings of the test's own steps. Assertions are read after it. Inside a single <code>runSteps</code> the frame is still there, so steps always saw each other and the hole hid in exactly the one place nobody looked. The outer call now runs in the base frame; nested ones still run in child frames. Plus the two tests that were missing.</p>
+        <p>Along the way <code>plugin-loop</code> and <code>plugin-yaml</code> got tests of their own — six published plugins had not one between them — written the way an outside author would write them: through the kit, without a single reference to the kernel's internals. The structural ban "a plugin does not depend on the kernel" had to be narrowed to what a user actually installs: <code>dependencies</code>, <code>peerDependencies</code>, <code>optionalDependencies</code> and imports in the sources. <code>devDependencies</code> came out of it — a plugin's tests bring up the real kernel, and that is the whole point of the kit.</p>
+        <p><strong>Three author scenarios were checked the way the gate checked the spine — with plugins, not with reasoning.</strong> A client we never shipped (mongodb): passes in full, a run-wide resource, config, <code>exec.signal</code>, and the plugin's own dependency really is installed and linked in the store — <code>yaml@2.9.0</code> sits there under <code>plugin-yaml</code>, a driver will arrive the same way, and a heavy one can be declared an optional peer, as <code>playwright</code> is. Schemas in <code>.speq/</code>: <code>ctx.host.root</code> is available inside <code>setup()</code> already, and the file is read at assertion time. Variables a test writes: done through <code>defineValueProvider</code> plus the plugin's own state, and they outlive the test, which step results cannot.</p>
+        <p><strong>Of the four holes found, the first and most expensive is closed.</strong> A plugin had nowhere to report an error a schema does not catch: that a schema file is missing, that <code>over</code> and <code>times</code> are both set. It came out halfway through a run, from a step type that cannot name the file. <code>StepTypeDef</code> and <code>AssertionTypeDef</code> now have <code>validate</code> — contract 0.5.0, an addition, <code>PLUGIN_API_VERSION</code> still 1. Walking the tree from the plugin would have been the natural design here, and it was not taken: traversal and addressing stay with the kernel, a plugin returns messages and at most a path inside its own step, so it cannot lie about location. Synchronous on purpose — validation runs before every run, so reading a file is fine and going to the network is not. A validator that throws becomes a diagnostic about the plugin rather than a collapse of the whole validation. <code>plugin-loop</code> already uses it.</p>
+        <p><strong>The second hole is closed, and with it the only blocker to the freeze.</strong> <code>ValueProviderDef.resolve</code> was always declared as <code>unknown | Promise&lt;unknown&gt;</code>, and <code>lookupPath</code> did not await it: an asynchronous provider put a <code>Promise</code> straight into the request body, silently. We chose to await it honestly rather than narrow the type to synchronous: a secret from a vault and a row from a database are precisely the case a provider exists for. To keep that asynchrony out of the contract, resolution is split in two: <code>prime</code> asks the providers and awaits all of them at once, while the walk that substitutes values into <code>${...}</code> stays synchronous and reads answers that are already there. So <code>ExecContext.resolve</code>, <code>resolveDeep</code> and <code>AssertContext.resolve</code> kept their signatures — no plugin became asynchronous because of a provider it does not use — and the contract's types did not change at all: the kernel finally does what was written there from the beginning.</p>
+        <p>Three decisions had to be taken on the way. A provider is asked <em>once per pass</em> rather than once per mention: it is a lookup, not a generator — but a pass is exactly one step wide, so a value that changed between two steps is read afresh by the second. All of a step's keys go to the providers at once rather than one after another, and the error that surfaces is the first in template order rather than the first in time — otherwise the diagnostic would depend on who answered fastest. The wait happens under the step's timeout: a provider that went to the network and never came back is a step taking too long, not a hung run.</p>
+        <p><strong>Two holes remain, and both are additions after 1.0.</strong> A step cannot put a value into its own scope: <code>${vars:token}</code> works, <code>${token}</code> does not, and there is no <code>exec.set()</code>. <code>exec.vars</code> hands back only the innermost frame, although <code>${...}</code> resolves the whole stack. Neither breaks the contract, so both land after the freeze.</p>
+        <p><strong>Left to do:</strong> the docs, <code>awesome-speq</code>, and freezing <code>plugin-api</code> at 1.0 — the last of which is held up by three open questions, two of which change the public contract. After that: <code>plugin-vscode</code>, <code>plugin-tui</code>, the TypeScript loader, parallel runs. Reporters left that list: the mechanism exists, JUnit exists, and the remaining formats are ordinary plugins anyone can write.</p>
       </div>
     </li>
   </ol>
 
   <div class="note">
-    <span class="tag">Что переносится из нынешнего speq</span>
-    <p>Выбрасывается только Rust-реализация — ~5600 строк, самая дешёвая часть. Переносится всё дорогое: дизайн YAML-DSL, семантика семи типов ассертов, контракт отчётов, exit codes, Allure-вывод, режимы <code>in-repo</code>/<code>test-repo</code>, документация. Спека <code>plugin-http</code> — это на 80% нынешний <code>docs/cli/README.md</code>.</p>
+    <span class="tag">What carries over from today's speq</span>
+    <p>The only thing thrown away is the Rust implementation — about 5,600 lines, and the cheapest part. Everything expensive carries over: the design of the YAML DSL, the semantics of seven assertion types, the report contract, the exit codes, the Allure output, the <code>in-repo</code>/<code>test-repo</code> modes, the documentation. The spec for <code>plugin-http</code> is 80% today's <code>docs/cli/README.md</code>.</p>
   </div>
 </section>
 
 <footer>
-  Документ фиксирует состояние на 29 августа 2026 года. M0, M1, M2 и гейт M3 собраны и лежат в <code>~/speqkit/</code>: ядро, публичный контракт (0.5.0), установщик, шесть плагинов, кит и генератор для авторов, 160 тестов. Путь от «работает у меня» до «зелёное в CI» пройден целиком: окружения, репортеры, <code>speq report</code> — и теперь по нему ходим сами, CI на Node 20/22/24. <code>scripts/verify-publish.mjs</code> прогоняет все девять пакетов через настоящие тарболы, временный реестр и одноразовый стор; он же нашёл последнюю дыру — плагин, тащивший за собой ядро, — и теперь плагин берёт ядро через <code>ctx.host</code>. Лицензия MIT, метаданные публикации на месте. Репозиторий выложен — <code>github.com/speqkit/speqkit</code>, — и все девять пакетов опубликованы: ядро как <code>speqkit</code>, контракт и плагины под скоупом <code>@speqkit</code>. Имя закреплено не намерением, а занятыми именами в реестре. Открытых вопросов три. M2 закрыт целиком: standalone-бинарник собран и проверен той же батареей, что и пакеты, ставится через <code>brew</code> и <code>curl … | sh</code>, а плагин может приехать из репозитория — <code>github:</code>, <code>git+ssh:</code>, тарбол по URL, — с коммитом в локе вместо ref'а. M4 начат: <code>@speqkit/test-kit</code> и <code>create-speqkit-plugin</code> на месте, и первый же честный прогон кита нашёл в ядре пустой <code>AssertContext.results</code>. Три кейса авторов проверены плагинами: первый проходит целиком, из четырёх найденных дыр закрыты две — плагин проверяет свои входы до прогона, а не в середине, и асинхронный value provider теперь ждут, не ломая синхронный <code>resolve</code> у плагинов. Оставшиеся две — добавления, заморозку не блокируют. Дальше по M4 — доки, <code>awesome-speq</code> и сама заморозка контракта на 1.0.
+  This document records the state as of 29 August 2026. M0, M1, M2 and the M3 gate are built and live in <code>~/speqkit/</code>: the kernel, the public contract (0.5.0), the installer, six plugins, the kit and the generator for authors, 160 tests. The road from "works on my machine" to "green in CI" has been walked end to end: environments, reporters, <code>speq report</code> — and we now walk it ourselves, with CI on Node 20/22/24. <code>scripts/verify-publish.mjs</code> puts all nine packages through real tarballs, a throwaway registry and a disposable store; it is also what found the last hole — a plugin dragging the kernel along behind it — and a plugin now reaches the kernel through <code>ctx.host</code>. MIT licensed, with the publication metadata in place. The repository is public — <code>github.com/speqkit/speqkit</code> — and all nine packages are published: the kernel as <code>speqkit</code>, the contract and the plugins under the <code>@speqkit</code> scope. The name is settled not by intent but by names taken in the registry. Three questions are open. M2 is closed in full: the standalone binary is built and checked by the same battery as the packages, installs through <code>brew</code> and <code>curl … | sh</code>, and a plugin can arrive from a repository — <code>github:</code>, <code>git+ssh:</code>, a tarball by URL — with a commit in the lock instead of a ref. M4 has started: <code>@speqkit/test-kit</code> and <code>create-speqkit-plugin</code> are in place, and the kit's first honest run found an empty <code>AssertContext.results</code> in the kernel. Three author scenarios were checked with plugins: the first passes in full, and of the four holes found, two are closed — a plugin checks its own inputs before the run rather than halfway through it, and an asynchronous value provider is now awaited without making plugins' <code>resolve</code> asynchronous. The remaining two are additions and do not block the freeze. Next in M4: the docs, <code>awesome-speq</code>, and the contract freeze at 1.0 itself.
 </footer>
 
 </main>

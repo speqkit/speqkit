@@ -1,4 +1,4 @@
-<title>Официальные плагины speqkit</title>
+<title>The official speqkit plugins</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
@@ -344,7 +344,7 @@ footer{
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* ---------- дополнения этого документа ---------- */
+/* ---------- additions specific to this document ---------- */
 .chip.later{background:var(--surface-2);color:var(--muted)}
 .chip.ext{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--rule)}
 td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--ink-soft)}
@@ -400,346 +400,346 @@ table.ledger td:first-child{font-family:"IBM Plex Mono",ui-monospace,monospace;f
 <div class="wrap">
 
 <header class="masthead">
-  <span class="eyebrow">Решения приняты · plugin-use готов · M4 · август 2026</span>
-  <h1>Официальные плагины speqkit</h1>
-  <p class="lede">Ядро — загрузчик, всё остальное — плагины. Значит, единственный оставшийся вопрос: какие из «всего остального» пишем и поддерживаем мы, а какие пишет комьюнити. Список нужен не для полноты, а чтобы у каждого плагина в скоупе <code>@speqkit</code> была причина там находиться — и чтобы отказ был так же обоснован, как согласие.</p>
+  <span class="eyebrow">Decided · plugin-use is written · M4 · August 2026</span>
+  <h1>The official speqkit plugins</h1>
+  <p class="lede">The kernel is a loader and everything else is a plugin. Which leaves exactly one question: which parts of "everything else" do we write and maintain, and which does the community write? The list is not here for completeness. It is here so that every plugin in the <code>@speqkit</code> scope has a reason to be there — and so that saying no is as well argued as saying yes.</p>
   <div class="meta">
-    <span><b>Опубликовано</b> 9 пакетов, 6 плагинов</span>
-    <span><b>Официальных</b> 9 в слое языка + 7 по требованию</span>
-    <span><b>Написано</b> 6 из 9 слоя языка</span>
-    <span><b>Проверено на</b> food-cart-api, 60 тестов</span>
-    <span><b>Скоуп</b> @speqkit — только наше</span>
+    <span><b>Published</b> 9 packages, 6 plugins</span>
+    <span><b>Official</b> 9 in the language layer + 7 on demand</span>
+    <span><b>Written</b> 6 of the 9 language plugins</span>
+    <span><b>Checked against</b> food-cart-api, 60 tests</span>
+    <span><b>Scope</b> @speqkit — ours only</span>
   </div>
 </header>
 
-<nav class="toc" aria-label="Содержание">
+<nav class="toc" aria-label="On this page">
   <ol>
-    <li><a href="#rule">Правило</a></li>
-    <li><a href="#ledger">Реестр</a></li>
-    <li><a href="#corpus">Проверка корпусом</a></li>
-    <li><a href="#moves">Что переезжает</a></li>
-    <li><a href="#meta">Поля теста</a></li>
-    <li><a href="#depth">Глубина и замена</a></li>
-    <li><a href="#community">Что не наше</a></li>
-    <li><a href="#open">Решения</a></li>
-    <li><a href="#order">Порядок работ</a></li>
+    <li><a href="#rule">The rule</a></li>
+    <li><a href="#ledger">The ledger</a></li>
+    <li><a href="#corpus">Checked against a real suite</a></li>
+    <li><a href="#moves">What moves</a></li>
+    <li><a href="#meta">The fields of a test</a></li>
+    <li><a href="#depth">Depth and replacement</a></li>
+    <li><a href="#community">What is not ours</a></li>
+    <li><a href="#open">Decisions</a></li>
+    <li><a href="#order">The order of work</a></li>
   </ol>
 </nav>
 
 <main>
 
 <section id="rule">
-  <span class="sect-label">Критерий</span>
-  <h2>Наше — то, что определяет язык теста</h2>
+  <span class="sect-label">The criterion</span>
+  <h2>Ours is whatever decides how a test reads</h2>
 
   <div class="rule-card">
-    <p class="big">Плагин наш, если он меняет <em>то, как тест читается</em>. Плагин чужой, если он подключает <em>ещё одну систему</em>.</p>
-    <p>Формат файла, композиция, генерация данных, словарь ассертов, управляющие конструкции, контракт отчёта, поверхности — это язык. Два независимых автора, решивших вопрос «как переиспользовать шаги» по-своему, дают два несовместимых диалекта и делят экосистему пополам. Ровно тот аргумент, по которому в ядре зафиксирован хребет, работает и здесь этажом выше: <b>хребет фиксирует модель, официальные плагины фиксируют язык</b>.</p>
-    <p>Kafka, Mongo, Redis, Stripe, gRPC — это один протокол, один вендор, один жизненный цикл. Такой плагин может умереть, и не сломается ничего, кроме него самого. Значит, он не обязан быть нашим — и не должен.</p>
+    <p class="big">A plugin is ours if it changes <em>the way a test reads</em>. A plugin is somebody else's if it connects <em>one more system</em>.</p>
+    <p>The file format, composition, generated data, the assertion vocabulary, control flow, the shape of a report, the surfaces — that is language. Two independent authors who each answer "how do I reuse a set of steps?" their own way produce two incompatible dialects and split the ecosystem in half. The very argument that fixes the spine inside the kernel works one floor up as well: <b>the spine fixes the model, the official plugins fix the language</b>.</p>
+    <p>Kafka, Mongo, Redis, Stripe, gRPC — one protocol, one vendor, one lifecycle each. A plugin like that can die and nothing breaks except itself. So it does not have to be ours — and should not be.</p>
   </div>
 
   <div class="split">
     <div>
-      <h4>Наше — язык</h4>
+      <h4>Ours — the language</h4>
       <ul>
-        <li>формат теста и его загрузка</li>
-        <li>композиция: переиспользуемые блоки и действия</li>
-        <li>переменные и генерация данных</li>
-        <li>словарь ассертов, включая схемы</li>
-        <li>управляющие конструкции</li>
-        <li>отчёты, которые читает CI</li>
-        <li>поверхности: CLI, TUI, редактор</li>
+        <li>the test format and its loading</li>
+        <li>composition: reusable blocks and actions</li>
+        <li>variables and generated data</li>
+        <li>the assertion vocabulary, schemas included</li>
+        <li>control flow</li>
+        <li>the reports CI reads</li>
+        <li>surfaces: CLI, TUI, editor</li>
       </ul>
     </div>
     <div>
-      <h4>Не наше — системы</h4>
+      <h4>Not ours — systems</h4>
       <ul>
-        <li>брокеры, очереди, шины</li>
-        <li>конкретные СУБД сверх одной опорной</li>
-        <li>облака и хранилища</li>
-        <li>SaaS с ключами и биллингом</li>
-        <li>интеграции с TMS и мессенджерами</li>
-        <li>нагрузочное, a11y, визуальные диффы</li>
-        <li>всё, у чего одна причина существовать — один вендор</li>
+        <li>brokers, queues, buses</li>
+        <li>databases beyond the one we keep as a reference</li>
+        <li>clouds and object stores</li>
+        <li>SaaS with keys and billing</li>
+        <li>integrations with test management and chat</li>
+        <li>load testing, a11y, visual diffing</li>
+        <li>anything whose only reason to exist is one vendor</li>
       </ul>
     </div>
   </div>
 
   <div class="note">
-    <span class="tag">Закрытый список исключений — три</span>
-    <p><code>http</code>, <code>playwright</code>, <code>postgres</code> — коннекторы, и всё-таки наши. У каждого своя причина, и список закрыт: если исключений станет пять, правила больше нет.</p>
-    <p><b>http</b> — это не «ещё одна система», а то, о чём девять из десяти тестов и написаны; без него <code>speq init</code> не имеет смысла. <b>playwright</b> и <b>postgres</b> держат по куску контракта, который иначе никто не проверяет: браузер — единственный честный потребитель ресурсов и бинарных артефактов, транзакция — единственное честное доказательство scope <code>test</code>. Они наши как доказательства архитектуры, а не как интеграции.</p>
+    <span class="tag">A closed list of exceptions — three</span>
+    <p><code>http</code>, <code>playwright</code>, <code>postgres</code> are connectors and ours anyway. Each has its own reason, and the list is closed: if the exceptions ever reach five, there is no rule left.</p>
+    <p><b>http</b> is not "one more system" — it is what nine tests in ten are about, and without it <code>speq init</code> means nothing. <b>playwright</b> and <b>postgres</b> each hold a piece of the contract nobody else exercises: a browser is the only honest consumer of resources and binary artifacts, and a transaction is the only honest proof that the <code>test</code> scope is real. They are ours as proofs of the architecture, not as integrations.</p>
   </div>
 
   <div class="note warn">
-    <span class="tag">Цена официальности</span>
-    <p>Каждый плагин в скоупе — обязательство навсегда: мажор <code>plugin-api</code> означает ревизию всех официальных сразу, и каждый из них становится тем, за что нам приносят баг-репорты. Шестнадцать — это потолок, который мы вывозим на 1.0, а не цель. Плагин, который не проходит по правилу, не попадает в скоуп даже если написан за вечер.</p>
+    <span class="tag">What being official costs</span>
+    <p>Every plugin in the scope is a commitment with no end date: a major of <code>plugin-api</code> means revising all of the official ones at once, and each of them becomes something people bring us bug reports about. Sixteen is the ceiling we can carry to 1.0, not a target. A plugin that does not pass the rule does not enter the scope even if it was written in one evening.</p>
   </div>
 </section>
 
 <hr class="rule">
 
 <section id="ledger">
-  <span class="sect-label">Реестр</span>
-  <h2>Что мы публикуем</h2>
-  <p>Три слоя. Нулевой — не плагины вовсе, это сам инструмент. Первый — язык: он ставится по умолчанию, и без любого из этих девяти тест на что-нибудь да не сможет быть написан. Второй — официальные, но по требованию: они ничего не меняют в языке и не грузятся, пока их не позвали.</p>
+  <span class="sect-label">The ledger</span>
+  <h2>What we publish</h2>
+  <p>Three layers. Layer zero is not plugins at all — it is the tool itself. Layer one is the language: it is installed by default, and without any one of these nine there is some test that simply cannot be written. Layer two is official but on demand: nothing in it changes the language, and none of it loads until it is asked for.</p>
 
-  <div class="tier"><b>Слой 0</b> инструмент, не плагины</div>
+  <div class="tier"><b>Layer 0</b> the tool, not plugins</div>
   <div class="tablewrap">
     <table class="ledger">
-      <thead><tr><th>Пакет</th><th>Что это</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Package</th><th>What it is</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>speqkit</td><td>Ядро и бинарь <code>speq</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>@speqkit/plugin-api</td><td>Публичный контракт, только типы</td><td><span class="chip fixed">есть, 0.5.0</span></td></tr>
-        <tr><td>@speqkit/installer</td><td>Резолв, проверка, стор, лок</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>@speqkit/test-kit</td><td>Прогон плагина внутри настоящего ядра</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>create-speqkit-plugin</td><td>Скаффолд для авторов</td><td><span class="chip fixed">есть</span></td></tr>
+        <tr><td>speqkit</td><td>The kernel and the <code>speq</code> binary</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>@speqkit/plugin-api</td><td>The public contract, types only</td><td><span class="chip fixed">written, 0.5.0</span></td></tr>
+        <tr><td>@speqkit/installer</td><td>Resolve, verify, store, lock</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>@speqkit/test-kit</td><td>Runs a plugin inside the real kernel</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>create-speqkit-plugin</td><td>The scaffold for plugin authors</td><td><span class="chip fixed">written</span></td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="tier"><b>Слой 1</b> язык теста · ставится по умолчанию</div>
+  <div class="tier"><b>Layer 1</b> the language of a test · installed by default</div>
   <div class="tablewrap">
     <table class="ledger">
-      <thead><tr><th>Плагин</th><th>Что вносит</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Plugin</th><th>What it contributes</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>plugin-yaml</td><td>Формат теста: хребет, <code>meta</code>, <code>init.yaml</code> на каталог — и кодмод <code>speq migrate</code> с v1</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-http</td><td>Шаг <code>http</code>, <code>status</code>, <code>duration_under</code>, multipart и повторы на 502/503/504</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-use</td><td>Композиция целиком: <code>use</code> по файлу и по действию, модули, <code>returns</code>, фикстуры. Обёртки оказались не здесь — <code>setup</code> и <code>cleanup</code> уехали в ядро</td><td><span class="chip fixed">есть, 0.1.0</span></td></tr>
-        <tr><td>plugin-assert</td><td>Словарь проверок над любым результатом: равенство, порядок, вхождение, текст, наличие, размер, тип и JSON Schema — 21 слово над одним селектором</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-data</td><td>Откуда берутся значения: <code>gen</code> (uuid, string, int, email, date), <code>env</code> и <code>vars</code>. Только провайдеры — фикстуры уехали в <code>use</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-loop</td><td><code>loop</code> и <code>retry</code> — управляющие конструкции</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-cli</td><td>Терминальная поверхность, сервис <code>cli</code>, репортер <code>console</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-junit</td><td>JUnit XML — то, что читают глазами в CI</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-json</td><td><code>summary.json</code> — то, что читает <code>jq</code> в CI. Форма зафиксирована как чужой контракт</td><td><span class="chip fixed">есть</span></td></tr>
+        <tr><td>plugin-yaml</td><td>The test format: the spine, <code>meta</code>, a per-directory <code>init.yaml</code> — and <code>speq migrate</code>, the codemod from v1</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-http</td><td>The <code>http</code> step, <code>status</code>, <code>duration_under</code>, multipart, and retrying on 502/503/504</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-use</td><td>Composition, all of it: <code>use</code> by file and by action, modules, <code>returns</code>, fixtures. The wrappers turned out not to belong here — <code>setup</code> and <code>cleanup</code> went into the kernel</td><td><span class="chip fixed">written, 0.1.0</span></td></tr>
+        <tr><td>plugin-assert</td><td>The vocabulary of checks over any result: equality, order, membership, text, presence, size, type and JSON Schema — 21 words over one selector</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-data</td><td>Where values come from: <code>gen</code> (uuid, string, int, email, date), <code>env</code> and <code>vars</code>. Providers only — fixtures went to <code>use</code></td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-loop</td><td><code>loop</code> and <code>retry</code> — control flow</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-cli</td><td>The terminal surface, the <code>cli</code> service, the <code>console</code> reporter</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-junit</td><td>JUnit XML — what gets read by eye in CI</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-json</td><td><code>summary.json</code> — what <code>jq</code> reads in CI. Its shape is frozen, as somebody else's contract</td><td><span class="chip fixed">written</span></td></tr>
       </tbody>
     </table>
   </div>
-  <p>Пять из девяти уже опубликованы, четыре — работа M4. Это и есть весь объём: <b>язык закрывается четырьмя плагинами</b>, а не двадцатью.</p>
+  <p>Five of the nine are published; four are the work of M4. That is the whole of it: <b>the language closes with four more plugins</b>, not twenty.</p>
 
-  <div class="tier"><b>Слой 2</b> официальные · по требованию</div>
+  <div class="tier"><b>Layer 2</b> official · on demand</div>
   <div class="tablewrap">
     <table class="ledger">
-      <thead><tr><th>Плагин</th><th>Зачем он наш</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Plugin</th><th>Why it is ours</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>plugin-playwright</td><td>Единственный честный потребитель ресурсов и бинарных артефактов</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>plugin-postgres</td><td>Единственное честное доказательство scope <code>test</code>: транзакция на тест, откат после</td><td><span class="chip open">писать</span></td></tr>
-        <tr><td>plugin-openapi</td><td>Покрытие спеки — то, ради чего гейт вообще ставят рядом с юнитами. В манифесте v1 поле уже есть и выключено</td><td><span class="chip open">писать</span></td></tr>
-        <tr><td>plugin-allure</td><td>Обещание, данное пользователям v1: без него миграция с нынешнего speq — потеря отчётов</td><td><span class="chip open">писать</span></td></tr>
-        <tr><td>plugin-tui</td><td>Поверхность. Доказывает, что шина событий не заточена под терминальный вывод</td><td><span class="chip later">позже</span></td></tr>
-        <tr><td>plugin-vscode</td><td>Поверхность без CLI: проверка, что <code>defineCommand</code> — не единственный вход</td><td><span class="chip later">позже</span></td></tr>
-        <tr><td>plugin-ts</td><td>Второй загрузчик. Пока он не написан, «формат — плагин» держится на одном примере</td><td><span class="chip later">позже</span></td></tr>
+        <tr><td>plugin-playwright</td><td>The only honest consumer of resources and binary artifacts</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-postgres</td><td>The only honest proof that the <code>test</code> scope is real: a transaction per test, rolled back after</td><td><span class="chip open">to write</span></td></tr>
+        <tr><td>plugin-openapi</td><td>Coverage against the spec — the reason a gate is put next to the unit tests at all. The v1 manifest already has the field, switched off</td><td><span class="chip open">to write</span></td></tr>
+        <tr><td>plugin-allure</td><td>A promise made to v1 users: without it, migrating off the current speq means losing the reports</td><td><span class="chip open">to write</span></td></tr>
+        <tr><td>plugin-tui</td><td>A surface. Proves the event bus is not shaped around terminal output</td><td><span class="chip later">later</span></td></tr>
+        <tr><td>plugin-vscode</td><td>A surface with no CLI: the check that <code>defineCommand</code> is not the only way in</td><td><span class="chip later">later</span></td></tr>
+        <tr><td>plugin-ts</td><td>A second loader. Until it exists, "the format is a plugin" rests on a single example</td><td><span class="chip later">later</span></td></tr>
       </tbody>
     </table>
   </div>
 
-  <h3>Пресеты</h3>
-  <p>Пресет — обычный npm-пакет, внутри которого лежит <code>speq.yaml</code> со списком плагинов и настройками по умолчанию. Подключается одной строкой, и на этом всё:</p>
+  <h3>Presets</h3>
+  <p>A preset is an ordinary npm package with a <code>speq.yaml</code> inside it, listing plugins and default settings. One line pulls it in, and that is all there is to it:</p>
 
-<pre><code><span class="c"># .speq/speq.yaml сервиса — целиком</span>
+<pre><code><span class="c"># a service's .speq/speq.yaml, in full</span>
 version: 1
 extends: <span class="s">"@speqkit/preset-api"</span>
 
 http:
   baseUrl: <span class="s">"http://localhost:8080"</span></code></pre>
 
-  <p>Механики писать не нужно — она вся уже есть. Цепочка <code>extends</code> разворачивается в <code>packages/core/src/config.ts</code>, ближайший файл выигрывает по конфликтам, пресет ставится установщиком как обычный пакет и резолвится из стора, а окружение поверх него плагин добавить не может — тот самый инвариант, который держит <code>--frozen</code> честным. <code>speq install</code> даже подсказывает про это в ошибке: «пресет — обычный пакет и его надо принести». Так что завести наши два — это опубликовать два пакета, а не написать подсистему.</p>
+  <p>None of the machinery has to be written — it is all there already. The <code>extends</code> chain is unrolled in <code>packages/core/src/config.ts</code>, the nearest file wins a conflict, a preset is installed like any other package and resolved from the store, and an environment layered on top of it cannot add a plugin — the very invariant that keeps <code>--frozen</code> honest. <code>speq install</code> even says so in its error: a preset is an ordinary package and it has to be fetched. So standing up our two means publishing two packages, not writing a subsystem.</p>
 
-  <h4>Зачем они нам — четыре причины</h4>
+  <h4>Why we want them — four reasons</h4>
   <ul>
-    <li><b>Тридцать репозиториев.</b> Платформенная команда бампает набор в одном месте, вместо того чтобы тридцать сервисов разъехались в тридцать разных наборов. Ради этого <code>extends</code> и был в хребте с первого дня.</li>
-    <li><b>Держит скоуп маленьким.</b> Давление идёт не от плагинов, а от фразы «пусть будет в коробке». Пресет принимает его на себя: «в коробке» — это пресет, а не список пакетов под <code>@speqkit</code>, и отказать новому официальному плагину становится можно, не отбирая у человека удобство.</li>
-    <li><b>Онбординг.</b> В конфиге сервиса одна строка и <code>baseUrl</code> вместо девяти плагинов с версиями. <code>speq init</code> спрашивает пресет и пишет это сам.</li>
-    <li><b>Это образец.</b> <code>@acme/speqkit-preset</code> — то, что мы рекомендуем компаниям; наши два — первый работающий пример того, как это делается, а не отдельная привилегия ядра.</li>
+    <li><b>Thirty repositories.</b> A platform team bumps the set in one place, instead of thirty services drifting into thirty different sets. That is what <code>extends</code> was in the spine for from day one.</li>
+    <li><b>It keeps the scope small.</b> The pressure does not come from plugins, it comes from the sentence "let's just have it in the box". A preset absorbs it: "in the box" becomes the preset rather than the list of packages under <code>@speqkit</code>, and turning down a new official plugin stops meaning taking convenience away from anyone.</li>
+    <li><b>Onboarding.</b> One line and a <code>baseUrl</code> in a service's config, instead of nine plugins with versions. <code>speq init</code> asks which preset and writes it itself.</li>
+    <li><b>It is the worked example.</b> <code>@acme/speqkit-preset</code> is what we recommend to companies; our two are the first working demonstration of how that is done, rather than a privilege the kernel keeps for itself.</li>
   </ul>
 
-  <h4>Что внутри</h4>
+  <h4>What is in them</h4>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>Пресет</th><th>Плагины</th><th>Дефолты</th></tr></thead>
+      <thead><tr><th>Preset</th><th>Plugins</th><th>Defaults</th></tr></thead>
       <tbody>
-        <tr><td>@speqkit/preset-api</td><td>весь слой 1: yaml, http, use, assert, data, loop, cli, junit, json</td><td>репортер <code>console</code>, JUnit и <code>summary.json</code> в <code>reports/</code>, бюджеты таймаутов, повторы на 502/503/504</td></tr>
-        <tr><td>@speqkit/preset-web</td><td>он же плюс playwright</td><td>chromium, headless, скриншот при падении</td></tr>
+        <tr><td>@speqkit/preset-api</td><td>all of layer 1: yaml, http, use, assert, data, loop, cli, junit, json</td><td>the <code>console</code> reporter, JUnit and <code>summary.json</code> under <code>reports/</code>, timeout budgets, retrying on 502/503/504</td></tr>
+        <tr><td>@speqkit/preset-web</td><td>the same plus playwright</td><td>chromium, headless, screenshot on failure</td></tr>
       </tbody>
     </table>
   </div>
-  <p>Чего в них нет намеренно: <code>postgres</code>, <code>allure</code> и <code>openapi</code>. Они официальные, но тянут за собой решение — драйвер, формат отчёта, файл спеки, — а пресет по умолчанию не должен принимать решения за команду.</p>
+  <p>What is deliberately not in them: <code>postgres</code>, <code>allure</code> and <code>openapi</code>. They are official, but each drags a decision behind it — a driver, a report format, a spec file — and a default preset has no business making decisions for a team.</p>
 
   <div class="note">
-    <span class="tag">Пресет — политика, лок — факт</span>
-    <p>Пресет перечисляет плагины и диапазоны версий; точные версии и хеши всё равно живут в <code>speq.lock</code> сервиса, и <code>--frozen</code> в CI ставит именно их. Поэтому мажор пресета — это осознанная смена набора у всех, кто его подключил, и версионировать его надо как публичный пакет, а не как внутренний конфиг.</p>
+    <span class="tag">A preset is policy; the lock is fact</span>
+    <p>A preset lists plugins and version ranges; the exact versions and hashes still live in the service's own <code>speq.lock</code>, and <code>--frozen</code> in CI installs those. Which is why a major of a preset is a deliberate change of set for everyone who pulled it in, and it has to be versioned like a public package rather than like an internal config.</p>
   </div>
 </section>
 
 <hr class="rule">
 
 <section id="corpus">
-  <span class="sect-label">Проверка</span>
-  <h2>Что требует настоящий набор тестов</h2>
-  <p>Список, выведенный из принципов, стоит ровно столько, сколько показывает первая встреча с реальностью. Встреча уже назначена: <code>food-cart-api</code> — Go-сервис с Postgres, 32 миграции, гейт из <b>60 тестов в 66 файлах</b>, 20 JSON-схем, три модуля действий, два окружения и workflow, который парсит <code>summary.json</code>. Плюс <code>food-cart-frontend</code>: гостевое меню на Next.js и бэкофис на Vite — цель для браузерных тестов, где сейчас нет ни одного.</p>
+  <span class="sect-label">The check</span>
+  <h2>What a real suite actually asks for</h2>
+  <p>A list derived from principles is worth exactly what its first meeting with reality shows it to be worth. That meeting was already arranged: <code>food-cart-api</code>, a Go service with Postgres, 32 migrations, a gate of <b>60 tests in 66 files</b>, 20 JSON schemas, three action modules, two environments, and a workflow that parses <code>summary.json</code>. Plus <code>food-cart-frontend</code>: a guest menu on Next.js and a back office on Vite — a target for browser tests, where there are currently none.</p>
 
   <div class="tablewrap">
     <table class="ledger">
-      <thead><tr><th>Что стоит в файлах</th><th class="num">Раз</th><th>Чем закрывается</th><th>Статус</th></tr></thead>
+      <thead><tr><th>What the files say</th><th class="num">Times</th><th>What answers it</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>type: use</td><td class="num">179</td><td>plugin-use</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>type: api</td><td class="num">115</td><td>plugin-http, шаг <code>http</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>assert status</td><td class="num">115</td><td>plugin-http — но <b>у шага</b>, чего в ядре не было</td><td><span class="chip fixed">есть, 0.6.0</span></td></tr>
-        <tr><td>assert json</td><td class="num">59</td><td>plugin-assert: <code>equals</code> с <code>path</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>assert schema</td><td class="num">59</td><td>plugin-assert через ajv, 20 файлов схем на диске; компилируются на <code>validate</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>variables + gen</td><td class="num">56</td><td>plugin-data; uuid 66, string 2, int 1 — плюс ядро: <code>TestDef.variables</code></td><td><span class="chip fixed">есть, 0.7.0</span></td></tr>
-        <tr><td>setup</td><td class="num">52</td><td>ядро: <code>TestDef.setup</code>, в кадре теста</td><td><span class="chip fixed">есть, 0.6.0</span></td></tr>
-        <tr><td>cleanup</td><td class="num">50</td><td>ядро: <code>TestDef.cleanup</code>, после теста что бы ни случилось</td><td><span class="chip fixed">есть, 0.6.0</span></td></tr>
-        <tr><td>assert contains / notcontains</td><td class="num">26</td><td>plugin-assert, вхождение в строку, массив и объект</td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>assert regex / exists</td><td class="num">8</td><td>plugin-assert: <code>matches</code>, <code>exists</code></td><td><span class="chip fixed">есть</span></td></tr>
-        <tr><td>bodyFromFixture</td><td class="num">2</td><td>plugin-use</td><td><span class="chip open">нет</span></td></tr>
-        <tr><td>retry на 502/503/504</td><td class="num">1</td><td>конфиг plugin-http</td><td><span class="chip open">нет</span></td></tr>
-        <tr><td>coverage по OpenAPI</td><td class="num">1</td><td>plugin-openapi</td><td><span class="chip later">выключено в v1</span></td></tr>
-        <tr><td>summary.json в workflow</td><td class="num">1</td><td>plugin-json</td><td><span class="chip open">нет</span></td></tr>
+        <tr><td>type: use</td><td class="num">179</td><td>plugin-use</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>type: api</td><td class="num">115</td><td>plugin-http, the <code>http</code> step</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>assert status</td><td class="num">115</td><td>plugin-http — but <b>on the step</b>, which the kernel had no room for</td><td><span class="chip fixed">written, 0.6.0</span></td></tr>
+        <tr><td>assert json</td><td class="num">59</td><td>plugin-assert: <code>equals</code> with a <code>path</code></td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>assert schema</td><td class="num">59</td><td>plugin-assert through ajv, 20 schema files on disk; compiled during <code>validate</code></td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>variables + gen</td><td class="num">56</td><td>plugin-data; uuid 66, string 2, int 1 — plus the kernel: <code>TestDef.variables</code></td><td><span class="chip fixed">written, 0.7.0</span></td></tr>
+        <tr><td>setup</td><td class="num">52</td><td>the kernel: <code>TestDef.setup</code>, inside the test's frame</td><td><span class="chip fixed">written, 0.6.0</span></td></tr>
+        <tr><td>cleanup</td><td class="num">50</td><td>the kernel: <code>TestDef.cleanup</code>, after the test whatever happened to it</td><td><span class="chip fixed">written, 0.6.0</span></td></tr>
+        <tr><td>assert contains / notcontains</td><td class="num">26</td><td>plugin-assert, membership in a string, an array and an object</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>assert regex / exists</td><td class="num">8</td><td>plugin-assert: <code>matches</code>, <code>exists</code></td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>bodyFromFixture</td><td class="num">2</td><td>plugin-use</td><td><span class="chip open">not yet</span></td></tr>
+        <tr><td>retry on 502/503/504</td><td class="num">1</td><td>plugin-http config</td><td><span class="chip open">not yet</span></td></tr>
+        <tr><td>OpenAPI coverage</td><td class="num">1</td><td>plugin-openapi</td><td><span class="chip later">switched off in v1</span></td></tr>
+        <tr><td>summary.json in a workflow</td><td class="num">1</td><td>plugin-json</td><td><span class="chip open">not yet</span></td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="note">
-    <span class="tag">Главный вывод — в первой строке</span>
-    <p>Самый частый шаг настоящего набора — <b>не HTTP</b>. <code>use</code> встречается 179 раз против 115 у <code>api</code>: набор из 60 тестов держится на композиции, которой у нас нет ни строчки. Мы написали браузер, JUnit и цикл раньше, чем то, чем пользуются чаще всего остального вместе взятого. Отсюда и порядок работ ниже.</p>
+    <span class="tag">The finding that matters is in the first line</span>
+    <p>The most frequent step in a real suite is <b>not HTTP</b>. <code>use</code> appears 179 times against <code>api</code>'s 115: a suite of 60 tests rests on composition, of which we have not written a line. We wrote the browser, JUnit and the loop before the thing that is used more often than everything else put together. Which is where the order of work below comes from.</p>
   </div>
 
-  <p>Второй вывод пришлось уточнить, когда дело дошло до кода. Он звучал так: ни одна из четырнадцати строк не требует правки ядра — загрузчик понизит тест в один охватывающий шаг, а <code>cleanup</code> уедет в его <code>finally</code>. На бумаге сходилось; в исполнителе — нет. Вложенный <code>runSteps</code> открывает дочерний кадр и снимает его на выходе, поэтому привязки шагов теста жили бы внутри обёртки, а ассерты уровня теста читаются после неё — и <code>${id.поле}</code> в них молча перестал бы существовать. Ровно та дыра, которую этот проект уже находил четыре раза: объявлено в контракте, не работает на практике.</p>
+  <p>The second finding had to be corrected once it met the code. It read: not one of the fourteen rows needs a kernel change — the loader will lower a test into a single enclosing step, and <code>cleanup</code> will go into its <code>finally</code>. On paper it worked; in the executor it did not. A nested <code>runSteps</code> opens a child frame and pops it on the way out, so the bindings of the test's steps would live inside the wrapper while test-level assertions are read after it — and <code>${id.field}</code> in them would silently cease to exist. Exactly the hole this project has already found four times: declared in the contract, does not work in practice.</p>
 
   <div class="note warn">
-    <span class="tag">Поэтому в ядре три добавления, а не ноль</span>
-    <p>Оказалось, что половины модели <code>Suite → Test → Step → Assertion</code> в ядре просто не было. Ассерты существовали только у теста — а корпус пишет их у шага, 204 раза. У теста было тело и не было ни setup, ни cleanup — а корпус пишет их в 52 и 50 тестах из 60.</p>
-    <p>Обе вещи — ядра, и это проверяемо, а не вкусовщина. Тип шага не должен читать <code>assert:</code>, который ему не вход: <code>plugin-http</code> с <code>additionalProperties: false</code> отверг бы его и был бы прав. А <code>finally</code> плагин выразить не может, не протащив свой дочерний кадр обратно в вызывающего, то есть не сломав инвариант, ради которого кадр и заведён. Контракт 0.6.0: <code>StepDef.assert</code>, <code>TestDef.setup</code>, <code>TestDef.cleanup</code> — три добавления, <code>PLUGIN_API_VERSION</code> остаётся 1, девятой точки вклада не появилось.</p>
-    <p>Правило, по которому это решалось, стоит того, чтобы его записать: <b>в ядро едет то, чего плагин не может выразить, не нарушив инвариант</b>. Всё остальное — плагин, включая <code>use</code>, который через ту же реентрантность выражается целиком.</p>
+    <span class="tag">Hence three additions to the kernel rather than none</span>
+    <p>It turned out that half of the <code>Suite → Test → Step → Assertion</code> model was simply not in the kernel. Assertions existed only on the test — and the corpus writes them on the step, 204 times. A test had a body and had neither setup nor cleanup — and the corpus writes them in 52 and 50 of its 60 tests.</p>
+    <p>Both belong to the kernel, and that is checkable rather than a matter of taste. A step type has no business reading an <code>assert:</code> block that is not its input: <code>plugin-http</code> with <code>additionalProperties: false</code> would reject it and would be right. And a plugin cannot express <code>finally</code> without dragging its child frame back into the caller, which is to say without breaking the invariant the frame exists for. Contract 0.6.0: <code>StepDef.assert</code>, <code>TestDef.setup</code>, <code>TestDef.cleanup</code> — three additions, <code>PLUGIN_API_VERSION</code> stays 1, and no ninth contribution point appeared.</p>
+    <p>The rule that decided it is worth writing down: <b>what goes into the kernel is what a plugin cannot express without breaking an invariant</b>. Everything else is a plugin, <code>use</code> included — it is expressible in full through that same re-entrancy.</p>
   </div>
 
-  <p>Заодно решились два вопроса, которых никто не задавал. Cleanup отрабатывает после теста <i>что бы с ним ни случилось</i> — в том числе после setup, который не доехал: именно тогда строки, созданные наполовину собранным тестом, и остаются в базе навсегда. А тест, который ответил на свой вопрос и не смог убрать за собой, — это <code>error</code>, а не <code>passed</code>: следующий прогон наследует то, что он оставил. Уже вынесенный вердикт cleanup не перебивает — падение теста и есть новость.</p>
+  <p>Two questions nobody had asked got settled along the way. Cleanup runs after the test <i>whatever happened to it</i> — including after a setup that never finished, which is precisely when the rows a half-built test created stay in the database forever. And a test that answered its own question and could not clear up after itself is an <code>error</code>, not <code>passed</code>: the next run inherits what it left behind. Cleanup does not overrule a verdict already delivered — a failed test is the news.</p>
 
   <div class="note warn">
-    <span class="tag">Ловушка, которую видно только на корпусе</span>
-    <p><code>variables</code> обязаны вычислиться <b>один раз на тест</b>. Value provider опрашивается раз на проход шириной в шаг — сделай <code>gen</code> обычным провайдером, и <code>tenantSlug</code> в setup, в шаге и в cleanup окажется тремя разными uuid, а тест будет регистрировать одного арендатора, ходить ко второму и чистить третьего. Молча. Поэтому <code>gen</code> — не только провайдер: значения теста считаются один раз и живут в кадре охватывающего шага.</p>
+    <span class="tag">A trap only a real corpus makes visible</span>
+    <p><code>variables</code> have to be resolved <b>once per test</b>. A value provider is asked once per pass, and a pass is one step wide — make <code>gen</code> an ordinary provider and <code>tenantSlug</code> in setup, in the step and in cleanup becomes three different uuids, with the test registering one tenant, calling a second and cleaning up a third. Silently. Which is why <code>gen</code> is not only a provider: a test's values are computed once and live in the frame of the enclosing step.</p>
   </div>
 </section>
 
 <hr class="rule">
 
 <section id="moves">
-  <span class="sect-label">Следствие</span>
-  <h2>Два переезда внутри уже написанного</h2>
-  <p>Правило «наше — язык» применимо и к тому, что опубликовано. Два места ему не соответствуют, и обойдутся они дешевле сейчас, до заморозки, чем после.</p>
+  <span class="sect-label">The consequence</span>
+  <h2>Two relocations inside what is already written</h2>
+  <p>"Ours is the language" applies to what has been published too. Two places do not match it, and they are cheaper to move now, before the freeze, than after.</p>
 
   <ul class="points">
-    <li><span class="name">env → plugin-data <span class="chip fixed">переехал</span></span><span class="what"><code>defineValueProvider('env')</code> жил в <code>plugin-http</code>. Переменная окружения не имеет отношения к HTTP: проект без единого HTTP-шага терял <code>${env:TOKEN}</code>, а плагин отвечал за то, чего не обещал. Заодно неустановленная переменная без <code>${env:NAME:-fallback}</code> теперь ошибка, а не пустая строка: <code>Bearer&nbsp;</code> — это набор, который падает не по той причине, или, хуже, проходит против ничего.</span></li>
-    <li><span class="name">ассерты → plugin-assert <span class="chip fixed">переехали</span></span><span class="what"><code>jsonpath</code> и <code>body_contains</code> проверяют не HTTP, а значение. Их близнецы понадобятся SQL-строке, телу Kafka-сообщения и содержимому файла — и каждый автор напишет своих, если словаря нет. В <code>plugin-http</code> остаётся то, что действительно про протокол: <code>status</code> и <code>duration_under</code>.</span></li>
+    <li><span class="name">env → plugin-data <span class="chip fixed">moved</span></span><span class="what"><code>defineValueProvider('env')</code> lived in <code>plugin-http</code>. An environment variable has nothing to do with HTTP: a project without a single HTTP step lost <code>${env:TOKEN}</code>, and the plugin was answering for something it never promised. While we were there, an unset variable with no <code>${env:NAME:-fallback}</code> is now an error rather than an empty string: <code>Bearer&nbsp;</code> is a suite that fails for the wrong reason or, worse, passes against nothing.</span></li>
+    <li><span class="name">assertions → plugin-assert <span class="chip fixed">moved</span></span><span class="what"><code>jsonpath</code> and <code>body_contains</code> check a value, not HTTP. Their twins will be wanted for a SQL row, a Kafka message body and the contents of a file — and every author will write their own if there is no vocabulary. What stays in <code>plugin-http</code> is what really is about the protocol: <code>status</code> and <code>duration_under</code>.</span></li>
   </ul>
 
-  <p>Оба переезда — мажоры соответствующих плагинов и ноль правок ядра. Совместимость держится обычным способом: старые id ассертов остаются на месте, помеченные как устаревшие, до следующего мажора.</p>
+  <p>Both moves are majors of the plugins concerned and zero kernel edits. Compatibility is kept the ordinary way: the old assertion ids stay where they are, marked deprecated, until the next major.</p>
 </section>
 
 <hr class="rule">
 
 <section id="meta">
-  <span class="sect-label">Форма теста</span>
-  <h2>Тест несёт больше, чем шаги</h2>
-  <p>Форма v1 принята, но её список полей не закрыт. <code>link</code>, <code>owner</code>, <code>epic</code>, <code>severity</code>, номер задачи в трекере — это то, ради чего отчёт открывает человек, а не CI. Полей такого рода будет столько же, сколько команд, и предугадать их нельзя.</p>
+  <span class="sect-label">The shape of a test</span>
+  <h2>A test carries more than its steps</h2>
+  <p>The v1 shape is decided, but its list of fields is not closed. <code>link</code>, <code>owner</code>, <code>epic</code>, <code>severity</code>, a ticket number — these are what a person opens a report for, not CI. There will be as many fields of that kind as there are teams, and they cannot be guessed in advance.</p>
 
-  <p><b>Правило одно: ядро переносит, но не читает.</b> Оно не знает, что значит <code>owner</code>, не проверяет его и никогда на него не смотрит при решении, что делать дальше. Всё, что не входит в хребет, доезжает до плагинов как есть — и дальше это их дело.</p>
+  <p><b>There is one rule: the kernel carries it and never reads it.</b> It does not know what <code>owner</code> means, does not check it, and never looks at it when deciding what to do next. Everything outside the spine reaches the plugins as it was written — and from there it is their business.</p>
 
-  <h3>Где ключ считается своим, а где чужим</h3>
-  <p>Разница между уровнями важнее, чем кажется, и без неё <code>owner:</code> на шаге либо будет отвергнут схемой, либо потеряется молча.</p>
+  <h3>Where a key counts as its own, and where as somebody else's</h3>
+  <p>The difference between the levels matters more than it looks, and without it <code>owner:</code> on a step is either rejected by a schema or lost in silence.</p>
 
   <ul class="points">
-    <li><span class="name">тест</span><span class="what">Набор полей закрыт хребтом — <code>id</code>, <code>title</code>, <code>tags</code>, <code>variables</code>, <code>setup</code>, <code>steps</code>, <code>assert</code>, <code>cleanup</code>. Всё остальное <b>по умолчанию метаданные</b> и едет в <code>meta</code>. Объявлять ничего не нужно: написал <code>epic: menu</code> — оно там.</span></li>
-    <li><span class="name">шаг и ассерт</span><span class="what">Здесь незнакомые поля <b>уже принадлежат плагину</b>, который владеет <code>type:</code>, — это его вход, а не метаданные. Поэтому на шаге метаданные пишутся под зарезервированным <code>meta:</code>, и ядро вынимает его до проверки схемой: иначе <code>additionalProperties: false</code> у <code>plugin-http</code> отвергнет <code>owner:</code>, и будет прав.</span></li>
-    <li><span class="name">каталог</span><span class="what"><code>init.yaml</code> раздаёт метаданные всем тестам под собой — <code>epic</code> на директорию пишется один раз, а не в двенадцати файлах. Тест перекрывает то, что унаследовал.</span></li>
+    <li><span class="name">test</span><span class="what">The set of fields is closed by the spine — <code>id</code>, <code>title</code>, <code>tags</code>, <code>variables</code>, <code>setup</code>, <code>steps</code>, <code>assert</code>, <code>cleanup</code>. Everything else is <b>metadata by default</b> and goes into <code>meta</code>. Nothing has to be declared: write <code>epic: menu</code> and it is there.</span></li>
+    <li><span class="name">step and assertion</span><span class="what">Here an unfamiliar field <b>already belongs to the plugin</b> that owns the <code>type:</code> — it is that plugin's input, not metadata. So on a step, metadata is written under a reserved <code>meta:</code>, and the kernel lifts it out before the schema is checked: otherwise <code>plugin-http</code>'s <code>additionalProperties: false</code> rejects <code>owner:</code>, and is right to.</span></li>
+    <li><span class="name">directory</span><span class="what"><code>init.yaml</code> hands metadata to every test beneath it — an <code>epic</code> for a directory is written once instead of in twelve files. A test overrides what it inherited.</span></li>
   </ul>
 
-  <h3>Куда это доезжает</h3>
+  <h3>Where it ends up</h3>
   <ul>
-    <li><b>События</b> — <code>test.started</code> несёт meta теста, <code>step.started</code> и <code>step.finished</code> — meta шага. Отсюда её берёт любой репортер: Allure раскладывает по лейблам, JUnit — в <code>properties</code>, чей-то плагин — в свой трекер.</li>
-    <li><b>Лог прогона</b> — раз она в событиях, она попадает в записанный лог, и <code>speq report</code> перерисовывает отчёт с теми же метаданными, не перезапуская тесты.</li>
-    <li><b>Валидация</b> — <code>ValidateContext.test</code> уже есть, плагин видит meta, когда проверяет свои шаги.</li>
-    <li><b>Исполнение</b> — <code>${meta:owner}</code> резолвится как <code>${vars:…}</code>, так что заголовок <code>x-owner</code> подставляется без единой новой строчки в контракте.</li>
+    <li><b>Events</b> — <code>test.started</code> carries the test's meta, <code>step.started</code> and <code>step.finished</code> carry the step's. That is where any reporter takes it from: Allure spreads it across labels, JUnit into <code>properties</code>, somebody's plugin into their own tracker.</li>
+    <li><b>The run log</b> — since it is in the events it lands in the recorded log, and <code>speq report</code> redraws the report with the same metadata without re-running anything.</li>
+    <li><b>Validation</b> — <code>ValidateContext.test</code> already exists, so a plugin sees the meta while it checks its own steps.</li>
+    <li><b>Execution</b> — <code>${meta:owner}</code> resolves like <code>${vars:…}</code>, so an <code>x-owner</code> header is filled in without a single new line in the contract.</li>
   </ul>
 
   <div class="note">
-    <span class="tag">Валидация — у того, кто читает</span>
-    <p>Мы не проверяем meta и не будем: у нас нет мнения о том, какие поля правильные. Плагин, которому поле нужно, проверяет его сам в тот момент, когда читает, и жалуется <code>diagnostic</code>'ом — механизм уже есть, ничего добавлять не нужно. Опечатка в <code>ownr</code> стоит непроставленного лейбла в отчёте; опечатка в типе шага стоит молча не выполненной проверки. Разная цена — разное отношение.</p>
-    <p>Поэтому и <code>defineTestField</code> не появляется: восемь точек вклада — это восемь контрактов навсегда, и открывать девятую ради аннотаций плохая сделка. В контракте это четыре добавления — <code>meta</code> у теста, зарезервированное <code>meta</code> у шага, поля в двух событиях, <code>${meta:…}</code>, — и ни одной новой точки.</p>
+    <span class="tag">Validation belongs to whoever reads it</span>
+    <p>We do not validate meta and will not: we have no opinion about which fields are the right ones. A plugin that needs a field checks it itself at the moment it reads it, and complains with a <code>diagnostic</code> — the mechanism is already there and nothing has to be added. A typo in <code>ownr</code> costs a label missing from a report; a typo in a step type costs a check that silently never ran. Different price, different treatment.</p>
+    <p>Which is also why <code>defineTestField</code> does not appear: eight contribution points are eight contracts forever, and opening a ninth for the sake of annotations is a bad trade. In the contract this is four additions — <code>meta</code> on a test, a reserved <code>meta</code> on a step, a field on two events, and <code>${meta:…}</code> — and not one new point.</p>
   </div>
 
   <div class="note warn">
-    <span class="tag">Граница, за которой meta становится проблемой</span>
-    <p><b>Meta описывает тест, а не управляет им.</b> В тот момент, когда плагин начнёт менять поведение по метаполю — <code>retries: 3</code>, <code>skip: true</code>, <code>parallel: false</code>, — в наборе появляется управляющая логика, которую <code>validate</code> не видит, отчёт не объясняет, а пользователь не может найти. Нужно поведение — это тип шага или ключ конфига, то есть то, что объявлено и проверяется. Ядро на meta не ветвится никогда, и это стоит записать как инвариант вместе с остальными.</p>
+    <span class="tag">The line past which meta becomes a problem</span>
+    <p><b>Meta describes a test; it does not steer one.</b> The moment a plugin starts changing behaviour according to a meta field — <code>retries: 3</code>, <code>skip: true</code>, <code>parallel: false</code> — the suite has acquired control flow that <code>validate</code> cannot see, a report cannot explain and a user cannot find. If behaviour is wanted, it is a step type or a config key — something declared and checked. The kernel never branches on meta, and that is worth writing down as an invariant alongside the others.</p>
   </div>
 
-  <p>Из того же поля растёт следующее: <code>--filter owner=…</code> в CLI. Теги уже фильтруются, <code>owner</code> и <code>epic</code> — та же семья, и это плагин CLI, а не ядро.</p>
+  <p>The next thing grows out of the same field: <code>--filter owner=…</code> in the CLI. Tags are already filtered, <code>owner</code> and <code>epic</code> are the same family, and this is the CLI plugin rather than the kernel.</p>
 </section>
 
 <hr class="rule">
 
 <section id="depth">
-  <span class="sect-label">Глубина</span>
-  <h2>Официальный плагин мелкий по замыслу</h2>
-  <p>Не устраивает наш <code>http</code> — пишется свой, и это нормальный исход, а не провал. Отсюда правило глубины: <b>официальный плагин закрывает то, что делают почти все, и останавливается там, где начинается специфика</b>. <code>http</code> не отрастит OAuth-флоу, <code>postgres</code> — прогон миграций, <code>allure</code> — свой сервер. Не потому что сложно, а потому что каждый такой шаг — чужой случай, оплаченный нашей поддержкой навсегда, и он же отбирает у автора причину написать плагин лучше нашего.</p>
+  <span class="sect-label">Depth</span>
+  <h2>An official plugin is shallow by design</h2>
+  <p>If our <code>http</code> does not suit you, you write your own, and that is a normal outcome rather than a failure. Hence the rule of depth: <b>an official plugin covers what almost everyone does and stops where the specifics begin</b>. <code>http</code> will not grow an OAuth flow, <code>postgres</code> will not run migrations, <code>allure</code> will not ship its own server. Not because it is hard, but because every step like that is somebody's particular case, paid for by our support forever — and it takes away an author's reason to write a plugin better than ours.</p>
 
   <div class="note warn">
-    <span class="tag">Но сегодня «напиши свой» упирается в пресет</span>
-    <p>Два плагина не могут занять один тип шага — это инвариант ядра. Значит, чтобы поставить свой <code>http</code>, наш нужно снять. А снять его нечем: по цепочке <code>extends</code> списки плагинов только складываются (<code>packages/core/src/config.ts:153</code>), убрать пришедшее из пресета конфиг не умеет. Пока пресетов не было, это никого не задевало. С решением про <code>@speqkit/preset-api</code> — задевает всех, кто им воспользуется: <code>extends</code> плюс свой <code>http</code> даёт коллизию и тупик, из которого выход один — отказаться от пресета целиком.</p>
-    <p>Значит, вместе с пресетами в конфиг едет исключение: <code>plugins: [-http, "@acme/plugin-http"]</code> или отдельный <code>exclude</code>. Правка маленькая и в ядре. Без неё «никто не мешает написать свой» верно только для тех, кто пресетом не пользуется, — то есть ровно не для тех тридцати репозиториев, ради которых пресет и заводится.</p>
+    <span class="tag">But today "write your own" runs into the preset</span>
+    <p>Two plugins cannot claim one step type — that is a kernel invariant. So to install your own <code>http</code>, ours has to come out. And there is nothing to take it out with: along an <code>extends</code> chain the plugin lists only add up (<code>packages/core/src/config.ts:153</code>), and config has no way to remove what arrived from a preset. While there were no presets this hurt nobody. With <code>@speqkit/preset-api</code> decided, it hurts everyone who uses it: <code>extends</code> plus your own <code>http</code> is a collision and a dead end whose only exit is abandoning the preset altogether.</p>
+    <p>So an exclusion goes into config alongside the presets: <code>plugins: [-http, "@acme/plugin-http"]</code>, or a separate <code>exclude</code>. A small change, and in the kernel. Without it, "nobody is stopping you writing your own" is true only for people who do not use a preset — which is to say precisely not for the thirty repositories a preset exists for.</p>
   </div>
 </section>
 
 <hr class="rule">
 
 <section id="community">
-  <span class="sect-label">Граница</span>
-  <h2>Что мы не пишем — и как это остаётся живым</h2>
-  <p>Отказ работает только тогда, когда у автора есть куда пойти. Всё нужное для этого уже сделано: контракт опубликован, скаффолд генерирует пакет, кит гоняет его внутри настоящего ядра, реестр — обычный npm. Согласовывать с нами не нужно ничего.</p>
+  <span class="sect-label">The boundary</span>
+  <h2>What we do not write — and how it stays alive anyway</h2>
+  <p>Saying no only works when the author has somewhere to go. Everything needed for that is already done: the contract is published, the scaffold generates a package, the kit runs it inside the real kernel, and the registry is ordinary npm. Nothing has to be agreed with us.</p>
 
   <div class="tablewrap">
     <table>
-      <thead><tr><th>Область</th><th>Примеры</th><th>Почему не наше</th></tr></thead>
+      <thead><tr><th>Area</th><th>Examples</th><th>Why it is not ours</th></tr></thead>
       <tbody>
-        <tr><td>Брокеры и шины</td><td>kafka, nats, rabbitmq, mqtt</td><td>Один протокол на плагин. Наш интерес — чтобы <code>ctx.runSteps</code> и ресурсы им хватало, а не чтобы мы их писали</td></tr>
-        <tr><td>Хранилища</td><td>mongodb, redis, mysql, clickhouse, s3</td><td>Postgres взят как опорный и доказывает scope. Второй такой же плагин ничего не доказывает</td></tr>
-        <tr><td>Протоколы поверх HTTP</td><td>grpc, graphql, websocket, soap</td><td>Каждый тянет свой рантайм и свою кодогенерацию</td></tr>
-        <tr><td>SaaS</td><td>stripe, twilio, sendgrid</td><td>Ключи, биллинг, тестовые песочницы — чужой жизненный цикл целиком</td></tr>
-        <tr><td>Соседние виды тестирования</td><td>k6, axe, визуальные диффы</td><td>Это другие продукты с их собственной экспертизой. Мы даём шину событий и артефакты</td></tr>
-        <tr><td>Доставка результатов</td><td>slack, telegram, testrail, qase</td><td>Репортер — двадцать строк поверх <code>defineReporter</code>. Механизм наш, форматы — нет</td></tr>
+        <tr><td>Brokers and buses</td><td>kafka, nats, rabbitmq, mqtt</td><td>One protocol per plugin. Our interest is that <code>ctx.runSteps</code> and resources are enough for them, not that we write them</td></tr>
+        <tr><td>Stores</td><td>mongodb, redis, mysql, clickhouse, s3</td><td>Postgres is the reference one and proves the scope. A second plugin like it proves nothing</td></tr>
+        <tr><td>Protocols over HTTP</td><td>grpc, graphql, websocket, soap</td><td>Each drags in its own runtime and its own code generation</td></tr>
+        <tr><td>SaaS</td><td>stripe, twilio, sendgrid</td><td>Keys, billing, test sandboxes — somebody else's lifecycle, entirely</td></tr>
+        <tr><td>Neighbouring kinds of testing</td><td>k6, axe, visual diffing</td><td>Those are other products with their own expertise. We provide the event bus and the artifacts</td></tr>
+        <tr><td>Delivering results</td><td>slack, telegram, testrail, qase</td><td>A reporter is twenty lines on top of <code>defineReporter</code>. The mechanism is ours; the formats are not</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h3>Правила общего поля</h3>
+  <h3>Rules of the common ground</h3>
   <ul>
-    <li><b>Скоуп <code>@speqkit</code> — только наш.</b> Комьюнити публикуется под своим именем: <code>speqkit-plugin-kafka</code> или <code>@acme/speqkit-plugin-kafka</code>, плюс keyword <code>speqkit-plugin</code>, по которому плагин находится в реестре.</li>
-    <li><b><code>awesome-speq</code> — список, а не знак качества.</b> Попадание в него ничего не обещает пользователю про поддержку; это указатель, а не сертификат.</li>
-    <li><b>Переезд в официальные — исключение с четырьмя условиями сразу:</b> плагин про язык, а не про систему; мы берём мейнтенанс навсегда; конформанс на <code>test-kit</code> зелёный; автор согласен передать имя. Не выполнено хоть одно — остаётся ссылкой в списке. Так у нас не появляется тридцать плагинов, унаследованных по доброте.</li>
-    <li><b>Что мы обещаем авторам взамен:</b> мажор <code>plugin-api</code> с объявленным сроком, миграционные заметки, и <code>test-kit</code>, который ломается раньше, чем ломается их плагин у пользователя.</li>
+    <li><b>The <code>@speqkit</code> scope is ours alone.</b> The community publishes under its own name: <code>speqkit-plugin-kafka</code> or <code>@acme/speqkit-plugin-kafka</code>, plus the <code>speqkit-plugin</code> keyword, which is how a plugin is found in the registry.</li>
+    <li><b><code>awesome-speq</code> is a list, not a seal of quality.</b> Being on it promises a user nothing about support; it is a signpost, not a certificate.</li>
+    <li><b>Moving into the official set is an exception with four conditions at once:</b> the plugin is about language rather than a system; we take on maintenance forever; conformance against <code>test-kit</code> is green; the author agrees to hand over the name. Miss any one of them and it stays a link in the list. That is how we avoid ending up with thirty plugins inherited out of kindness.</li>
+    <li><b>What we promise authors in return:</b> a major of <code>plugin-api</code> with an announced date, migration notes, and a <code>test-kit</code> that breaks before their plugin breaks in someone's project.</li>
   </ul>
 </section>
 
 <hr class="rule">
 
 <section id="open">
-  <span class="sect-label">Решения</span>
-  <h2>Что решено, и что из этого выросло</h2>
-  <p>Шесть вопросов, стоявших на входе, закрыты. Два новых выросли из самих решений — оба дешёвые, и оба лучше закрыть до того, как пресетом кто-то воспользуется.</p>
+  <span class="sect-label">Decisions</span>
+  <h2>What is decided, and what grew out of it</h2>
+  <p>The six questions we started with are closed. Two new ones grew out of the decisions themselves — both cheap, and both better closed before anyone uses a preset.</p>
 
   <div class="tablewrap">
     <table>
-      <thead><tr><th>Вопрос</th><th>Рекомендация</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Question</th><th>Recommendation</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>Форма YAML-теста</td><td>Форма v1: <code>id</code>, <code>title</code>, <code>tags</code>, <code>variables</code>, <code>setup</code>, <code>steps</code>, <code>cleanup</code>. Список полей при этом открыт — всё остальное едет в <code>meta</code> и достаётся плагинам</td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>Синтаксис подстановки</td><td>Один: <code>${...}</code>. <code>{{...}}</code> из v1 переводит кодмод <code>speq migrate</code></td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>Границы plugin-use</td><td>Один плагин на композицию целиком: действия, обёртки, <code>setup</code>/<code>cleanup</code>, <code>as</code>, <code>returns</code>. Всё, что «вызвать объявленное в другом месте»</td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>Фикстуры</td><td>В <code>plugin-use</code>. Фикстура — то же спрятанное действие, только отдающее данные, а не результат вызова; делит с <code>use</code> и разрешение ссылки, и слияние переопределений</td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>Пресеты</td><td><code>@speqkit/preset-api</code> и <code>@speqkit/preset-web</code></td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>postgres и allure</td><td>Официальные, слой 2, не в пресете по умолчанию</td><td><span class="chip fixed">принято</span></td></tr>
-        <tr><td>Снятие плагина из пресета</td><td><b>Выросло из решения про пресеты.</b> <code>plugins: [-http, …]</code> или <code>exclude</code> в конфиге — иначе свой плагин вместо нашего несовместим с <code>extends</code></td><td><span class="chip open">решить</span></td></tr>
-        <tr><td>Заявка на ключи meta</td><td><b>Выросло из решения про форму.</b> Плагин перечисляет поля, которые читает, чтобы <code>validate</code> ловил опечатку в <code>ownr</code>. Первый потребитель появился на шаге 4 — <code>meta.name</code> у шага; ждёт второго</td><td><span class="chip later">ждёт</span></td></tr>
+        <tr><td>The shape of a YAML test</td><td>The v1 shape: <code>id</code>, <code>title</code>, <code>tags</code>, <code>variables</code>, <code>setup</code>, <code>steps</code>, <code>cleanup</code>. The list of fields stays open — everything else goes into <code>meta</code> and reaches the plugins</td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>Interpolation syntax</td><td>One: <code>${...}</code>. The <code>{{...}}</code> of v1 is translated by the <code>speq migrate</code> codemod</td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>The boundaries of plugin-use</td><td>One plugin for the whole of composition: actions, wrappers, <code>setup</code>/<code>cleanup</code>, <code>as</code>, <code>returns</code>. Everything that means "call something declared elsewhere"</td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>Fixtures</td><td>In <code>plugin-use</code>. A fixture is the same hidden action, only it hands back data rather than the result of a call; it shares reference resolution and override merging with <code>use</code></td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>Presets</td><td><code>@speqkit/preset-api</code> and <code>@speqkit/preset-web</code></td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>postgres and allure</td><td>Official, layer 2, not in the default preset</td><td><span class="chip fixed">decided</span></td></tr>
+        <tr><td>Removing a plugin that came from a preset</td><td><b>Grew out of the preset decision.</b> <code>plugins: [-http, …]</code> or an <code>exclude</code> in config — otherwise your own plugin in place of ours is incompatible with <code>extends</code></td><td><span class="chip open">to decide</span></td></tr>
+        <tr><td>Declaring the meta keys a plugin reads</td><td><b>Grew out of the shape decision.</b> A plugin lists the fields it reads so that <code>validate</code> catches a typo in <code>ownr</code>. The first consumer appeared at step 4 — <code>meta.name</code> on a step; waiting for a second</td><td><span class="chip later">waiting</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -748,53 +748,53 @@ http:
 <hr class="rule">
 
 <section id="order">
-  <span class="sect-label">План</span>
-  <h2>Порядок, который задаёт корпус</h2>
-  <p>Не «по одному плагину», а по одному признаку готовности: гейт <code>food-cart-api</code> запускается на новом фреймворке и зеленеет. Пока он красный, любой следующий плагин — догадка. Два решения из таблицы выше — <code>meta</code> в контракте и снятие плагина из пресета — маленькие и едут попутно: первое с шагом 4, второе с пресетами на шаге 6.</p>
+  <span class="sect-label">The plan</span>
+  <h2>The order the corpus dictates</h2>
+  <p>Not one plugin at a time, but one criterion of done: the <code>food-cart-api</code> gate runs on the new framework and goes green. While it is red, every next plugin is a guess. The two decisions from the table above — <code>meta</code> in the contract and removing a plugin that came from a preset — are small and ride along: the first with step 4, the second with the presets at step 6.</p>
 
   <ol class="steps">
     <li class="step"><div class="num">1</div><div class="body">
-      <h3>plugin-use <span class="chip fixed">сделано</span></h3>
-      <p>179 обращений в корпусе. <code>use</code> по файлу и по действию, модули с <code>imports/alias</code>, <code>as</code> для результата, <code>returns</code> из действия, cleanup, отрабатывающий после падения теста, и фикстуры — тот же вызов объявленного в другом месте, только отдающий данные.</p>
-      <p class="under"><b>Под капотом:</b> сам <code>use</code> не потребовал в ядре ничего — <code>ctx.runSteps</code> с дочерним кадром, как и предполагалось. А вот <code>setup</code>, <code>cleanup</code> и ассерты у шага потребовали: их выразить плагином нельзя, не сломав тот самый кадр. Контракт 0.6.0, три добавления, 12 новых тестов ядра.</p>
+      <h3>plugin-use <span class="chip fixed">done</span></h3>
+      <p>179 occurrences in the corpus. <code>use</code> by file and by action, modules with <code>imports/alias</code>, <code>as</code> for the result, <code>returns</code> out of an action, cleanup that runs after a failed test, and fixtures — the same call to something declared elsewhere, only handing back data.</p>
+      <p class="under"><b>Underneath:</b> <code>use</code> itself needed nothing from the kernel — <code>ctx.runSteps</code> with a child frame, exactly as expected. <code>setup</code>, <code>cleanup</code> and assertions on a step did need something: they cannot be expressed by a plugin without breaking that very frame. Contract 0.6.0, three additions, 12 new kernel tests.</p>
     </div></li>
     <li class="step"><div class="num">2</div><div class="body">
-      <h3>plugin-data <span class="chip fixed">сделано</span></h3>
-      <p><code>gen</code> с uuid, string, int, email, date; переехавший из HTTP <code>env</code>; и <code>vars</code> — дом для <code>adminApi</code> и <code>tenantPassword</code>, которые в корпусе лежат в <code>environments/*.yaml</code> и в новой модели были бы бездомными. Фикстуры уехали в <code>use</code>, шагов плагин не заводит: он ничего не делает, он только отвечает.</p>
-      <p class="under"><b>Под капотом:</b> сид — это runId, который уже печатает каждый репортер и которым уже назван каталог отчёта: повторить данные прогона значит скопировать строку, которая на экране. Значение выводится из <code>(сид, имя теста, генератор, счётчик)</code>, а не тянется из общего потока, — поэтому упавший тест, перезапущенный в одиночку, видит ровно то, что видел внутри набора.</p>
-      <p class="under"><b>Ещё одна дыра в модели:</b> у теста не было <b>данностей</b>. Положить значение в область видимости до первого шага не мог никто: дочерний кадр плагина снимается на выходе из его шага. Контракт 0.7.0 — <code>TestDef.variables</code>, и они считаются <b>по одной, в порядке записи</b>. Это не деталь реализации: <code>${...}</code> спрашивает провайдер один раз за проход — намеренно, потому что провайдер это поиск, а не генератор. Блок, посчитанный одним проходом, выдал бы <code>slug</code> и <code>foreignSlug</code> один и тот же uuid, и тест, который существует, чтобы доказать, что два арендатора не пересекаются, проверял бы одного против себя. Попутно данность можно писать через предыдущую: <code>email: "speq-${slug}@example.com"</code>.</p>
+      <h3>plugin-data <span class="chip fixed">done</span></h3>
+      <p><code>gen</code> with uuid, string, int, email, date; <code>env</code>, relocated out of HTTP; and <code>vars</code> — a home for <code>adminApi</code> and <code>tenantPassword</code>, which in the corpus live in <code>environments/*.yaml</code> and would have been homeless in the new model. Fixtures went to <code>use</code>, and the plugin contributes no steps at all: it does nothing, it only answers.</p>
+      <p class="under"><b>Underneath:</b> the seed is the runId, which every reporter already prints and which already names the report directory — replaying a run's data means copying a string that is on screen. A value is derived from <code>(seed, test name, generator, counter)</code> rather than drawn from a shared stream, which is why a failed test re-run on its own sees exactly what it saw inside the suite.</p>
+      <p class="under"><b>One more hole in the model:</b> a test had no <b>givens</b>. Nobody could put a value in scope before the first step: a plugin's child frame is popped when its step returns. Contract 0.7.0 — <code>TestDef.variables</code>, resolved <b>one at a time, in declaration order</b>. That is not an implementation detail: <code>${...}</code> asks a provider once per pass, deliberately, because a provider is a lookup rather than a generator. A block resolved in a single pass would have given <code>slug</code> and <code>foreignSlug</code> the same uuid, and the test that exists to prove two tenants do not overlap would have been checking one tenant against itself. As a side effect, a given can be written in terms of the one above it: <code>email: "speq-${slug}@example.com"</code>.</p>
     </div></li>
     <li class="step"><div class="num">3</div><div class="body">
-      <h3>plugin-assert <span class="chip fixed">сделано</span></h3>
-      <p>Не только то, что есть в корпусе. Корпус пишет шесть проверок, а команда, которой не хватает слова «не меньше» или «одно из», пишет регулярку по строкому телу — и набор перестаёт говорить, что он проверяет. Поэтому словарь сразу широкий: равенство, порядок (<code>greater_than</code>, <code>at_least</code>, <code>less_than</code>, <code>at_most</code>), вхождение с обеих сторон (<code>contains</code> и <code>one_of</code> — питоновский <code>in</code>, но направление в YAML не видно, поэтому два слова), текст, наличие, размер, тип и JSON Schema. Из <code>plugin-http</code> уехали <code>jsonpath</code> и <code>body_contains</code>.</p>
-      <p class="under"><b>Широкий — не значит глубокий.</b> Словарь — это язык, а язык и есть наша половина черты. Комбинаторов <code>and/or/not</code> нет: блок и так читается как «всё это верно», каждая проверка отчитывается сама, и комбинатор это отнял бы. Своих компараторов нет: <code>defineAssertion</code> — публичная точка вклада, недостающая проверка это двадцать строк в чужом плагине.</p>
-      <p class="under"><b>Под капотом:</b> один селектор на все проверки — <code>path</code> в <b>результат шага целиком</b>, не в тело. Лишнее слово <code>body.</code> — это цена того, ради чего плагин и нужен: тот же <code>at_least</code> читает строку из SQL и содержимое файла. А <code>schema</code> — через ajv, а не через наше подмножество: схема из OpenAPI приезжает с <code>oneOf</code> и <code>$ref</code>, и валидатор, молча игнорирующий незнакомые ключевые слова, отчитывается о проверке, которой не делал. Гейт, который врёт, хуже отсутствующего. Схемы компилируются на <code>validate</code> — тот самый случай, ради которого 0.5.0 и появилась.</p>
+      <h3>plugin-assert <span class="chip fixed">done</span></h3>
+      <p>Not only what is in the corpus. The corpus writes six kinds of check, but a team that has no word for "at least" or "is one of" writes a regex over a stringified body — and the suite stops saying what it checks. So the vocabulary is wide from the start: equality, order (<code>greater_than</code>, <code>at_least</code>, <code>less_than</code>, <code>at_most</code>), membership from both directions (<code>contains</code> and <code>one_of</code> — Python's <code>in</code>, but the direction is invisible in YAML, hence two words), text, presence, size, type and JSON Schema. <code>jsonpath</code> and <code>body_contains</code> moved in from <code>plugin-http</code>.</p>
+      <p class="under"><b>Wide does not mean deep.</b> A vocabulary is language, and language is our half of the line. There are no <code>and/or/not</code> combinators: a block already reads as "all of this is true", every check reports for itself, and a combinator would take that away. There are no custom comparators either: <code>defineAssertion</code> is a public contribution point, and a missing check is twenty lines in somebody else's plugin.</p>
+      <p class="under"><b>Underneath:</b> one selector for every check — a <code>path</code> into <b>the whole step result</b>, not into the body. The extra word <code>body.</code> is the price of the thing the plugin exists for: the same <code>at_least</code> reads a row out of SQL and the contents of a file. And <code>schema</code> goes through ajv rather than a subset of our own: a schema out of OpenAPI arrives with <code>oneOf</code> and <code>$ref</code>, and a validator that silently ignores keywords it does not know reports a check it never performed. A gate that lies is worse than a missing one. Schemas are compiled during <code>validate</code> — precisely the case 0.5.0 exists for.</p>
     </div></li>
     <li class="step"><div class="num">4</div><div class="body">
-      <h3>plugin-yaml дорастает, появляется speq migrate <span class="chip fixed">сделано</span></h3>
-      <p>Загрузчик понимает форму v1 и складывает всё незнакомое в <code>meta</code>; <code>init.yaml</code> раздаёт метаданные каталогу и сам тестом не является. Кодмод перевёл корпус целиком: <b>66 файлов, 60 тестов, ноль диагностик у <code>speq validate</code></b>. <code>{{x}}</code> → <code>${x}</code>, <code>type: api</code> → <code>type: http</code>, <code>$steps.a.response.body</code> → <code>${a.body}</code>, свёрнутый <code>bodyFromFixture</code> → шаг <code>use</code>, <code>manifest.yaml</code> с окружениями → <code>speq.yaml</code> со слоями.</p>
-      <p class="under"><b>Что кодмод не решает за вас.</b> У <code>suite.beforeEach</code> преемника пока нет, у политики повторов из манифеста — плагина. Такое названо по файлу и с указанием, что делать вместо, но не перенесено. Кодмод, молча выбрасывающий непонятое, хуже отказавшегося: набор всё так же зеленеет, только проверки, которая его сторожила, больше нет. Комментарии переживают правку — переписывается дерево документа, а не текст, — а проза остаётся как была: комментарий, объясняющий, <i>что пишут вызывающие</i>, кодмод правильно переписать не может, и честнее это сказать, чем угадать.</p>
-      <p class="under"><b>Одно смысловое изменение, и оно же смысл миграции:</b> общий блок теперь получает владельца в каждом месте вызова. В v1 блок публиковал свои <code>id</code> прямо в вызывающий тест — <code>{{tenant.response.body.token}}</code>, и ничто не говорило, откуда взялся <code>tenant</code>. Блок исполняется в своей области и отдаёт результат через вызвавший его шаг, так что кодмод даёт шагу имя и переписывает ссылки через него. Течь стала записью.</p>
-      <p class="under"><b>Контракт 0.8.0 — <code>meta</code>, ровно как решено:</b> у теста хребет закрыт, остальное едет в <code>meta</code>; у шага и ассерта — под зарезервированным <code>meta:</code>, и ядро вынимает его до проверки схемой; поля в <code>test.started</code> и в обоих событиях шага; <code>${meta:…}</code> отвечает из идущего теста. Девятой точки вклада не появилось. Ярлык шага при этом <i>резолвится</i> — <code>POST ${vars:adminApi}/tables</code> в отчёте должен быть запросом, а не шаблоном, — но не читается: ядро на <code>meta</code> не ветвится, а нерезолвящийся ярлык показывается как написан и никогда не роняет шаг.</p>
+      <h3>plugin-yaml grows up, and speq migrate appears <span class="chip fixed">done</span></h3>
+      <p>The loader understands the v1 shape and files everything unfamiliar into <code>meta</code>; <code>init.yaml</code> hands metadata to a directory and is not a test itself. The codemod translated the whole corpus: <b>66 files, 60 tests, zero diagnostics from <code>speq validate</code></b>. <code>{{x}}</code> → <code>${x}</code>, <code>type: api</code> → <code>type: http</code>, <code>$steps.a.response.body</code> → <code>${a.body}</code>, a folded <code>bodyFromFixture</code> → a <code>use</code> step, <code>manifest.yaml</code> with its environments → a <code>speq.yaml</code> with layers.</p>
+      <p class="under"><b>What the codemod does not decide for you.</b> <code>suite.beforeEach</code> has no successor yet, and the manifest's retry policy has no plugin. Anything like that is named by file, with what to do instead, and not carried across. A codemod that silently drops what it did not understand is worse than one that refuses: the suite still goes green, only the check that was guarding it is gone. Comments survive the rewrite — the document tree is rewritten, not the text — while the prose in them stays as it was: a comment explaining <i>what callers write</i> is something a codemod cannot rewrite correctly, and saying so is more honest than guessing.</p>
+      <p class="under"><b>One change of meaning, and it is the point of the migration:</b> a shared block now gets an owner at each call site. In v1 a block published its <code>id</code>s straight into the calling test — <code>{{tenant.response.body.token}}</code>, with nothing to say where <code>tenant</code> came from. A block runs in its own scope and hands its result back through the step that called it, so the codemod gives the step a name and rewrites the references through it. A leak became a record.</p>
+      <p class="under"><b>Contract 0.8.0 — <code>meta</code>, exactly as decided:</b> a test's spine is closed and the rest goes into <code>meta</code>; on a step and an assertion it goes under a reserved <code>meta:</code>, which the kernel lifts out before the schema is checked; fields on <code>test.started</code> and on both step events; <code>${meta:…}</code> answers from the running test. No ninth contribution point appeared. A step's label <i>is</i> resolved — <code>POST ${vars:adminApi}/tables</code> in a report should be a request rather than a template — but it is not read: the kernel does not branch on <code>meta</code>, and a label that fails to resolve is shown as written and never fails the step.</p>
     </div></li>
     <li class="step"><div class="num">5</div><div class="body">
-      <h3>plugin-json и multipart в http <span class="chip fixed">сделано</span></h3>
-      <p><code>reports/results/summary.json</code> той формы, что парсит нынешний workflow — свёрнутый из потока событий, без единого обращения к результату прогона: значит <code>speq report</code> перерисовывает байт в байт то же самое, а репортер, который нельзя написать по одним событиям, — это дыра в событиях, а не повод давать репортерам чёрный ход.</p>
-      <p class="under"><b>Форма — чужой контракт, и это видно по некрасивому месту.</b> <code>totals.pending</code> — то же число, что <code>totals.skipped</code>. Так никто не проектирует, и именно поэтому оно там: <code>jq</code> в чужом репозитории пишет <code>.totals.pending // 0</code>, и переименование ключа заставило бы тот workflow отчитаться о нуле отложенных тестов вместо того, чтобы упасть. Отчёт стал бы неверным, и ничто бы об этом не сказало. Как только форму кто-то парсит, она перестаёт быть нашей, чтобы её причёсывать: ключи добавляются, но не переименовываются. В <code>verify-publish</code> файл читается ровно теми четырьмя путями, которые называет тот workflow.</p>
-      <p class="under"><b>Ради этого числа <code>pending</code> пришлось сделать настоящим</b> — и это поле хребта, а не аннотация: оно меняет происходящее, значит объявлено и проверяется. Контракт 0.9.0 берёт <b>причину</b>, а не флаг: тест, отложенный без причины, — это медленно удаляемый тест, а причина и есть единственное, ради чего запись стоит держать вместо <code>git rm</code>. Отложенный тест по-прежнему валидируется — именно он не запускается, именно он и сгниёт незамеченным.</p>
-      <p class="under"><b>Multipart — из раздела «известные дыры» самого корпуса.</b> Там записано, что у загрузок нет теста на успешную загрузку, и почему: <code>multipart</code>, <code>formData</code>, <code>form</code>, <code>files</code>, <code>bodyFile</code> и <code>bodyRaw</code> — все <b>молча игнорировались</b>, запрос уходил с пустым телом, а тест отчитывался <b>passed</b>. Три пути стояли непокрытыми месяцами за зелёной галочкой, и заметка кончается словами «следите за этим вообще: незнакомые ключи шага не валят валидацию». Здесь валят: схема закрыта, незнакомый ключ — диагностика до первого запроса, а часть, называющая файл, которого нет на диске, находится так же, за миллисекунды.</p>
-      <p class="under"><b>Повторы выключены по умолчанию, и два умолчания — решения.</b> 429 нет в списке: ограничитель частоты — это поведение, которое набор проверяет, и политика, тихо повторяющая сквозь 429, делает тест на ограничитель проходящим независимо от того, существует ограничитель или нет. Это хуже, чем отсутствие теста. И повторяются только идемпотентные методы: 502 значит, что ответил шлюз, а не что источник не видел запроса, — повторённый POST создаёт строку дважды, и набор падает на дубликате ключа совсем в другом месте.</p>
+      <h3>plugin-json, and multipart in http <span class="chip fixed">done</span></h3>
+      <p><code>reports/results/summary.json</code> in the shape the current workflow parses — folded out of the event stream without a single look at the run result: which means <code>speq report</code> redraws it byte for byte, and a reporter that cannot be written from events alone is a hole in the events rather than a reason to give reporters a back door.</p>
+      <p class="under"><b>The shape is somebody else's contract, and you can tell by the ugly part.</b> <code>totals.pending</code> is the same number as <code>totals.skipped</code>. Nobody designs that on purpose, and that is exactly why it is there: a <code>jq</code> expression in another repository says <code>.totals.pending // 0</code>, so renaming the key would make that workflow report zero pending tests instead of failing. The report would be wrong and nothing would say so. The moment somebody parses a shape it stops being ours to tidy: keys get added, never renamed. In <code>verify-publish</code> the file is read by exactly the four paths that workflow names.</p>
+      <p class="under"><b>Making that number mean something required <code>pending</code> to become real</b> — and it is a field of the spine rather than an annotation: it changes what happens, so it is declared and checked. Contract 0.9.0 takes a <b>reason</b>, not a flag: a test parked without one is a test being deleted slowly, and the reason is the only thing that makes the entry worth keeping over <code>git rm</code>. A pending test is still validated — it is precisely the test nobody runs, and therefore the one that rots unnoticed.</p>
+      <p class="under"><b>Multipart comes from the corpus's own "known gaps" section.</b> It records that the upload paths have no test for a successful upload, and why: <code>multipart</code>, <code>formData</code>, <code>form</code>, <code>files</code>, <code>bodyFile</code> and <code>bodyRaw</code> were every one of them <b>silently ignored</b>, the request went out with an empty body, and the test reported <b>passed</b>. Three paths stood uncovered for months behind a green tick, and the note ends with "watch out for this generally: unknown step keys do not fail validation". Here they do: the schema is closed, an unknown key is a diagnostic before the first request goes out, and a part naming a file that is not on disk is found the same way, in milliseconds.</p>
+      <p class="under"><b>Retrying is off by default, and two of the defaults are decisions.</b> 429 is not on the list: a rate limiter is behaviour a suite checks, and a policy that quietly repeats through a 429 makes the test for the limiter pass whether the limiter exists or not. That is worse than having no test. And only idempotent methods repeat: a 502 means a gateway answered, not that the origin never saw the request — a repeated POST creates the row twice, and the suite fails on a duplicate key somewhere else entirely.</p>
     </div></li>
     <li class="step"><div class="num">6</div><div class="body">
-      <h3>Гейт зеленеет — и только тогда пресеты и слой 2</h3>
-      <p>60 тестов food-cart-api проходят на новом фреймворке, workflow не изменился по смыслу. После этого — <code>preset-api</code>, <code>preset-web</code>, браузерный набор для <code>food-cart-frontend</code>, где сейчас нет ни одного теста, и дальше postgres, openapi, allure.</p>
-      <p class="under"><b>Под капотом:</b> тот же приём, что дважды сработал на гейте M3: сначала настоящий потребитель, потом выводы. Корпус на 60 тестов найдёт в языке то, чего не найдёт ни одно рассуждение о нём.</p>
+      <h3>The gate goes green — and only then presets and layer 2</h3>
+      <p>The 60 tests of food-cart-api pass on the new framework, with the workflow unchanged in meaning. After that: <code>preset-api</code>, <code>preset-web</code>, a browser suite for <code>food-cart-frontend</code>, which currently has no tests at all, and then postgres, openapi, allure.</p>
+      <p class="under"><b>Underneath:</b> the same move that worked twice on the M3 gate — a real consumer first, conclusions second. A corpus of 60 tests will find things in the language that no amount of reasoning about the language will.</p>
     </div></li>
   </ol>
 </section>
 
 <footer>
-  Документ фиксирует решения на 29 августа 2026 года: шестнадцать официальных плагинов — девять в слое языка, семь по требованию, — один критерий, по которому список закрыт, и закрытый перечень из трёх исключений. Восемь вопросов: шесть закрыты, два выросли из них самих и ждут. Проверено на <code>food-cart-api</code>: 60 тестов, 66 файлов, 20 схем, три модуля действий. Проверка дала главный вывод и один неочевидный: чаще всего в настоящем наборе стоит не HTTP, а композиция, которой у нас нет, — и при этом ни одна из четырнадцати найденных дыр не требует правки ядра, так что заморозке <code>plugin-api</code> на 1.0 корпус не мешает. Правок в ядре ровно две, обе мелкие и обе — следствие принятого: <code>meta</code> у теста (приехала с шагом 4, контракт 0.8.0) и возможность снять плагин, пришедший из пресета. Вторая — цена того, что «напиши свой» должно работать буквально.
+  This document records the decisions as of 29 August 2026: sixteen official plugins — nine in the language layer, seven on demand — one criterion that closes the list, and a closed set of three exceptions. Eight questions: six closed, two grown out of those and waiting. Checked against <code>food-cart-api</code>: 60 tests, 66 files, 20 schemas, three action modules. The check produced the headline finding and one that was not obvious: the most frequent thing in a real suite is not HTTP but composition, of which we had none — and at the same time not one of the fourteen gaps it found requires a kernel change, so the corpus is no obstacle to freezing <code>plugin-api</code> at 1.0. There are exactly two kernel edits, both small and both consequences of what was decided: <code>meta</code> on a test (which arrived with step 4, contract 0.8.0) and the ability to remove a plugin that came from a preset. The second is the price of "write your own" being literally true.
 </footer>
 
 </main>

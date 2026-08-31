@@ -168,10 +168,13 @@ by Actions on every push to main that touches it. `scripts/check-site-links.mjs`
 fails the build when an internal link or an `#anchor` points at nothing, so a
 404 on the site is a broken build rather than a bug report.
 
-The three architecture documents are in Russian and are the project's design
-record — arguments for why something was allowed, not descriptions of what the
-code does. The reference documentation, the READMEs and the source are in
-English.
+The whole site is in English, and so is everything else here — the READMEs, the
+comments, the commit messages, the issue tracker. The three architecture
+documents are the project's design record: arguments for why something was
+allowed, rather than descriptions of what the code does. They were translated
+from Russian, so if a passage reads as though it is arguing with somebody who
+is not in the room, that is because it once was — say so in an issue and it
+gets rewritten.
 
 ## Code of conduct
 
