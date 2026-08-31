@@ -852,15 +852,17 @@ suites/smoke.yaml  steps[4].times
   setup: () =&gt; chromium.launch(),
   teardown: (b) =&gt; b.close()
 })</code></pre>
-        <p class="under">Data isolation under a parallel run falls out of this rather than being bolted on later. The outer scopes close even if the test inside them blew up.</p>
+        <p class="under">Scopes are a tree, not a stack: one <code>run</code> frame, a <code>suite</code> frame per suite, a <code>test</code> frame per test, each handed to whoever runs inside it. A lookup walks its own parents and reaches nothing a sibling owns, so data isolation under a parallel run falls out of the model rather than being bolted on later. The outer scopes close even if the test inside them blew up.</p>
       </div>
     </li>
 
     <li class="stage">
       <span class="num">3</span>
       <div class="body">
-        <h3>Tests are grouped into suites</h3>
+        <h3>Tests are grouped into suites, and suites are what run at once</h3>
         <p>A suite is a source file, and the grouping is over consecutive tests, so the order is never rearranged. A <code>suite</code> scope opens and closes around each suite, and a <code>test</code> scope around each test.</p>
+        <p><code>speq run --workers 4</code> takes four suites at a time, from a shared queue: whoever finishes takes the next, so a suite that fails frees its slot instead of stopping the run. Concurrency is between suites and nowhere else. A test runs whole, interleaved with nothing; the tests inside one suite stay sequential, so a suite's hooks and its <code>suite</code>-scoped resources behave exactly as they did; and a step type that starts a second <code>runSteps</code> beside one still running is refused.</p>
+        <p class="under">One worker by default, and not as a placeholder. Every other runner defaults to the CPU count because its bottleneck is the local processor; speq's is somebody else's service, and four workers is four times the load on the system under test — enough for step timeouts to start firing where they did not fire in sequence. The number can change a verdict, so nothing guesses it and there is no <code>auto</code>.</p>
       </div>
     </li>
 
