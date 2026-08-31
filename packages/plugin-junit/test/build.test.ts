@@ -116,3 +116,54 @@ describe('the fold', () => {
     expect(xml).not.toContain('name="first"')
   })
 })
+
+describe('an interleaved stream', () => {
+  /**
+   * The same run, told twice: once as one suite after another, once as two
+   * suites overlapping. G4 permits the second, so the file has to come out the
+   * same — and it did not. The builder held one open case and one suite name,
+   * so `orders.create` overwrote `health` and the file listed one of the two.
+   */
+  const sequential: RunEvent[] = [
+    { type: 'run.started', runId: 'r1', tests: 2, at: 0 },
+    { type: 'suite.started', suite: 'suites/orders.yaml' },
+    started('orders.create', 'suites/orders.yaml'),
+    { type: 'step.finished', test: 'orders.create', stepType: 'http', depth: 1, status: 'failed', durationMs: 4, message: 'expected 201' },
+    finished('orders.create', 'failed', 20),
+    { type: 'suite.finished', suite: 'suites/orders.yaml' },
+    { type: 'suite.started', suite: 'suites/health.yaml' },
+    started('health', 'suites/health.yaml'),
+    { type: 'artifact.attached', test: 'health', name: 'body.json', contentType: 'application/json', bytes: 12, path: 'a/body.json' },
+    finished('health', 'passed', 5),
+    { type: 'suite.finished', suite: 'suites/health.yaml' },
+    { type: 'run.finished', runId: 'r1', status: 'failed', passed: 1, failed: 1, errored: 0, skipped: 0, durationMs: 25 }
+  ]
+
+  const interleaved: RunEvent[] = [
+    { type: 'run.started', runId: 'r1', tests: 2, at: 0 },
+    { type: 'suite.started', suite: 'suites/orders.yaml' },
+    { type: 'suite.started', suite: 'suites/health.yaml' },
+    started('orders.create', 'suites/orders.yaml'),
+    started('health', 'suites/health.yaml'),
+    { type: 'artifact.attached', test: 'health', name: 'body.json', contentType: 'application/json', bytes: 12, path: 'a/body.json' },
+    { type: 'step.finished', test: 'orders.create', stepType: 'http', depth: 1, status: 'failed', durationMs: 4, message: 'expected 201' },
+    finished('health', 'passed', 5),
+    { type: 'suite.finished', suite: 'suites/health.yaml' },
+    finished('orders.create', 'failed', 20),
+    { type: 'suite.finished', suite: 'suites/orders.yaml' },
+    { type: 'run.finished', runId: 'r1', status: 'failed', passed: 1, failed: 1, errored: 0, skipped: 0, durationMs: 25 }
+  ]
+
+  it('renders the same file as the sequential one', () => {
+    expect(fold(interleaved)).toBe(fold(sequential))
+  })
+
+  it('keeps every test, and puts each one under its own suite', () => {
+    const xml = fold(interleaved)
+    expect(xml).toContain('tests="2"')
+    expect(xml).toContain('name="orders.create" classname="suites/orders.yaml"')
+    expect(xml).toContain('name="health" classname="suites/health.yaml"')
+    expect(xml).toContain('expected 201')
+    expect(xml).toContain('[[ATTACHMENT|a/body.json]]')
+  })
+})

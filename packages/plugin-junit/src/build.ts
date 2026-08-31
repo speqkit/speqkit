@@ -34,8 +34,20 @@ export interface JUnitRun {
 export class RunBuilder {
   #suites: JUnitSuite[] = []
   #byName = new Map<string, JUnitSuite>()
-  #suite = '(inline)'
-  #case: JUnitCase | undefined
+  /**
+   * The cases still running, by test name.
+   *
+   * This used to be a single `#case` slot, and a single `#suite` string beside
+   * it, because a sequential stream never has two tests open at once. Fed the
+   * stream two concurrent suites produce, the second `test.started` overwrote
+   * the first, and the file came out with one of the two tests in it — while
+   * the run still exited non-zero, so nobody opened the report to notice.
+   *
+   * Nothing about that fault needed concurrency to exist. G6 says every event
+   * belonging to a test names it, and this reporter was reading adjacency
+   * instead, which was never in the contract.
+   */
+  #open = new Map<string, JUnitCase>()
   #runId: string | undefined
   #durationMs = 0
 
@@ -46,45 +58,52 @@ export class RunBuilder {
         this.#runId = event.runId
         break
 
-      // Tests do not carry their suite on the event; the bracketing does. That
-      // holds on replay too, because the log preserves the order.
+      // Only to fix the order suites appear in: a suite that has started is a
+      // suite the file lists, in the order the run took them up, whatever order
+      // the cases inside them finish in.
       case 'suite.started':
-        this.#suite = event.suite
+        this.suiteFor(event.suite)
         break
 
       case 'test.started':
-        this.#case = {
+        this.#open.set(event.test, {
           name: event.test,
-          suite: this.#suite,
+          // The test says which suite it is in. The last `suite.started` used
+          // to say it, which is true only while one suite runs at a time.
+          suite: event.source ?? '(inline)',
           file: event.source,
           status: 'passed',
           durationMs: 0,
           failures: [],
           output: []
-        }
+        })
         break
 
-      case 'step.finished':
-        if (this.#case && event.status !== 'passed' && event.status !== 'skipped') {
+      case 'step.finished': {
+        const entry = this.#open.get(event.test)
+        if (entry && event.status !== 'passed' && event.status !== 'skipped') {
           const label = event.stepId ? `${event.stepId} (${event.stepType})` : event.stepType
-          this.#case.failures.push(`step ${label}: ${event.message ?? event.status}`)
+          entry.failures.push(`step ${label}: ${event.message ?? event.status}`)
         }
         break
+      }
 
-      case 'assertion.evaluated':
-        if (this.#case && !event.passed) {
-          this.#case.failures.push(`assertion ${event.assertionType}: ${event.message}`)
+      case 'assertion.evaluated': {
+        const entry = this.#open.get(event.test)
+        if (entry && !event.passed) {
+          entry.failures.push(`assertion ${event.assertionType}: ${event.message}`)
         }
         break
+      }
 
       case 'artifact.attached':
-        this.#case?.output.push(`[[ATTACHMENT|${event.path ?? event.name}]]`)
+        this.#open.get(event.test)?.output.push(`[[ATTACHMENT|${event.path ?? event.name}]]`)
         break
 
       case 'test.finished': {
-        const entry = this.#case
-        this.#case = undefined
+        const entry = this.#open.get(event.test)
         if (!entry) break
+        this.#open.delete(event.test)
         entry.status = event.status
         entry.durationMs = event.durationMs
         this.suiteFor(entry.suite).cases.push(entry)
@@ -105,8 +124,7 @@ export class RunBuilder {
   reset(): void {
     this.#suites = []
     this.#byName = new Map()
-    this.#suite = '(inline)'
-    this.#case = undefined
+    this.#open = new Map()
     this.#runId = undefined
     this.#durationMs = 0
   }

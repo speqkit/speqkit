@@ -1,6 +1,7 @@
 import {
   definePlugin,
-  type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type RunEvent
+  type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type ReporterDef,
+  type RunEvent
 } from '@speqkit/plugin-api'
 
 const EXIT_OK = 0
@@ -45,7 +46,7 @@ export default definePlugin({
      * a user actually runs. Making the common case use the extension point is
      * the only way to know the extension point works.
      */
-    ctx.defineReporter('console', { on: printEvent })
+    ctx.defineReporter('console', consoleReporter())
 
     cli.register('run', {
       summary: 'run the tests',
@@ -156,12 +157,78 @@ const green = (s: string) => `${E}32m${s}${E}0m`
 const red = (s: string) => `${E}31m${s}${E}0m`
 const yellow = (s: string) => `${E}33m${s}${E}0m`
 
+interface Line {
+  text: string
+  /** Diagnostics go to stderr, and keep doing so from inside a buffer. */
+  err?: true
+}
+
 /**
  * A reporter is nothing but a function of the event stream. The same stream
  * drives a TUI, the VS Code panel, JUnit output or an external collector —
  * none of which the kernel needs to know exists.
+ *
+ * This one holds a test's lines until the test is over, and prints the block
+ * whole. It used to write each event through as it arrived, which reads
+ * perfectly while one test runs at a time and turns to noise the moment two
+ * do: two tests' steps arriving alternately, indented under whichever header
+ * was printed last. G4 permits exactly that.
+ *
+ * Held per **test**, not per suite. A suite at eight workers is minutes of
+ * silence, and — the real reason — a suite's tests are not contiguous in the
+ * output any more, so a suite header printed once would head one block and be
+ * missing from the next. Each test's own header carries its source, which is
+ * the grouping a reader actually needs. Adjacency is what this milestone takes
+ * away; a reporter must not put it back.
  */
-function printEvent(event: RunEvent): void {
+function consoleReporter(): ReporterDef {
+  /** Lines held for a test that has not finished yet, by test name. */
+  let held = new Map<string, Line[]>()
+
+  const flush = (test: string): void => {
+    const lines = held.get(test)
+    if (!lines) return
+    held.delete(test)
+    for (const line of lines) (line.err ? process.stderr : process.stdout).write(line.text)
+  }
+
+  return {
+    init() {
+      held = new Map()
+    },
+
+    on(event) {
+      const lines = linesFor(event)
+      const owner = testOf(event)
+      const buffer = owner === undefined ? undefined : held.get(owner)
+
+      if (event.type === 'test.started') {
+        held.set(event.test, lines)
+        return
+      }
+
+      // A stream that never announced the test — a panel replaying a
+      // fragment, a plugin driving the reporter directly — is printed as it
+      // arrives rather than swallowed.
+      if (buffer) buffer.push(...lines)
+      else for (const line of lines) (line.err ? process.stderr : process.stdout).write(line.text)
+
+      if (event.type === 'test.finished') flush(event.test)
+      // Whatever is still open when the run ends never got its `test.finished`.
+      // Losing it silently would be the worst of both designs.
+      if (event.type === 'run.finished') for (const test of [...held.keys()]) flush(test)
+    }
+  }
+}
+
+function testOf(event: RunEvent): string | undefined {
+  if ('test' in event) return event.test
+  // A diagnostic names what it is about: usually the test, sometimes the suite.
+  if (event.type === 'diagnostic') return event.source
+  return undefined
+}
+
+function linesFor(event: RunEvent): Line[] {
   switch (event.type) {
     case 'test.started': {
       // The title when there is one, because `menu.items-create.creates-item`
@@ -169,8 +236,7 @@ function printEvent(event: RunEvent): void {
       // it, since that is what a later report is compared against.
       const headline = event.title ?? event.test
       const aside = [event.title ? event.test : '', event.source ?? ''].filter(Boolean).join('  ')
-      process.stdout.write(`\n${headline}${aside ? dim(`  ${aside}`) : ''}\n`)
-      break
+      return [{ text: `\n${headline}${aside ? dim(`  ${aside}`) : ''}\n` }]
     }
     case 'step.finished': {
       const indent = '  '.repeat(Math.max(0, event.depth - 1))
@@ -181,29 +247,27 @@ function printEvent(event: RunEvent): void {
         : event.stepId
           ? `${event.stepId} ${dim(`(${event.stepType})`)}`
           : event.stepType
-      process.stdout.write(`  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}\n`)
-      if (event.message) process.stdout.write(`  ${indent}  ${red(event.message)}\n`)
-      break
+      const lines: Line[] = [{ text: `  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}\n` }]
+      if (event.message) lines.push({ text: `  ${indent}  ${red(event.message)}\n` })
+      return lines
     }
     case 'test.skipped':
       // Printed rather than counted quietly. The reason is the only thing that
       // makes a parked test worth keeping, so it is on screen every run.
-      process.stdout.write(`  ${yellow('pending')} ${dim(event.reason)}\n`)
-      break
+      return [{ text: `  ${yellow('pending')} ${dim(event.reason)}\n` }]
     case 'artifact.attached':
-      process.stdout.write(
-        `    ${dim('+')} ${event.name} ${dim(`${event.bytes}b${event.path ? ` -> ${event.path}` : ''}`)}\n`
-      )
-      break
+      return [{
+        text: `    ${dim('+')} ${event.name} ${dim(`${event.bytes}b${event.path ? ` -> ${event.path}` : ''}`)}\n`
+      }]
     case 'assertion.evaluated': {
       const mark = event.passed ? green('✓') : red('✗')
-      process.stdout.write(`    ${mark} ${dim(event.assertionType)} ${event.message}\n`)
-      for (const line of comparison(event)) process.stdout.write(`      ${line}\n`)
-      break
+      return [
+        { text: `    ${mark} ${dim(event.assertionType)} ${event.message}\n` },
+        ...comparison(event).map((line) => ({ text: `      ${line}\n` }))
+      ]
     }
     case 'diagnostic':
-      process.stderr.write(`${yellow(event.level)}: ${event.message}\n`)
-      break
+      return [{ text: `${yellow(event.level)}: ${event.message}\n`, err: true }]
     case 'run.finished': {
       const parts = [
         green(`${event.passed} passed`),
@@ -211,9 +275,10 @@ function printEvent(event: RunEvent): void {
         event.errored ? yellow(`${event.errored} errored`) : '',
         event.skipped ? dim(`${event.skipped} pending`) : ''
       ].filter(Boolean)
-      process.stdout.write(`\n${parts.join(dim(' - '))} ${dim(`in ${event.durationMs}ms`)}\n`)
-      break
+      return [{ text: `\n${parts.join(dim(' - '))} ${dim(`in ${event.durationMs}ms`)}\n` }]
     }
+    default:
+      return []
   }
 }
 
