@@ -15,12 +15,16 @@ it and publishes it; nothing needs to be agreed with us first.
 > belongs to an abandoned 0.0.0 placeholder and `@speq-ai/speq` is an unrelated
 > project; neither is us.
 
+Documentation: **<https://speqkit.github.io/speqkit/>** — quick start, the
+kernel, [writing declarative tests](https://speqkit.github.io/speqkit/writing-tests.html)
+and [how anything gets released](https://speqkit.github.io/speqkit/releasing.html).
+
 ## Status
 
-M0, M1, M2 and the architecture gate are done; M4 has started.
-All nine published packages are up — the kernel as `speqkit`, the contract and
-the plugins under `@speqkit` — so `npm i -g speqkit` installs the `speq`
-binary from the registry rather than from this checkout.
+M0, M1, M2 and the architecture gate are done; M4 has started. Fifteen
+packages — the kernel as `speqkit`, the contract and eleven plugins under
+`@speqkit`, plus the test kit and the scaffolder — so `npm i -g speqkit`
+installs the `speq` binary from the registry rather than from this checkout.
 
 `plugin-loop` was written against the published API with **no kernel changes**
 — control flow is genuinely a plugin. `plugin-playwright` then exercised the
@@ -265,14 +269,14 @@ not a plugin, it boots one.
 ## Using it in a repository that is not a Node project
 
 ```bash
-brew install speqkit             # or: curl -fsSL .../install.sh | sh
-                                 # or: npm i -g speqkit, if Node is there
-                                 # you install speqkit, you type speq
-speq init                        # scaffold .speq/
+brew install speqkit/tap/speqkit    # or: curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh
+                                    # or: npm i -g speqkit, if Node is there
+                                    # you install speqkit, you type speq
+speq init                           # scaffold .speq/
 speq add @speqkit/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
-speq install --frozen            # CI: exactly the lock, or fail
+speq install --frozen               # CI: exactly the lock, or fail
 speq link ../speqkit-plugin-mine    # a plugin you are writing, no publish needed
-speq doctor                      # environment, store, and what came from where
+speq doctor                         # environment, store, and what came from where
 ```
 
 Nothing lands in the repository except `.speq/` and `speq.lock`. The plugins
@@ -373,10 +377,63 @@ package manager's `node` may be a 66 KB stub in front of a shared `libnode`,
 with nothing to inject into. The second command is the same battery as above,
 pointed at the executable with `PATH` emptied.
 
-Releases are cut by tagging. `.github/workflows/release.yml` builds all four
-targets on native runners — cross-compiling is not an option, because the SEA
-blob carries a V8 code cache valid only for the exact runtime it goes into,
-and only macOS can re-sign a Mach-O after injection.
+### Releasing
+
+Nobody cuts a release. **Bump a version in a `package.json` and merge to
+main** — if the gate is green, that version goes to npm, and if
+`packages/core`'s version moved, four executables, a GitHub release and the
+Homebrew formula follow it.
+
+```bash
+node scripts/release-plan.mjs     # what would this commit release?
+```
+
+Both questions face outward rather than at this repository — the npm registry
+says which versions exist, the git tags on the remote say which releases were
+cut — which is what makes a half-finished release safe to simply re-run.
+`.github/workflows/release.yml` builds all four targets on native runners:
+cross-compiling is not an option, because the SEA blob carries a V8 code cache
+valid only for the exact runtime it goes into, and only macOS can re-sign a
+Mach-O after injection.
+
+It needs two secrets, set once — `NPM_TOKEN` (an npm *automation* token) and
+`HOMEBREW_TAP_TOKEN` (a PAT with `contents: write` on `speqkit/homebrew-tap`).
+The [Releasing page](https://speqkit.github.io/speqkit/releasing.html) has the
+rest.
+
+### Releasing a plugin — yours, not ours
+
+A plugin whose release is something its author does by hand is a plugin that
+gets its fix on the day its author has an afternoon. So the same machinery is
+callable from any repository:
+
+```yaml
+# .github/workflows/release.yml, in your plugin's repository
+jobs:
+  release:
+    uses: speqkit/speqkit/.github/workflows/plugin-release.yml@main
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+`npm create speqkit-plugin` writes that file for you. For the release you do by
+hand there is `packaging/release-plugin.sh`, which runs the same checks in the
+same order:
+
+```bash
+export NPM_TOKEN=npm_xxxxxxxx
+curl -fsSL https://speqkit.github.io/speqkit/release-plugin.sh | sh
+```
+
+Both paths run `scripts/check-plugin-package.mjs`, which refuses to publish a
+package that would not load: `exports` pointing at TypeScript, a `dist` that
+`files` does not carry, the kernel in `dependencies`, a missing
+`speqkit-plugin` keyword. Every one of those is a bug this project shipped or
+caught one commit before shipping, and it runs against any directory:
+
+```bash
+node scripts/check-plugin-package.mjs ../speqkit-plugin-kafka
+```
 
 ## License
 

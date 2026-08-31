@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>speqkit — a test framework that is mostly plugins</title>
+<meta name="description" content="The kernel loads plugins and gets out of the way. HTTP, the CLI, the authoring format, control flow and the reporters are all plugins, including the ones that ship in the box.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="assets/speqkit.css">
+</head>
+<body>
+
+<nav class="sitenav">
+  <div class="inner">
+    <a class="brand" href="./">speq<span>kit</span></a>
+    <a class="link" href="./" aria-current="page">Overview</a>
+    <a class="link" href="writing-tests.html">Writing tests</a>
+    <a class="link" href="releasing.html">Releasing</a>
+    <a class="link" href="pipeline.html">Pipeline</a>
+    <span class="spacer"></span>
+    <a class="ext" href="https://github.com/speqkit/speqkit">GitHub</a>
+    <a class="ext" href="https://www.npmjs.com/package/speqkit">npm</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<header class="hero" style="grid-column:1/-1">
+  <span class="eyebrow">Open source · MIT · Node 20+</span>
+  <h1>A test framework that is<br>mostly <span>plugins</span>.</h1>
+  <p class="lede">
+    The kernel loads plugins and gets out of the way. HTTP, the CLI, the
+    authoring format, control flow, the reporters — every one of them is a
+    plugin, including the ones that ship in the box. Something you need that
+    we did not build, you write and publish; nothing needs to be agreed with
+    us first.
+  </p>
+  <div class="cta">
+    <a class="primary" href="#quick-start">Quick start</a>
+    <a class="ghost" href="writing-tests.html">Write your first test</a>
+    <a class="ghost" href="https://github.com/speqkit/speqkit">Source</a>
+  </div>
+  <div class="meta">
+    <span><b>speqkit</b> is the project</span>
+    <span><b>speq</b> is what you type</span>
+    <span><b>15</b> packages, 11 of them plugins</span>
+    <span><b>0</b> runtime dependencies on the machine — the binary carries Node</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <ol>
+    <li><a href="#quick-start">Quick start</a></li>
+    <li><a href="#kernel">The kernel</a></li>
+    <li><a href="#invariants">The invariants</a></li>
+    <li><a href="#packages">What ships</a></li>
+    <li><a href="#delivery">Delivery</a></li>
+    <li><a href="#reading">Further reading</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================== -->
+<section id="quick-start">
+  <span class="sect-label">Quick start</span>
+  <h2>From nothing to a green run</h2>
+  <p>
+    Four commands, and none of them assume your repository is a JavaScript
+    project. The most common reason to reach for speq is a Go or Python
+    service whose team does not want a <code>node_modules</code> in it.
+  </p>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="body">
+        <h3>Install</h3>
+        <p>Pick whichever is already true of the machine. All three land the same <code>speq</code>.</p>
+<pre><code><span class="c"># macOS and Linux, no toolchain required — the archive carries its own Node</span>
+brew install speqkit/tap/speqkit
+
+<span class="c"># or, the same binary without Homebrew</span>
+curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh
+
+<span class="c"># or, if Node is already there</span>
+npm i -g speqkit</code></pre>
+        <p class="under">
+          <b>Why a binary at all.</b> <code>speq install</code> already speaks
+          the registry protocol itself and never shells out to a package
+          manager — but that still left Node underneath it. The released
+          archives have the runtime inside, so a repository with no JavaScript
+          in it stays that way.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">2</span>
+      <div class="body">
+        <h3>Scaffold</h3>
+<pre><code>cd my-service
+speq init</code></pre>
+        <p>
+          Writes <code>.speq/</code> and nothing else. The plugins themselves
+          live in <code>~/.speq</code>, shared by every project on the machine,
+          so what lands in your repository is a config file and a lock file.
+        </p>
+<pre><code><span class="c"># .speq/speq.yaml</span>
+<span class="k">version:</span> <span class="p">1</span>
+
+<span class="k">plugins:</span>
+  <span class="p">-</span> yaml          <span class="c"># the authoring format is itself a plugin</span>
+  <span class="p">-</span> http
+  <span class="p">-</span> assert
+  <span class="p">-</span> data
+  <span class="p">-</span> cli
+  <span class="p">-</span> junit
+
+<span class="k">http:</span>
+  <span class="k">baseUrl:</span> <span class="s">http://localhost:8080</span></code></pre>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">3</span>
+      <div class="body">
+        <h3>Write a test</h3>
+<pre><code><span class="c"># .speq/suites/menu.yaml</span>
+<span class="k">id:</span> menu.reads
+<span class="k">title:</span> <span class="s">the menu comes back with categories</span>
+<span class="k">tags:</span> <span class="p">[</span>smoke<span class="p">]</span>
+
+<span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">id:</span> menu
+    <span class="k">type:</span> http
+    <span class="k">method:</span> GET
+    <span class="k">url:</span> <span class="s">/menu</span>
+    <span class="k">assert:</span>
+      <span class="p">-</span> <span class="k">type:</span> status
+        <span class="k">expected:</span> <span class="p">200</span>
+      <span class="p">-</span> <span class="k">type:</span> length
+        <span class="k">path:</span> body.categories
+        <span class="k">at_least:</span> <span class="p">1</span></code></pre>
+        <p><a href="writing-tests.html">The whole language is one page →</a></p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">4</span>
+      <div class="body">
+        <h3>Install the plugins, and run</h3>
+<pre><code>speq install       <span class="c"># resolves, verifies, stores, writes speq.lock</span>
+speq validate      <span class="c"># catches typos and bad schemas — no network, milliseconds</span>
+speq run           <span class="c"># the suites</span></code></pre>
+        <p class="under">
+          <b>The exit code comes from the spine.</b> <code>0</code> passed,
+          <code>1</code> failed, <code>2</code> the configuration was wrong
+          before anything ran. A misspelled <code>--reporter</code> or a
+          missing <code>${env:VAR}</code> is caught before the first test, not
+          twenty minutes into the suite.
+        </p>
+      </div>
+    </li>
+  </ol>
+
+  <h3>In CI</h3>
+<pre><code><span class="p">-</span> <span class="k">run:</span> <span class="s">speq install --frozen</span>                     <span class="c"># exactly the lock, or fail</span>
+<span class="p">-</span> <span class="k">run:</span> <span class="s">speq run --env ci --reporter console,junit</span>
+<span class="p">-</span> <span class="k">uses:</span> <span class="s">actions/upload-artifact@v7</span>
+  <span class="k">if:</span> <span class="s">always()</span>
+  <span class="k">with:</span> <span class="p">{</span> <span class="k">name:</span> speq-report, <span class="k">path:</span> .speq/reports/ <span class="p">}</span></code></pre>
+  <p>
+    <code>--frozen</code> fails when <code>speq.lock</code> has drifted from
+    <code>speq.yaml</code>. A plugin that came from a git ref was pinned to a
+    commit at install time, so CI installs what was reviewed rather than
+    wherever the tag has moved since.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="kernel">
+  <span class="sect-label">The kernel</span>
+  <h2>What is in the middle, and what deliberately is not</h2>
+
+  <p>
+    <code>packages/core</code> is a loader and a test model. It contains no
+    protocol, no command, no report format and no control construct — not
+    because those are unimportant, but because each of them is a decision that
+    belongs to whoever is writing the tests, and a decision baked into a
+    kernel is a decision nobody can take back.
+  </p>
+
+  <div class="duo">
+    <div>
+      <h4>It owns</h4>
+      <ul>
+        <li>Plugin registry and lifecycle</li>
+        <li>Config, with <code>extends</code> and environment layers</li>
+        <li>The test model: Suite → Test → Step → Assertion</li>
+        <li>Execution, <code>${…}</code> resolution, and the re-entrant <code>runSteps</code></li>
+        <li>Resources scoped to <code>run | suite | test</code></li>
+        <li>The event bus</li>
+        <li>Results, artifacts and the run log</li>
+        <li>Validation</li>
+      </ul>
+    </div>
+    <div>
+      <h4>It does not own</h4>
+      <ul>
+        <li>HTTP — <code>@speqkit/plugin-http</code></li>
+        <li>The terminal — <code>@speqkit/plugin-cli</code></li>
+        <li>YAML, and the file format at all — <code>@speqkit/plugin-yaml</code></li>
+        <li><code>loop</code> and <code>retry</code> — <code>@speqkit/plugin-loop</code></li>
+        <li>The assertion vocabulary — <code>@speqkit/plugin-assert</code></li>
+        <li>Where a value comes from — <code>@speqkit/plugin-data</code></li>
+        <li>JUnit XML and <code>summary.json</code> — two reporter plugins</li>
+        <li>Browsers — <code>@speqkit/plugin-playwright</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="tag">The line</span>
+    <p>
+      Something moves into the kernel when a plugin <em>cannot express it
+      without breaking an invariant</em>. That rule has been applied three
+      times and refused many more: <code>setup</code> and <code>cleanup</code>
+      went in because a plugin cannot write <code>finally</code> without
+      leaking its child scope back into the caller. <code>use</code> — the most
+      common step in a real suite — stayed a plugin, because re-entrancy
+      already expressed it completely.
+    </p>
+  </div>
+
+  <h3>Eight contribution points, and no ninth</h3>
+  <p>
+    A plugin is a module that exports a manifest and gets a context. Everything
+    it can add to the framework is on this list, and the list stays this
+    length: eight points are eight contracts held forever, and the pressure to
+    open a ninth for annotations was refused on exactly those grounds.
+  </p>
+  <ul class="points">
+    <li><span class="name">defineStepType</span><span class="what">a new kind of step, with a schema so a bad one fails before the run</span></li>
+    <li><span class="name">defineAssertionType</span><span class="what">a new word in the vocabulary a test says what it means in</span></li>
+    <li><span class="name">defineValueProvider</span><span class="what">a new answer to <code>${something:…}</code></span></li>
+    <li><span class="name">defineReporter</span><span class="what">a new thing to build out of the event stream — the console output is one of these</span></li>
+    <li><span class="name">defineResource</span><span class="what">something opened once per run, suite or test, and torn down in reverse</span></li>
+    <li><span class="name">defineLoader</span><span class="what">a new authoring format; YAML is not privileged</span></li>
+    <li><span class="name">defineCommand</span><span class="what">a verb, offered to whichever surface is listening</span></li>
+    <li><span class="name">defineService</span><span class="what">something other plugins may use, and must stay usable without</span></li>
+  </ul>
+  <p>
+    <code>ctx.inject(['cli'], …)</code> rather than a plain lookup, so a plugin
+    that contributes a command is perfectly usable in an editor where no
+    terminal surface exists at all: the callback simply never fires.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="invariants">
+  <span class="sect-label">The invariants</span>
+  <h2>Twelve things that are true, and a test that fails if one stops being</h2>
+  <p>
+    Pinned by <code>packages/core/test/kernel.test.ts</code>,
+    <code>gate.test.ts</code> and <code>reporting.test.ts</code>. If one starts
+    failing, the spine moved and the fix belongs in the kernel — not in the
+    test.
+  </p>
+  <ul>
+    <li>A step type the kernel has never heard of runs, contributed at load time.</li>
+    <li>A plugin nests steps through <code>ctx.runSteps</code> in a child variable scope, and that scope does not leak back to the parent.</li>
+    <li>Resources open once per scope and tear down in reverse order.</li>
+    <li>A plugin contributes to a surface that may not be loaded, and stays usable when nobody provides it.</li>
+    <li>Two plugins cannot claim the same step type.</li>
+    <li>A plugin built against a different <code>plugin-api</code> major is refused at load.</li>
+    <li>A crash inside a plugin is <code>error</code>, never <code>failed</code>.</li>
+    <li>All three resource scopes are real: <code>run</code> outlives the suite, <code>suite</code> outlives the test, and the outer ones tear down even when a test blows up.</li>
+    <li>Bytes handed to <code>attach</code> come back out of the run byte-for-byte, and every reporter is told where they went.</li>
+    <li>A plugin installed from a registry loads out of the store, with its own dependencies resolvable, and <code>--frozen</code> reproduces it without a network.</li>
+    <li>An environment layers settings and cannot add a plugin, so the lock stays true whichever environment runs.</li>
+    <li>The event stream alone is enough to build a report: replaying a recorded run produces a byte-identical file to watching it live.</li>
+  </ul>
+  <p class="under">
+    <b>The last one is load-bearing.</b> It is why <code>speq report</code> can
+    re-render a finished run without re-running it, and it is the reason no
+    reporter is given a back door to the run's result object: a report that
+    cannot be built from events alone is a hole in the events.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="packages">
+  <span class="sect-label">What ships</span>
+  <h2>Fifteen packages, eleven of them plugins</h2>
+  <p>
+    Every <code>plugin-*</code> depends on <code>@speqkit/plugin-api</code> and
+    on nothing else of ours — never on the kernel. A plugin runs <em>inside</em>
+    a kernel and reaches it as <code>ctx.host</code>; one that imports
+    <code>speqkit</code> instead ships a second kernel that the installer will
+    faithfully store and the plugin will faithfully boot. A test fails if any
+    manifest here ever names it.
+  </p>
+
+  <div class="tablewrap">
+  <table class="ledger">
+    <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td>@speqkit/plugin-api</td><td>The public contract. Types only. Its major version is the compatibility boundary.</td></tr>
+      <tr><td>speqkit</td><td>The kernel and the <code>speq</code> bootstrap. Unscoped, because it is what you install.</td></tr>
+      <tr><td>@speqkit/installer</td><td>Resolve, verify, store, lock. No npm CLI involved.</td></tr>
+      <tr><td>@speqkit/plugin-yaml</td><td>The default authoring format, and <code>speq migrate</code> — proof the format is a plugin.</td></tr>
+      <tr><td>@speqkit/plugin-http</td><td>HTTP steps, multipart, retries, and the two checks that are actually about HTTP.</td></tr>
+      <tr><td>@speqkit/plugin-assert</td><td>The vocabulary: equality, order, membership, text, presence, size, shape, JSON Schema.</td></tr>
+      <tr><td>@speqkit/plugin-use</td><td>Composition: shared blocks, module actions and fixtures, all through one <code>use</code>.</td></tr>
+      <tr><td>@speqkit/plugin-data</td><td>Where values come from: seeded generated data, the environment, project variables.</td></tr>
+      <tr><td>@speqkit/plugin-loop</td><td><code>loop</code> and <code>retry</code>. Control flow, contributed rather than built in.</td></tr>
+      <tr><td>@speqkit/plugin-cli</td><td>The terminal surface. Publishes the <code>cli</code> service; the console output is a reporter.</td></tr>
+      <tr><td>@speqkit/plugin-junit</td><td>JUnit XML for CI, built from the event stream and nothing else.</td></tr>
+      <tr><td>@speqkit/plugin-json</td><td>The run as one <code>summary.json</code>, in the shape a workflow reads with <code>jq</code>.</td></tr>
+      <tr><td>@speqkit/plugin-playwright</td><td>Browser steps, scoped browser/page resources, screenshot artifacts.</td></tr>
+      <tr><td>@speqkit/test-kit</td><td>Runs a plugin inside the real kernel, so an author can test one without a project.</td></tr>
+      <tr><td>create-speqkit-plugin</td><td><code>npm create speqkit-plugin &lt;name&gt;</code> — source, tests, and the decisions already made.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="delivery">
+  <span class="sect-label">Delivery</span>
+  <h2>How any of this reaches a machine</h2>
+  <p>
+    Nobody cuts a release here. A version bump in a <code>package.json</code>
+    is the whole gesture: merge it to main, and if the gate is green the
+    version is on npm — and if the kernel's version moved, four executables, a
+    GitHub release and the Homebrew formula follow it.
+  </p>
+
+  <div class="cards two">
+    <div class="card">
+      <h3>How speqkit ships</h3>
+      <p>
+        One workflow, five jobs, two questions asked of the outside world
+        rather than of the repository: what is missing from the registry, and
+        what has no tag. That is what makes a half-finished release safe to
+        simply re-run.
+      </p>
+      <a class="more" href="releasing.html#speqkit">How the pipeline works</a>
+    </div>
+    <div class="card">
+      <h3>How <em>your</em> plugin ships</h3>
+      <p>
+        A reusable workflow you call in six lines, a conformance check that
+        refuses to publish something that would not load, and a shell script
+        for the release you do by hand. One npm token, and nothing else.
+      </p>
+      <a class="more" href="releasing.html#plugins">Release a plugin</a>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="reading">
+  <span class="sect-label">Further reading</span>
+  <h2>Where the decisions are written down</h2>
+  <p>
+    The three documents below are the project's design record: not what the
+    code does, but why it was allowed to. They were written as arguments and
+    they are in Russian; the reference documentation and the source are in
+    English.
+  </p>
+  <div class="cards three">
+    <div class="card">
+      <h3>Pipeline<span class="lang">RU</span></h3>
+      <p>The path a run takes, from a file on disk to a report, in the order a user walks it.</p>
+      <a class="more" href="pipeline.html">Read</a>
+    </div>
+    <div class="card">
+      <h3>The plugin framework<span class="lang">RU</span></h3>
+      <p>The eight contribution points, the spine, and why the kernel is allowed to own so little.</p>
+      <a class="more" href="architecture/plugin-framework.html">Read</a>
+    </div>
+    <div class="card">
+      <h3>Official plugins<span class="lang">RU</span></h3>
+      <p>Which plugins are ours and why, the closed list of three exceptions, and the work still ahead.</p>
+      <a class="more" href="architecture/plugins.html">Read</a>
+    </div>
+  </div>
+
+  <h3>Writing a plugin</h3>
+<pre><code>npm create speqkit-plugin kafka
+cd speqkit-plugin-kafka && npm install && npm test</code></pre>
+  <p>
+    The scaffold makes the decisions that are easy to get wrong: the contract
+    is a peer, nothing depends on the kernel, the step type and the assertion
+    carry schemas, the <code>speqkit-plugin</code> keyword is there so the
+    package can be found, and the release workflow is already wired. Its tests
+    use <code>@speqkit/test-kit</code>, which assembles the real
+    <code>Registry</code>, <code>Executor</code> and runner — there are no
+    fakes to drift, and green means it works in a project.
+  </p>
+</section>
+
+<footer>
+  speqkit is MIT licensed. <a href="https://github.com/speqkit/speqkit">Source and issues on GitHub.</a>
+  <br>The project is <b>speqkit</b>; the command is <b>speq</b>.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

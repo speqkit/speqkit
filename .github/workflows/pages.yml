@@ -1,0 +1,75 @@
+# The site: https://speqkit.github.io/speqkit/
+#
+# `docs/` is the site, plus two shell scripts lifted out of `packaging/` so
+# they can be curled from a stable URL. The scripts are copied rather than
+# duplicated in git, which is the only way `install.sh` on the site and
+# `install.sh` in the release job stay the same file.
+#
+# Deployed by Actions rather than from a branch folder so that copying can
+# happen at all — and so a broken internal link fails the build instead of
+# being found by whoever clicked it.
+#
+# One-time setup: Settings -> Pages -> Source: GitHub Actions.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'packaging/install.sh'
+      - 'packaging/release-plugin.sh'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and let a queued one finish rather than
+# cancelling it: the site is not worth a race, and a cancelled deploy leaves
+# the last one live anyway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: assemble the site
+        run: |
+          mkdir -p site
+          cp -R docs/. site/
+
+          # Curl targets. install.sh already names this URL in its own header,
+          # and the release notes point at it.
+          cp packaging/install.sh        site/install.sh
+          cp packaging/release-plugin.sh site/release-plugin.sh
+
+          # Jekyll would otherwise eat anything beginning with an underscore
+          # and cost a build step we have no use for.
+          touch site/.nojekyll
+
+      # A link that 404s on a documentation site is the cheapest possible bug
+      # to prevent and the most expensive to discover from a bug report.
+      - name: no internal link points at nothing
+        run: node scripts/check-site-links.mjs site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

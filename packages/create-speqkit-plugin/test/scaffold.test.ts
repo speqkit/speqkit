@@ -46,8 +46,8 @@ describe('what lands on disk', () => {
   it('writes source, tests, config and a README, and nothing else', () => {
     const { files } = generated()
     expect(files).toEqual([
-      '.gitignore', 'README.md', 'package.json', 'src/index.ts', 'test/plugin.test.ts',
-      'tsconfig.json', 'vitest.config.ts'
+      '.github/workflows/release.yml', '.gitignore', 'README.md', 'package.json',
+      'src/index.ts', 'test/plugin.test.ts', 'tsconfig.json', 'vitest.config.ts'
     ])
   })
 
@@ -79,9 +79,21 @@ describe('what lands on disk', () => {
   })
 
   it('publishes a scoped package with public access spelled out', () => {
-    const { read, packageName } = generated('kafka', { name: 'kafka', scope: '@acme' })
+    const { pkg, packageName } = generated('kafka', { name: 'kafka', scope: '@acme' })
     expect(packageName).toBe('@acme/speqkit-plugin-kafka')
-    expect(read('README.md')).toContain('npm publish --access public')
+    // In the manifest rather than in a README sentence: npm defaults a scoped
+    // package to `restricted`, and a plugin that published fine and 404s for
+    // everyone else is the kind of failure nobody reports, they just leave.
+    expect(pkg.publishConfig).toEqual({ access: 'public' })
+  })
+
+  it('ships the release workflow, so delivery is not left to the author', () => {
+    const { read } = generated('kafka')
+    const workflow = read('.github/workflows/release.yml')
+    expect(workflow).toContain('speqkit/speqkit/.github/workflows/plugin-release.yml@main')
+    expect(workflow).toContain('NPM_TOKEN')
+    // Bumping the version is the whole gesture, so main is the trigger.
+    expect(workflow).toContain('branches: [main]')
   })
 
   it('refuses a directory that already has something in it', () => {

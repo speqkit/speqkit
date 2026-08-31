@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Releasing — speqkit</title>
+<meta name="description" content="How speqkit ships itself, and how to release a speq plugin of your own: a reusable workflow, a conformance check and a script.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="assets/speqkit.css">
+</head>
+<body>
+
+<nav class="sitenav">
+  <div class="inner">
+    <a class="brand" href="./">speq<span>kit</span></a>
+    <a class="link" href="./">Overview</a>
+    <a class="link" href="writing-tests.html">Writing tests</a>
+    <a class="link" href="releasing.html" aria-current="page">Releasing</a>
+    <a class="link" href="pipeline.html">Pipeline</a>
+    <span class="spacer"></span>
+    <a class="ext" href="https://github.com/speqkit/speqkit">GitHub</a>
+    <a class="ext" href="https://www.npmjs.com/package/speqkit">npm</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Delivery · one gesture · nothing by hand</span>
+  <h1>Releasing</h1>
+  <p class="lede">
+    A version bump in a <code>package.json</code> is the whole gesture. Merge
+    it to main and, if the gate is green, that version is on npm — and if the
+    kernel's version moved, four executables, a GitHub release and the
+    Homebrew formula follow it. The same machinery is offered to anyone
+    publishing a plugin of their own.
+  </p>
+  <div class="meta">
+    <span><b>Trigger</b> a push to main</span>
+    <span><b>Decided by</b> the registry and the tags, not the repo</span>
+    <span><b>Re-runnable</b> a failed release is safe to re-run</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <ol>
+    <li><a href="#idea">The idea</a></li>
+    <li><a href="#speqkit">How speqkit ships</a></li>
+    <li><a href="#secrets">What it needs, once</a></li>
+    <li><a href="#plugins">Releasing your plugin</a></li>
+    <li><a href="#byhand">From a terminal</a></li>
+    <li><a href="#check">The conformance check</a></li>
+    <li><a href="#faq">When it does nothing</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================== -->
+<section id="idea">
+  <span class="sect-label">The idea</span>
+  <h2>The version in the manifest is the intent</h2>
+
+  <p>
+    There is no changelog tool here, no commit-message convention and no
+    "cut a release" button. The version written in a <code>package.json</code>
+    <em>is</em> the decision: it arrives in a diff, gets reviewed like anything
+    else, and one person can see the whole thing at once. Everything
+    downstream is derived from it.
+  </p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>What ships</th><th>Decided by</th></tr></thead>
+    <tbody>
+      <tr><td>an npm package</td><td>its version is not in the registry yet</td></tr>
+      <tr><td>a tag, four binaries, the tap</td><td><code>packages/core</code>'s version has no tag on the remote</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <span class="tag">Why both questions face outward</span>
+    <p>
+      Neither is asked of the repository. The <strong>npm registry</strong>
+      says which versions exist and the <strong>git tags on the remote</strong>
+      say which releases were cut — which is what makes the whole thing
+      idempotent. Re-running a job that already succeeded finds nothing to do.
+      A job that died between package four and package five can simply be
+      re-run, because what got through the first time is now
+      indistinguishable from something published last month.
+    </p>
+  </div>
+
+  <p>
+    You can ask for the answer before pushing anything:
+  </p>
+<pre><code>node scripts/release-plan.mjs
+
+<span class="c">release plan for v0.2.0
+
+  publish to npm
+    speqkit@0.2.0
+    @speqkit/plugin-api@0.9.0
+    @speqkit/plugin-assert@0.1.0
+    …
+
+  cut v0.2.0: four executables, a GitHub release and the Homebrew formula</span></code></pre>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="speqkit">
+  <span class="sect-label">How speqkit ships</span>
+  <h2>Five jobs, and the gate is the real one</h2>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="body">
+        <h3>plan</h3>
+        <p>
+          Runs <code>scripts/release-plan.mjs</code>, writes its answer into
+          the job summary and hands it to everything below. If the answer is
+          "nothing", the rest of the workflow does not run.
+        </p>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">2</span>
+      <div class="body">
+        <h3>gate</h3>
+        <p>
+          <code>uses: ./.github/workflows/ci.yml</code> — literally the CI
+          file, not a copy of its steps. Typecheck and build and the full test
+          suite on Node 20, 22 and 24; then
+          <code>scripts/verify-publish.mjs</code>, which packs the real
+          tarballs, serves them from a throwaway registry over HTTP, installs
+          them into a throwaway store and runs the CLI out of <code>dist</code>
+          under plain <code>node</code>; then the standalone binary, verified
+          again with <code>PATH</code> emptied.
+        </p>
+        <p class="under">
+          <b>Why the same file and not a copy.</b> The battery that decides
+          whether a commit ships has to be the one a pull request faces, or the
+          two drift — and the release one is the copy nobody reads until it is
+          too late.
+        </p>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">3</span>
+      <div class="body">
+        <h3>npm</h3>
+<pre><code>pnpm -r publish --access public --no-git-checks --provenance</code></pre>
+        <p>
+          Walks the workspace in dependency order, turns every
+          <code>workspace:*</code> into the version it resolved to, and skips
+          whatever the registry already has — the same rule the plan reported,
+          asked of the same place. <code>--provenance</code> records which
+          workflow at which commit built each tarball, and anyone can check it.
+        </p>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">4</span>
+      <div class="body">
+        <h3>binaries</h3>
+        <p>
+          Four native runners: <code>macos-15</code>,
+          <code>macos-15-intel</code>, <code>ubuntu-24.04</code>,
+          <code>ubuntu-24.04-arm</code>. Each downloads the pinned Node from
+          nodejs.org, checks it against <code>SHASUMS256.txt</code>, injects
+          the bundled kernel as a SEA blob — and then <em>runs</em> the result:
+          installs plugins from a throwaway registry and executes a suite with
+          no Node on <code>PATH</code> at all, and finally installs itself
+          through <code>install.sh</code>.
+        </p>
+        <p class="under">
+          <b>Not cross-compiled, and it cannot be.</b> The SEA blob carries a
+          V8 code cache valid only for the exact runtime it goes into, and only
+          macOS can re-sign a Mach-O after injection.
+        </p>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">5</span>
+      <div class="body">
+        <h3>release, then tap</h3>
+        <p>
+          Renders the Homebrew formula from the checksums of the artefacts
+          themselves — refusing outright if any of the four platforms is
+          missing — creates the tag and the GitHub release, uploads everything,
+          and pushes <code>Formula/speqkit.rb</code> into
+          <code>speqkit/homebrew-tap</code>.
+        </p>
+        <p class="under">
+          <b>A tap that is right for three platforms is worse than no tap:</b>
+          <code>brew install</code> would work for the maintainer and fail for
+          whoever bought the other laptop.
+        </p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="note">
+    <span class="tag">Safety rails</span>
+    <p>
+      The whole workflow is skipped unless
+      <code>github.repository == 'speqkit/speqkit'</code>, so a fork pushing to
+      its own main cannot publish ours. Concurrency is
+      <code>cancel-in-progress: false</code>: the CI of a superseded commit is
+      worth nothing, but a publish interrupted halfway leaves the registry in a
+      state no later run can explain. And the tag is created <em>from</em>
+      <code>packages/core</code>'s version, so the two cannot disagree.
+    </p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="secrets">
+  <span class="sect-label">Setup</span>
+  <h2>Two secrets, set once</h2>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Secret</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>NPM_TOKEN</code></td>
+        <td>
+          An npm <strong>automation</strong> token for the <code>speqkit</code>
+          org. Automation rather than publish, because a publish token prompts
+          for a second factor and a CI runner has no thumbs.
+        </td>
+      </tr>
+      <tr>
+        <td><code>HOMEBREW_TAP_TOKEN</code></td>
+        <td>
+          A fine-grained PAT with <code>contents: write</code> on
+          <code>speqkit/homebrew-tap</code>. The default
+          <code>GITHUB_TOKEN</code> cannot reach another repository, which is
+          the correct default and the reason this one exists.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    The tap repository itself is created once and then never touched by hand:
+  </p>
+<pre><code>gh repo create speqkit/homebrew-tap --public \
+  --description <span class="s">"Homebrew formulae for speqkit"</span></code></pre>
+
+  <p>
+    To exercise everything without publishing anything — useful for finding out
+    that a runner label changed underneath us on a day that is not release day:
+  </p>
+<pre><code>gh workflow run release.yml -f dry_run=true</code></pre>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="plugins">
+  <span class="sect-label">Your plugin</span>
+  <h2>Six lines, one token</h2>
+
+  <p>
+    A plugin whose release is something its author does by hand is a plugin
+    that gets its fix on the day its author has an afternoon. That is the
+    failure mode an ecosystem cannot afford, because that fix is nobody else's
+    to ship — so the machinery above is offered as a reusable workflow you call
+    from your own repository.
+  </p>
+
+<pre><code><span class="c"># .github/workflows/release.yml, in your plugin's repository</span>
+<span class="k">name:</span> release
+
+<span class="k">on:</span>
+  <span class="k">push:</span>
+    <span class="k">branches:</span> <span class="p">[</span>main<span class="p">]</span>
+
+<span class="k">jobs:</span>
+  <span class="k">release:</span>
+    <span class="k">uses:</span> <span class="s">speqkit/speqkit/.github/workflows/plugin-release.yml@main</span>
+    <span class="k">secrets:</span>
+      <span class="k">NPM_TOKEN:</span> <span class="s">${{ secrets.NPM_TOKEN }}</span></code></pre>
+
+  <p>
+    That is the whole integration. It installs, builds, runs your tests against
+    the real kernel, checks that the package would actually load once
+    installed, and publishes with provenance — and does nothing at all when
+    that version is already in the registry, so an ordinary commit is not a
+    release.
+  </p>
+
+  <div class="note">
+    <span class="tag">Scaffolded plugins already have it</span>
+    <p>
+      <code>npm create speqkit-plugin kafka</code> writes that file for you,
+      along with <code>publishConfig.access: public</code> in the manifest —
+      npm defaults a scoped package to <code>restricted</code>, and the failure
+      is a plugin that publishes successfully and 404s for everyone who tries
+      to install it.
+    </p>
+  </div>
+
+  <h3>The one secret</h3>
+  <ol>
+    <li>On npmjs.com: <b>Access Tokens → Generate → Automation</b>.</li>
+    <li>In your repository: <b>Settings → Secrets and variables → Actions → New repository secret</b>, named <code>NPM_TOKEN</code>.</li>
+  </ol>
+
+  <h3>Everything you can change</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Input</th><th>Default</th><th>For</th></tr></thead>
+    <tbody>
+      <tr><td><code>package-dir</code></td><td><code>.</code></td><td>a plugin inside a monorepo</td></tr>
+      <tr><td><code>node-version</code></td><td><code>24</code></td><td></td></tr>
+      <tr><td><code>install-command</code></td><td><code>npm install</code></td><td>switch to <code>npm ci</code> once you commit a lockfile — better answer, cannot be the default</td></tr>
+      <tr><td><code>build-command</code></td><td><code>npm run build</code></td><td>pnpm, yarn, a bundler</td></tr>
+      <tr><td><code>test-command</code></td><td><code>npm test</code></td><td></td></tr>
+      <tr><td><code>dry-run</code></td><td><code>false</code></td><td>everything except the publish</td></tr>
+      <tr><td><code>speqkit-ref</code></td><td><code>main</code></td><td>pin the conformance check to a tag</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="byhand">
+  <span class="sect-label">By hand</span>
+  <h2>The release you do from a terminal</h2>
+
+  <p>
+    For the first one, for a plugin in a repository with no CI, or for the
+    afternoon you need a version out and the runners are queued. It runs the
+    same three questions in the same order, and stops before publishing if any
+    of them fails.
+  </p>
+
+<pre><code>export NPM_TOKEN=npm_xxxxxxxx     <span class="c"># or just 'npm login' once</span>
+curl -fsSL https://speqkit.github.io/speqkit/release-plugin.sh | sh
+
+<span class="c"># see what it would do, and publish nothing</span>
+curl -fsSL https://speqkit.github.io/speqkit/release-plugin.sh | sh -s -- --dry-run
+
+<span class="c"># a plugin inside a monorepo</span>
+./release-plugin.sh --dir packages/my-plugin</code></pre>
+
+<pre><code><span class="c">speqkit-plugin-kafka 0.2.0
+  /home/mira/speqkit-plugin-kafka
+
+1/4  build and test
+2/4  would this install and load?
+  ok    keyword `speqkit-plugin`
+  ok    `@speqkit/plugin-api` is a peer
+  ok    does not carry a second kernel
+  ok    `./dist/index.js` is built and packed
+3/4  is 0.2.0 already out?
+  no — 0.2.0 is new
+4/4  publish
+
+published speqkit-plugin-kafka@0.2.0</span></code></pre>
+
+  <p class="under">
+    <b>The token never touches a file the script keeps.</b> With
+    <code>NPM_TOKEN</code> set it is handed to npm through a temporary config
+    that names the environment variable rather than the value, removed when the
+    script exits. Without it, the script falls back to whatever
+    <code>npm whoami</code> already has — and it will never prompt, because a
+    script that blocks on a one-time password is a script that hangs in a pipe
+    at 2am.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="check">
+  <span class="sect-label">The check</span>
+  <h2>Would this actually install and load?</h2>
+
+  <p>
+    Both paths run the same script, and you can run it yourself against any
+    directory holding a plugin's <code>package.json</code>:
+  </p>
+
+<pre><code>node check-plugin-package.mjs [dir] [--json] [--offline]</code></pre>
+
+  <p>
+    Every question in it is a bug this project shipped, or caught one commit
+    before shipping:
+  </p>
+
+  <ul class="points">
+    <li><span class="name">exports → .ts</span><span class="what">Green locally, because the tests resolve <code>src</code> through a bundler alias — and unloadable once installed, because Node refuses to strip types inside <code>node_modules</code>.</span></li>
+    <li><span class="name">dist not in files</span><span class="what">npm packs the manifest, not the directory. The tarball is a README and a promise.</span></li>
+    <li><span class="name">the kernel as a dependency</span><span class="what">The installer will faithfully put a second copy of speqkit in the store and the plugin will faithfully boot it — and the compatibility check then compares a contract against itself.</span></li>
+    <li><span class="name">plugin-api not a peer</span><span class="what">Same failure, from the other end: the contract has to come from the kernel the user installed.</span></li>
+    <li><span class="name">no speqkit-plugin keyword</span><span class="what">The plugin works and nobody finds it.</span></li>
+    <li><span class="name">a scoped name in @speqkit</span><span class="what">A scope you cannot publish into, found now rather than at the publish.</span></li>
+  </ul>
+
+  <p>
+    It is fetched rather than vendored, so a plugin generated last year gains
+    new checks without its author editing a file they have never read. Exit
+    codes: <code>0</code> all clear, <code>1</code> something is wrong,
+    <code>2</code> there is nothing to check.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="faq">
+  <span class="sect-label">When nothing happens</span>
+  <h2>The workflow ran and published nothing</h2>
+
+  <p>That is almost always correct. In order of likelihood:</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>What you see</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>"Nothing to publish"</td>
+        <td>
+          That version is already in the registry. Publishing is not how you
+          change what is there — bump the version.
+        </td>
+      </tr>
+      <tr>
+        <td>The gate is red</td>
+        <td>
+          Nothing downstream ran, by design. Fix the test, push again; the plan
+          is recomputed from scratch.
+        </td>
+      </tr>
+      <tr>
+        <td>npm published, no tag</td>
+        <td>
+          A plugin's version moved and the kernel's did not. A patch to one
+          plugin does not deserve four 100 MB executables that would be
+          byte-identical.
+        </td>
+      </tr>
+      <tr>
+        <td>The job failed partway through publishing</td>
+        <td>
+          Re-run it. What went out the first time is skipped, because the
+          registry is the source of truth and it now says so.
+        </td>
+      </tr>
+      <tr>
+        <td>Nothing at all, on a fork</td>
+        <td>
+          <code>github.repository</code> is checked before anything else runs.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  The files behind this page:
+  <a href="https://github.com/speqkit/speqkit/blob/main/.github/workflows/release.yml">release.yml</a>,
+  <a href="https://github.com/speqkit/speqkit/blob/main/.github/workflows/plugin-release.yml">plugin-release.yml</a>,
+  <a href="https://github.com/speqkit/speqkit/blob/main/scripts/release-plan.mjs">release-plan.mjs</a>,
+  <a href="https://github.com/speqkit/speqkit/blob/main/scripts/check-plugin-package.mjs">check-plugin-package.mjs</a>,
+  <a href="https://github.com/speqkit/speqkit/blob/main/packaging/release-plugin.sh">release-plugin.sh</a>.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

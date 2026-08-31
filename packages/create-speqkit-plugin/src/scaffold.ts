@@ -73,7 +73,12 @@ export function scaffold(options: ScaffoldOptions): ScaffoldResult {
     '.gitignore': 'node_modules/\ndist/\n*.tsbuildinfo\n',
     'src/index.ts': source(options.name, packageName),
     'test/plugin.test.ts': tests(options.name),
-    'README.md': readme(options.name, packageName, description)
+    'README.md': readme(options.name, packageName, description),
+    // Delivery, scaffolded with everything else. A plugin whose release is a
+    // thing its author does by hand is a plugin that gets its fix on the day
+    // its author has an afternoon — the failure mode an ecosystem cannot
+    // afford, because that fix is nobody else's to ship.
+    '.github/workflows/release.yml': releaseWorkflow(packageName)
   }
 
   for (const [path, content] of Object.entries(files)) {
@@ -122,7 +127,12 @@ function packageJson(packageName: string, description: string): string {
         typescript: VERSIONS['typescript'],
         vitest: VERSIONS['vitest']
       },
-      engines: { node: '>=20.0.0' }
+      engines: { node: '>=20.0.0' },
+      // Spelled out rather than left to the publisher's memory. npm defaults a
+      // scoped package to `restricted`, and the failure is a plugin that
+      // publishes successfully and 404s for everyone who tries to install it.
+      // Harmless on an unscoped name, so it is unconditional.
+      publishConfig: { access: 'public' }
     },
     null,
     2
@@ -396,13 +406,72 @@ The only runtime dependency is \`@speqkit/plugin-api\`, and it is a peer: the
 contract comes from the kernel the user installed, not from a copy shipped
 here. Nothing in this package imports \`speqkit\`.
 
-## Publish
+## Release
 
-Keep the \`speqkit-plugin\` keyword in \`package.json\` — it is how the plugin is
-found. Then:
+\`.github/workflows/release.yml\` is already here. Add one secret and it runs
+itself:
+
+1. On npmjs.com: Access Tokens → Generate → **Automation**. Automation rather
+   than Publish, because a publish token asks for a second factor and a CI
+   runner has no thumbs.
+2. In this repository: Settings → Secrets and variables → Actions → New
+   repository secret, named \`NPM_TOKEN\`.
+
+After that, **bump the version in \`package.json\` and merge to main.** The
+workflow builds, runs the tests inside the real kernel, checks that the
+package would actually load once installed, and publishes it — and does
+nothing at all when that version is already in the registry, so an ordinary
+commit is not a release.
+
+To publish from a terminal instead, which is the usual answer for the first
+one:
 
 \`\`\`bash
-npm publish${packageName.startsWith('@') ? ' --access public' : ''}
+export NPM_TOKEN=npm_xxxxxxxx     # or just 'npm login' once
+curl -fsSL https://speqkit.github.io/speqkit/release-plugin.sh | sh
 \`\`\`
+
+It runs the same checks in the same order and stops before publishing if any
+of them fails. Pass \`--dry-run\` to see what it would do.
+
+Keep the \`speqkit-plugin\` keyword in \`package.json\` either way — it is how
+the plugin is found, and the check refuses to publish without it.
+`
+}
+
+/**
+ * The release workflow every scaffolded plugin gets. It delegates to a
+ * reusable workflow in speqkit rather than spelling the steps out here: the
+ * checks it runs will grow, and a plugin generated last year should get them
+ * without its author editing a file they have never read.
+ */
+function releaseWorkflow(packageName: string): string {
+  return `# Publishes ${packageName} when its version changes.
+#
+# Needs one secret: NPM_TOKEN, an npm *automation* token.
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+#
+# Then the whole gesture is: bump the version in package.json, merge to main.
+# A commit that leaves the version alone publishes nothing, because that
+# version is already in the registry.
+name: release
+
+on:
+  push:
+    branches: [main]
+  # Build, test and check without publishing anything.
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    uses: speqkit/speqkit/.github/workflows/plugin-release.yml@main
+    with:
+      dry-run: \${{ inputs.dry-run || false }}
+    secrets:
+      NPM_TOKEN: \${{ secrets.NPM_TOKEN }}
 `
 }
