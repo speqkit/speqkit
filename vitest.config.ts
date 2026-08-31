@@ -12,6 +12,7 @@ export default defineConfig({
       { find: '@speqkit/plugin-junit', replacement: r('./packages/plugin-junit/src/index.ts') },
       { find: '@speqkit/test-kit', replacement: r('./packages/test-kit/src/index.ts') },
       { find: '@speqkit/plugin-loop', replacement: r('./packages/plugin-loop/src/index.ts') },
+      { find: '@speqkit/plugin-playwright', replacement: r('./packages/plugin-playwright/src/index.ts') },
       { find: '@speqkit/plugin-cli', replacement: r('./packages/plugin-cli/src/index.ts') },
       { find: '@speqkit/plugin-http', replacement: r('./packages/plugin-http/src/index.ts') },
       { find: '@speqkit/plugin-assert', replacement: r('./packages/plugin-assert/src/index.ts') },

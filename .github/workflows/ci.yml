@@ -106,6 +106,32 @@ jobs:
           node ../../scripts/example-api.mjs -- \
             ./node_modules/.bin/speq run --env ci --test suites/loop.yaml
 
+  # `@speqkit/plugin-playwright` is half the architecture gate — the proof that
+  # a scoped resource and a binary artifact work from outside the kernel — and
+  # its tests need a browser, which the matrix above deliberately does not
+  # have: `playwright` is an optional peer, and a Go service running HTTP smoke
+  # checks should not download 300MB because this package exists.
+  #
+  # So they skip when no browser is installed, and this job is the one place
+  # that is not allowed. SPEQ_REQUIRE_BROWSER=1 turns the skip into a failure,
+  # because otherwise "green" and "did not run" look identical from outside.
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm exec vitest run packages/plugin-playwright
+        env:
+          SPEQ_REQUIRE_BROWSER: '1'
+
   # The binary is a second way of shipping the same kernel, and it breaks in
   # ways the packages cannot: a bundler rewriting `import()` would leave every
   # plugin unloadable while `pnpm test` stayed green. One platform is enough
