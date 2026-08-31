@@ -362,8 +362,11 @@ describe('what it refuses to decide', () => {
 
   it('keeps a directory annotation while dropping the aliases beside it', () => {
     const migrated = migrate()
-    expect(migrated.file('suites/menu/init.yaml')).toContain('epic: menu')
-    expect(migrated.file('suites/menu/init.yaml')).not.toContain('imports')
+    // Written out under the name this version uses. The loader reads the old
+    // one too, so nothing would have broken either way — but a project
+    // migrated today should read like a project written today.
+    expect(migrated.file('suites/menu/suite.yaml')).toContain('epic: menu')
+    expect(migrated.file('suites/menu/suite.yaml')).not.toContain('imports')
     expect(migrated.notes.some((n) => /imports/.test(n.message))).toBe(true)
   })
 })

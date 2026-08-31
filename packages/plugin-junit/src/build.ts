@@ -80,7 +80,10 @@ export class RunBuilder {
         break
 
       case 'step.finished': {
-        const entry = this.#open.get(event.test)
+        // A step with no test is a suite's own setup or cleanup, which JUnit
+        // has no place for. What it costs a reader is nothing: a suite whose
+        // setup failed is a suite whose every test is an errored case here.
+        const entry = open(this.#open, event.test)
         if (entry && event.status !== 'passed' && event.status !== 'skipped') {
           const label = event.stepId ? `${event.stepId} (${event.stepType})` : event.stepType
           entry.failures.push(`step ${label}: ${event.message ?? event.status}`)
@@ -89,7 +92,7 @@ export class RunBuilder {
       }
 
       case 'assertion.evaluated': {
-        const entry = this.#open.get(event.test)
+        const entry = open(this.#open, event.test)
         if (entry && !event.passed) {
           entry.failures.push(`assertion ${event.assertionType}: ${event.message}`)
         }
@@ -97,7 +100,7 @@ export class RunBuilder {
       }
 
       case 'artifact.attached':
-        this.#open.get(event.test)?.output.push(`[[ATTACHMENT|${event.path ?? event.name}]]`)
+        open(this.#open, event.test)?.output.push(`[[ATTACHMENT|${event.path ?? event.name}]]`)
         break
 
       case 'test.finished': {
@@ -130,7 +133,14 @@ export class RunBuilder {
   }
 
   result(): JUnitRun {
-    return { runId: this.#runId, durationMs: this.#durationMs, suites: this.#suites }
+    // Suites nest, and the ones in the middle hold no cases of their own — a
+    // directory that declares an epic has files under it, not tests. An empty
+    // `<testsuite>` is not a JUnit concept, so it is not written.
+    return {
+      runId: this.#runId,
+      durationMs: this.#durationMs,
+      suites: this.#suites.filter((s) => s.cases.length > 0)
+    }
   }
 
   private suiteFor(name: string): JUnitSuite {
@@ -142,6 +152,10 @@ export class RunBuilder {
     }
     return suite
   }
+}
+
+function open(cases: Map<string, JUnitCase>, test: string | undefined): JUnitCase | undefined {
+  return test === undefined ? undefined : cases.get(test)
 }
 
 export interface RenderOptions {

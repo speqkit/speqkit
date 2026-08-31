@@ -1,5 +1,6 @@
 import type {
-  AssertionDef, Diagnostic, InputSchema, StepDef, TestDef, ValidateContext, ValidationProblem, Validator
+  AssertionDef, Diagnostic, InputSchema, StepDef, SuiteDef, TestDef, ValidateContext,
+  ValidationProblem, Validator
 } from '@speqkit/plugin-api'
 import type { Registry, Registered } from './registry.js'
 
@@ -21,6 +22,25 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
   const diagnostics: Diagnostic[] = []
   /** Where each name was first seen, so the second one can say where to look. */
   const named = new Map<string, string>()
+
+  // A suite's setup is steps, written by the same hand and just as able to
+  // name a step type that does not exist. Checked once per suite however many
+  // tests are under it, and before the run rather than in the middle of it:
+  // a suite whose setup cannot start blocks every test below.
+  for (const suite of distinctSuites(tests)) {
+    const where = { suite, file: suite.source ?? '(unknown)' }
+    const visit = stepVisitor(diagnostics, registry, where)
+    walkSteps(suite.setup ?? [], 'setup', visit)
+    walkSteps(suite.cleanup ?? [], 'cleanup', visit)
+    if (suite.pending !== undefined && typeof suite.pending !== 'string') {
+      diagnostics.push({
+        file: where.file,
+        path: 'pending',
+        message: 'pending must say why',
+        hint: 'it parks every test in the suite — write the gap that records'
+      })
+    }
+  }
 
   for (const test of tests) {
     const file = test.source ?? '(unknown)'
@@ -65,35 +85,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
     }
 
     const seen = new Set<string>()
-    const visit = (step: StepDef, path: string) => {
-      if (step.id) {
-        if (seen.has(step.id)) {
-          diagnostics.push({ file, path, message: `duplicate step id '${step.id}'` })
-        }
-        seen.add(step.id)
-      }
-
-      const entry = registry.stepTypes.get(step.type)
-      if (!entry) {
-        diagnostics.push({
-          file,
-          path: `${path}.type`,
-          message: `unknown step type '${step.type}'`,
-          hint: suggest(step.type, [...registry.stepTypes.keys()])
-        })
-        return
-      }
-      if (entry.def.schema) {
-        for (const problem of checkSchema(step, entry.def.schema)) {
-          diagnostics.push({ file, path, message: problem })
-        }
-      }
-      contribute(diagnostics, registry, entry, step, { test, file }, path, 'step type')
-
-      // A step's own assertions are checked exactly like a test's: they are
-      // the same `Assertion` of the model, written one level down.
-      checkAssertions(diagnostics, registry, step.assert, { test, file }, path)
-    }
+    const visit = stepVisitor(diagnostics, registry, { test, file }, seen)
 
     // Setup and cleanup are steps and get the same grammar, addressed by the
     // phase they were written in so the diagnostic points at the right block.
@@ -102,6 +94,12 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
     walkSteps(test.cleanup ?? [], 'cleanup', visit)
 
     checkAssertions(diagnostics, registry, test.assert, { test, file }, '')
+
+    // A `cases` table that survived discovery unexpanded is a table the kernel
+    // could not turn into tests. It is reported here rather than there because
+    // discovery has nowhere to say anything, and because once a table has
+    // become five tests there is nothing left to point at.
+    reportBadCases(diagnostics, test, file)
 
     // A variable and a step result live in one namespace — that is what makes
     // `${slug}` and `${login.body.id}` read the same way — so a step that
@@ -121,12 +119,123 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
   return diagnostics
 }
 
+/** The subject a diagnostic is about: a test, or a suite that declares steps. */
+interface Where {
+  test?: TestDef
+  suite?: SuiteDef
+  file: string
+}
+
+/**
+ * The grammar check for one step, wherever it was written.
+ *
+ * `seen` is passed in rather than made here because duplicate ids are a
+ * property of the block they share — a test's steps, or a suite's — and two
+ * suites naming a step `login` are not a collision.
+ */
+function stepVisitor(
+  diagnostics: Diagnostic[],
+  registry: Registry,
+  where: Where,
+  seen: Set<string> = new Set()
+): (step: StepDef, path: string) => void {
+  const file = where.file
+  return (step, path) => {
+    if (step.id) {
+      if (seen.has(step.id)) {
+        diagnostics.push({ file, path, message: `duplicate step id '${step.id}'` })
+      }
+      seen.add(step.id)
+    }
+
+    const entry = registry.stepTypes.get(step.type)
+    if (!entry) {
+      diagnostics.push({
+        file,
+        path: `${path}.type`,
+        message: `unknown step type '${step.type}'`,
+        hint: suggest(step.type, [...registry.stepTypes.keys()])
+      })
+      return
+    }
+    if (entry.def.schema) {
+      for (const problem of checkSchema(step, entry.def.schema)) {
+        diagnostics.push({ file, path, message: problem })
+      }
+    }
+    contribute(diagnostics, registry, entry, step, where, path, 'step type')
+
+    // A step's own assertions are checked exactly like a test's: they are
+    // the same `Assertion` of the model, written one level down.
+    checkAssertions(diagnostics, registry, step.assert, where, path)
+  }
+}
+
+/** Each declared suite once, however many tests carry it. */
+function distinctSuites(tests: TestDef[]): SuiteDef[] {
+  const out = new Map<string, SuiteDef>()
+  for (const test of tests) {
+    for (const suite of test.suites ?? []) if (!out.has(suite.name)) out.set(suite.name, suite)
+  }
+  return [...out.values()]
+}
+
+/**
+ * What a `cases` table has to be before it can become tests.
+ *
+ * Every one of these leaves the table on the test rather than expanding it,
+ * so the run does not start — which is the point. A table with two rows
+ * called `eur` would otherwise be two tests with one name, and the second
+ * would overwrite the first in every report.
+ */
+function reportBadCases(diagnostics: Diagnostic[], test: TestDef, file: string): void {
+  const table = test.cases
+  if (table === undefined) return
+
+  if (!Array.isArray(table)) {
+    diagnostics.push({ file, path: 'cases', message: 'cases must be a list' })
+    return
+  }
+  if (table.length === 0) {
+    diagnostics.push({
+      file,
+      path: 'cases',
+      message: 'cases is empty, so this test never runs',
+      hint: 'delete the table to run the test once, or write the rows'
+    })
+    return
+  }
+
+  const ids = new Set<string>()
+  for (const [index, entry] of table.entries()) {
+    const path = `cases[${index}]`
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      diagnostics.push({ file, path, message: 'a case must be a mapping with an id' })
+      continue
+    }
+    const id = (entry as { id?: unknown }).id
+    if (typeof id !== 'string' || id.length === 0) {
+      diagnostics.push({
+        file,
+        path: `${path}.id`,
+        message: 'a case needs an id',
+        hint: 'the id is the case\'s name — `name[id]` — and a position would move when a row is inserted above it'
+      })
+      continue
+    }
+    if (ids.has(id)) {
+      diagnostics.push({ file, path: `${path}.id`, message: `duplicate case id '${id}'` })
+    }
+    ids.add(id)
+  }
+}
+
 /** Checks one `assert:` block — a test's or a step's — against the grammar. */
 function checkAssertions(
   diagnostics: Diagnostic[],
   registry: Registry,
   block: AssertionDef[] | undefined,
-  where: { test: TestDef; file: string },
+  where: Where,
   prefix: string
 ): void {
   for (const [index, assertion] of (block ?? []).entries()) {
@@ -163,14 +272,15 @@ function contribute<T extends StepDef | AssertionDef>(
   registry: Registry,
   entry: Registered<{ validate?: Validator<T> }>,
   subject: T,
-  where: { test: TestDef; file: string },
+  where: Where,
   path: string,
   kind: string
 ): void {
   if (!entry.def.validate) return
 
   const ctx: ValidateContext = {
-    test: where.test,
+    ...(where.test ? { test: where.test } : {}),
+    ...(where.suite ? { suite: where.suite } : {}),
     file: where.file,
     config: () => registry.configFor(entry.owner) as never
   }

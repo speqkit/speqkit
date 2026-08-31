@@ -167,3 +167,47 @@ describe('an interleaved stream', () => {
     expect(xml).toContain('[[ATTACHMENT|a/body.json]]')
   })
 })
+
+describe('a tree of suites', () => {
+  it('writes no element for the ones that hold no cases', () => {
+    const xml = fold([
+      { type: 'run.started', runId: 'r1', tests: 1, at: 0 },
+      { type: 'suite.started', suite: 'suites', title: 'Everything' },
+      { type: 'suite.started', suite: 'suites/menu', parent: 'suites' },
+      { type: 'suite.started', suite: 'suites/menu/items.yaml', parent: 'suites/menu' },
+      started('items', 'suites/menu/items.yaml'), finished('items', 'passed', 10),
+      { type: 'suite.finished', suite: 'suites/menu/items.yaml' },
+      { type: 'suite.finished', suite: 'suites/menu' },
+      { type: 'suite.finished', suite: 'suites' },
+      { type: 'run.finished', runId: 'r1', status: 'passed', passed: 1, failed: 0, errored: 0, skipped: 0, durationMs: 10 }
+    ])
+
+    // Suites nest, and the ones in the middle hold files rather than tests.
+    // An empty `<testsuite>` is not a JUnit concept, and a CI viewer showing
+    // three suites for one test is a viewer nobody trusts twice.
+    expect(xml).toContain('<testsuite name="suites/menu/items.yaml"')
+    expect(xml).not.toContain('<testsuite name="suites"')
+    expect(xml).not.toContain('<testsuite name="suites/menu"')
+    expect(xml).toContain('tests="1"')
+  })
+
+  it('ignores the steps that belong to a suite rather than a test', () => {
+    const xml = fold([
+      { type: 'run.started', runId: 'r1', tests: 1, at: 0 },
+      { type: 'suite.started', suite: 'suites/menu' },
+      { type: 'step.started', suite: 'suites/menu', stepType: 'http', depth: 1, phase: 'setup' },
+      { type: 'step.finished', suite: 'suites/menu', stepType: 'http', depth: 1, phase: 'setup', status: 'failed', durationMs: 5, message: 'staging is down' },
+      { type: 'suite.started', suite: 'suites/menu/items.yaml', parent: 'suites/menu' },
+      started('items', 'suites/menu/items.yaml'), finished('items', 'error', 0),
+      { type: 'suite.finished', suite: 'suites/menu/items.yaml' },
+      { type: 'suite.finished', suite: 'suites/menu' },
+      { type: 'run.finished', runId: 'r1', status: 'error', passed: 0, failed: 0, errored: 1, skipped: 0, durationMs: 10 }
+    ])
+
+    // A step with no test names its suite instead, and JUnit has nowhere to
+    // put it. Nothing is lost: a suite whose setup failed is a suite whose
+    // every test is an errored case here.
+    expect(xml).toContain('errors="1"')
+    expect(xml).not.toContain('staging is down')
+  })
+})

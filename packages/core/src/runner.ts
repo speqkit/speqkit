@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
-  TestDef, StepStatus, StepRecord, AssertContext, AssertOutcome, RunOutcome, TestOutcome
+  TestDef, SuiteDef, StepStatus, StepRecord, AssertContext, AssertOutcome, RunOutcome, TestOutcome
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
@@ -77,25 +77,30 @@ export async function runTests(
     // event log.
     const outcomes: TestOutcome[] = new Array<TestOutcome>(tests.length)
 
-    // Suites are the middle scope, and they are real: a resource declared
-    // `suite` is set up once for the group and torn down when it ends. The
-    // grouping is by source file and consecutive, so nothing is reordered.
+    // A file is the unit that runs, and the suites a file is inside are the
+    // tree above it. The grouping is by source file and consecutive, so
+    // nothing is reordered, and a project that declares no suites at all gets
+    // exactly the tree it had before: one node per file, hanging off the run.
     const groups = groupIntoSuites(tests)
+    const tree = new SuiteTree(registry, runFrame, configFor, artifacts)
+    for (const group of groups) group.node = tree.leafFor(group)
     const failures: unknown[] = []
 
     async function runSuite(group: SuiteGroup): Promise<void> {
-      registry.events.emit({ type: 'suite.started', suite: group.suite })
-      await registry.runHooks('suite:before', { suite: group.suite })
-      const suiteFrame = runFrame.open('suite')
+      const node = group.node!
       try {
+        const blocked = await tree.open(node)
         for (const [i, test] of group.tests.entries()) {
-          outcomes[group.at + i] = await runOne(registry, test, group.suite, artifacts, suiteFrame)
+          // A parked test is parked whatever happened above it. Reporting it
+          // as blocked would turn "we know this one does not run yet" into
+          // "something broke", which is the opposite of the news.
+          outcomes[group.at + i] = blocked !== undefined && test.pending === undefined
+            ? blockedOutcome(registry, test, node.id, blocked)
+            : await runOne(registry, test, node.id, artifacts, node.frame!)
         }
       } finally {
-        await suiteFrame.close(configFor)
+        await tree.release(node)
       }
-      await registry.runHooks('suite:after', { suite: group.suite })
-      registry.events.emit({ type: 'suite.finished', suite: group.suite })
     }
 
     try {
@@ -154,6 +159,9 @@ interface SuiteGroup {
   tests: TestDef[]
   /** Where this group's first test sits in the discovered order. */
   at: number
+  /** The declared suites this file is inside, outermost first. */
+  chain: readonly SuiteDef[]
+  node?: SuiteNode
 }
 
 function groupIntoSuites(tests: TestDef[]): SuiteGroup[] {
@@ -162,9 +170,243 @@ function groupIntoSuites(tests: TestDef[]): SuiteGroup[] {
     const suite = test.source ?? '(inline)'
     const current = groups.at(-1)
     if (current?.suite === suite) current.tests.push(test)
-    else groups.push({ suite, tests: [test], at })
+    else groups.push({ suite, tests: [test], at, chain: test.suites ?? [] })
   }
   return groups
+}
+
+type ConfigFor = (plugin: string) => Record<string, unknown>
+
+interface SuiteNode {
+  /** The directory a manifest declared, or the file, for a leaf. */
+  id: string
+  /** Absent on a leaf: a file declares nothing, it just holds tests. */
+  def?: SuiteDef
+  parent?: SuiteNode
+  /** Files below this node that have not finished yet. */
+  remaining: number
+  frame?: ResourceFrame
+  executor?: Executor
+  /** Memoised, because two workers reach the same parent at the same moment. */
+  opening?: Promise<string | undefined>
+  /** This suite or one above it says why it is not running. */
+  parked?: boolean
+  closed?: boolean
+}
+
+/**
+ * The suites above the files: opened before the first test below them, closed
+ * after the last one, once each.
+ *
+ * A suite is a thing rather than a file path, and a thing has a lifetime. The
+ * awkward part is that the lifetime does not line up with the schedule: the
+ * files under one suite are handed to whichever worker is free, so a suite has
+ * to open when the first of them starts and close when the last of them ends,
+ * and neither of those is knowable from where the work is taken. So the node
+ * counts what is left below it, and whoever brings the count to zero closes it.
+ *
+ * `open` is memoised on the node for the same reason `ResourceFrame` caches a
+ * promise rather than a value: without it, two workers arriving at one parent
+ * inside the same tick both find it unopened and both run its setup.
+ */
+class SuiteTree {
+  readonly #registry: Registry
+  readonly #root: ResourceFrame
+  readonly #configFor: ConfigFor
+  readonly #artifacts: ArtifactStore
+  readonly #nodes = new Map<string, SuiteNode>()
+
+  constructor(registry: Registry, root: ResourceFrame, configFor: ConfigFor, artifacts: ArtifactStore) {
+    this.#registry = registry
+    this.#root = root
+    this.#configFor = configFor
+    this.#artifacts = artifacts
+  }
+
+  /** The node one file runs in, creating the suites above it as needed. */
+  leafFor(group: SuiteGroup): SuiteNode {
+    let parent: SuiteNode | undefined
+    for (const def of group.chain) parent = this.#node(def.name, def, parent)
+    const leaf = this.#node(group.suite, undefined, parent)
+    for (let node: SuiteNode | undefined = leaf; node; node = node.parent) node.remaining += 1
+    return leaf
+  }
+
+  #node(id: string, def: SuiteDef | undefined, parent: SuiteNode | undefined): SuiteNode {
+    const existing = this.#nodes.get(id)
+    if (existing) return existing
+    const node: SuiteNode = { id, remaining: 0, ...(def ? { def } : {}), ...(parent ? { parent } : {}) }
+    this.#nodes.set(id, node)
+    return node
+  }
+
+  /**
+   * Open this node and everything above it.
+   *
+   * Answers with the reason no test below may run, when a suite's own setup
+   * did not complete — the same verdict a test's failed setup gets, one level
+   * up. A *parked* suite is not that: its tests inherited its `pending` and
+   * report skipped, which is the news, and running setup for them would be
+   * building a world nobody is going to look at.
+   */
+  open(node: SuiteNode): Promise<string | undefined> {
+    node.opening ??= this.#open(node)
+    return node.opening
+  }
+
+  async #open(node: SuiteNode): Promise<string | undefined> {
+    const blockedAbove = node.parent ? await this.open(node.parent) : undefined
+    const parentFrame = node.parent?.frame ?? this.#root
+
+    node.parked = (node.parent?.parked ?? false) || node.def?.pending !== undefined
+    node.frame = parentFrame.open('suite')
+    this.#registry.events.emit({
+      type: 'suite.started',
+      suite: node.id,
+      ...(node.parent ? { parent: node.parent.id } : {}),
+      ...(node.def?.title ? { title: node.def.title } : {}),
+      ...(node.def?.pending ? { pending: node.def.pending } : {})
+    })
+
+    if (blockedAbove !== undefined) return blockedAbove
+    if (node.parked) return undefined
+
+    await this.#registry.runHooks('suite:before', { suite: node.id })
+    if (!node.def?.setup?.length) return undefined
+
+    const records = await this.#executor(node).runPhase(node.def.setup, 'setup')
+    const broke = records.find((r) => r.status !== 'passed')
+    if (!broke) return undefined
+
+    const reason = `setup did not complete: ${broke.message ?? 'no detail'}`
+    this.#registry.events.emit({
+      type: 'diagnostic',
+      level: 'error',
+      source: node.id,
+      message: `suite ${reason}. No test in it ran.`
+    })
+    return reason
+  }
+
+  /**
+   * One file below this node is done. Whoever empties a node closes it.
+   *
+   * Every ancestor is counted down, not just up to the first one still busy:
+   * a leaf is one of the files under each of them, so finishing it settles a
+   * debt at every level. Stopping at the first non-empty node left the ones
+   * above it holding a count that could never reach zero, and a root suite
+   * whose cleanup simply never ran.
+   */
+  async release(node: SuiteNode): Promise<void> {
+    for (let current: SuiteNode | undefined = node; current; current = current.parent) {
+      current.remaining -= 1
+      if (current.remaining === 0) await this.#close(current)
+    }
+  }
+
+  async #close(node: SuiteNode): Promise<void> {
+    if (node.closed) return
+    node.closed = true
+
+    try {
+      // Whatever happened below, including a setup that never finished: what a
+      // half-built suite created is exactly what nobody else will delete.
+      if (!node.parked && node.def?.cleanup?.length) {
+        const records = await this.#executor(node).runPhase(node.def.cleanup, 'cleanup')
+        const dirty = records.find((r) => r.status !== 'passed')
+        if (dirty) {
+          this.#registry.events.emit({
+            type: 'diagnostic',
+            level: 'warn',
+            source: node.id,
+            message: `suite cleanup did not complete: ${dirty.message ?? 'no detail'}. The environment may be left dirty.`
+          })
+        }
+      }
+    } finally {
+      await node.frame?.close(this.#configFor)
+    }
+
+    if (!node.parked) await this.#registry.runHooks('suite:after', { suite: node.id })
+    this.#registry.events.emit({ type: 'suite.finished', suite: node.id })
+  }
+
+  /**
+   * One executor per suite, so `cleanup` reads what `setup` bound.
+   *
+   * Its scope is the suite's own and no test can see it. A test that could
+   * read `${tenant.id}` from the suite above it would be a different test when
+   * run alone, and running one test alone is how every failure gets looked at.
+   * What crosses that line is a `suite`-scoped resource, which is declared.
+   */
+  #executor(node: SuiteNode): Executor {
+    const meta = node.def?.meta && Object.keys(node.def.meta).length > 0 ? node.def.meta : undefined
+    node.executor ??= new Executor({
+      registry: this.#registry,
+      suite: node.id,
+      resources: node.frame!,
+      ...(meta ? { meta } : {}),
+      attach: (name, body, contentType) => {
+        const record = this.#artifacts.put(node.id, name, body, contentType)
+        this.#registry.events.emit({
+          type: 'artifact.attached',
+          suite: node.id,
+          name,
+          contentType,
+          bytes: record.bytes,
+          path: record.path
+        })
+      }
+    })
+    return node.executor
+  }
+}
+
+/**
+ * A test in a suite whose setup did not complete: announced, counted, and not
+ * run.
+ *
+ * `error` rather than `skipped`, and said per test rather than once for the
+ * suite: a report that shows twelve tests missing without a row for each of
+ * them is a report somebody reads as "twelve tests passed last week and are
+ * gone now".
+ */
+function blockedOutcome(
+  registry: Registry,
+  test: TestDef,
+  suite: string,
+  reason: string
+): TestOutcome {
+  const meta = test.meta && Object.keys(test.meta).length > 0 ? test.meta : undefined
+  registry.events.emit({
+    type: 'test.started',
+    test: test.name,
+    source: test.source,
+    ...(test.group ? { group: test.group } : {}),
+    ...(test.title ? { title: test.title } : {}),
+    ...(meta ? { meta } : {})
+  })
+  registry.events.emit({
+    type: 'diagnostic',
+    level: 'error',
+    source: test.name,
+    message: `the suite's ${reason}. The test did not run.`
+  })
+  registry.events.emit({ type: 'test.finished', test: test.name, status: 'error', durationMs: 0 })
+
+  return {
+    name: test.name,
+    ...(test.title ? { title: test.title } : {}),
+    ...(test.group ? { group: test.group } : {}),
+    ...(meta ? { meta } : {}),
+    source: test.source,
+    suite,
+    status: 'error',
+    durationMs: 0,
+    steps: [],
+    assertions: [],
+    artifacts: []
+  }
 }
 
 async function runOne(
@@ -187,6 +429,7 @@ async function runOne(
       type: 'test.started',
       test: test.name,
       source: test.source,
+      ...(test.group ? { group: test.group } : {}),
       ...(test.title ? { title: test.title } : {}),
       ...(meta ? { meta } : {})
     })
@@ -195,6 +438,7 @@ async function runOne(
     return {
       name: test.name,
       ...(test.title ? { title: test.title } : {}),
+      ...(test.group ? { group: test.group } : {}),
       pending: test.pending,
       ...(meta ? { meta } : {}),
       source: test.source,
@@ -211,6 +455,7 @@ async function runOne(
     type: 'test.started',
     test: test.name,
     source: test.source,
+    ...(test.group ? { group: test.group } : {}),
     ...(test.title ? { title: test.title } : {}),
     ...(meta ? { meta } : {})
   })
@@ -349,6 +594,7 @@ async function runOne(
   return {
     name: test.name,
     ...(test.title ? { title: test.title } : {}),
+    ...(test.group ? { group: test.group } : {}),
     ...(meta ? { meta } : {}),
     source: test.source,
     suite,

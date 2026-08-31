@@ -158,7 +158,7 @@ describe('the test form', () => {
 describe('a directory that describes itself', () => {
   it('hands its annotations to every test under it', async () => {
     const kit = await kitWithYaml()
-    kit.file('suites/menu/init.yaml', 'epic: menu\nowner: mira\n')
+    kit.file('suites/menu/suite.yaml', 'epic: menu\nowner: mira\n')
     kit.file('suites/menu/items/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
 
     // Written once on the directory that is the menu group, rather than
@@ -168,8 +168,8 @@ describe('a directory that describes itself', () => {
 
   it('lets the nearer file and then the test sharpen it', async () => {
     const kit = await kitWithYaml()
-    kit.file('suites/init.yaml', 'epic: everything\nowner: platform\n')
-    kit.file('suites/menu/init.yaml', 'epic: menu\n')
+    kit.file('suites/suite.yaml', 'epic: everything\nowner: platform\n')
+    kit.file('suites/menu/suite.yaml', 'epic: menu\n')
     kit.file('suites/menu/lists.yaml', 'name: lists\nowner: mira\nsteps: [{type: echo}]\n')
 
     expect((await kit.discover())[0]!.meta).toEqual({ epic: 'menu', owner: 'mira' })
@@ -177,7 +177,7 @@ describe('a directory that describes itself', () => {
 
   it('is never a test itself', async () => {
     const kit = await kitWithYaml()
-    kit.file('suites/init.yaml', 'epic: menu\n')
+    kit.file('suites/suite.yaml', 'epic: menu\n')
 
     // It has no steps, so a loader that treated it as a test would report an
     // empty test as broken on every run.
@@ -186,12 +186,71 @@ describe('a directory that describes itself', () => {
 
   it('answers the same for one file as for the whole suite', async () => {
     const kit = await kitWithYaml()
-    kit.file('suites/menu/init.yaml', 'epic: menu\n')
+    kit.file('suites/menu/suite.yaml', 'epic: menu\n')
     kit.file('suites/menu/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
 
     // A report must not depend on how the run was started.
     const alone = await kit.discover({ test: 'suites/menu/lists.yaml' })
     expect(alone[0]!.meta).toEqual({ epic: 'menu' })
+  })
+
+  it('still answers to the name the first release gave it', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/init.yaml', 'epic: menu\n')
+    kit.file('suites/menu/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
+
+    // `suite.yaml` is the name. A project written against `init.yaml` would
+    // otherwise start running its manifest as an empty test, which is a
+    // worse way to find out about a rename than a line in a changelog.
+    expect((await kit.discover())[0]!.meta).toEqual({ epic: 'menu' })
+  })
+
+  it('declares the suite itself, not only what its tests inherit', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/suite.yaml', [
+      'title: The menu',
+      'tags: [menu]',
+      'pending: waiting on staging',
+      'setup:',
+      '  - type: echo',
+      '    value: tenant',
+      'cleanup:',
+      '  - type: echo',
+      '    value: drop',
+      ''
+    ].join('\n'))
+    kit.file('suites/menu/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
+
+    // The loader reads the fields and stops there. What a suite means — the
+    // tree, when its setup runs, what is inherited — is the kernel's, which
+    // is what lets a loader for another format declare suites too.
+    const suite = (await kit.discover())[0]!.suites![0]!
+    expect(suite.name).toBe('suites/menu')
+    expect(suite.title).toBe('The menu')
+    expect(suite.tags).toEqual(['menu'])
+    expect(suite.pending).toBe('waiting on staging')
+    expect(suite.setup).toEqual([{ type: 'echo', value: 'tenant' }])
+    expect(suite.cleanup).toEqual([{ type: 'echo', value: 'drop' }])
+  })
+
+  it('carries a cases table through untouched, for the kernel to expand', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/create.yaml', [
+      'id: menu.create',
+      'cases:',
+      '  - id: eur',
+      '    variables: { currency: EUR }',
+      '  - id: usd',
+      '    variables: { currency: USD }',
+      'steps: [{type: echo, value: "${currency}"}]',
+      ''
+    ].join('\n'))
+
+    // `cases` is spine, so it is not filed into meta — and the loader does not
+    // expand it, because the identity scheme is not a format's to invent.
+    const tests = await kit.discover()
+    expect(tests.map((t) => t.name)).toEqual(['menu.create[eur]', 'menu.create[usd]'])
+    expect(tests[0]!.meta).toBeUndefined()
   })
 })
 

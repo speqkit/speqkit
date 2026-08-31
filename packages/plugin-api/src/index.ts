@@ -100,6 +100,23 @@ export interface TestDef {
    */
   variables?: Record<string, unknown>
   /**
+   * One test, run once per case, each with its own status and its own name.
+   *
+   * A table of inputs is the single most copied thing in a suite: the same
+   * eight steps written five times because the currency differs. Declared
+   * here, the kernel expands the test at discovery — before validation,
+   * before the run, before anything counts tests — so a case is an ordinary
+   * test in every place that matters. `speq validate` checks five tests, the
+   * report has five rows, and re-running one is re-running a test.
+   *
+   * The expansion could have lived in the loader, and for a loader that wants
+   * its own table syntax it still can: `load` returns `TestDef[]` and always
+   * could. It is on the spine because the *identity* is the part nobody may
+   * invent twice — `name[case-id]`, from a declared id and never a position,
+   * so inserting a case in the middle does not rename the four below it.
+   */
+  cases?: CaseDef[]
+  /**
    * Steps that bring the test's world into existence, run before `steps`.
    *
    * They run in the test's own scope rather than a nested one, so what they
@@ -134,6 +151,97 @@ export interface TestDef {
    */
   meta?: Record<string, unknown>
   /** Set by the loader; used to address the test from the CLI. */
+  source?: string
+  /**
+   * Set by the kernel when this test came from a `cases` table: the name the
+   * table was written under, shared by every case in it.
+   *
+   * What a report groups five rows back together by. It is not the identity —
+   * the identity is `name`, and `name` is what a rerun addresses.
+   */
+  group?: string
+  /**
+   * Set by the kernel: the declared suites this test is inside, outermost
+   * first, and empty when no directory above it declares anything.
+   *
+   * Carried on the test rather than handed to the runner beside it, because
+   * `speq run --test one.yaml` has to see exactly the chain a full run sees.
+   * A test that behaves differently depending on how the run was started is
+   * the failure mode this whole milestone exists to remove.
+   */
+  suites?: SuiteDef[]
+}
+
+/**
+ * One row of a test's `cases` table.
+ *
+ * Everything here overrides what the test declares, except `tags` and `meta`,
+ * which are merged onto it: a case adds a label, it does not replace the set.
+ */
+export interface CaseDef {
+  /**
+   * The case's identity, and the only required field.
+   *
+   * Written, never counted. An index shifts the day somebody inserts a case
+   * above it, and a report read next quarter is comparing this run against a
+   * name.
+   */
+  id: string
+  /** The sentence a human reads for this case, when the test's is not it. */
+  title?: string
+  /** Bound over the test's own givens, before anything in the test runs. */
+  variables?: Record<string, unknown>
+  /** Parks this one case, on the same terms as `TestDef.pending`. */
+  pending?: string
+  tags?: string[]
+  meta?: Record<string, unknown>
+}
+
+/**
+ * A group of tests that declares something about all of them.
+ *
+ * A suite has been a file path since the first commit, which is why nothing
+ * could be said about a group of tests except by saying it in each of them.
+ * A suite is now whatever declares itself one: a directory holding a manifest
+ * is a suite, the files under it belong to it, and suites nest.
+ *
+ * What a suite declares is inherited **outside-in, nearest wins** — `meta`
+ * merged key by key, `tags` unioned, `pending` and `title` taken from the
+ * nearest declaration that has one — and a test overrides all of it.
+ *
+ * Its `setup` and `cleanup` run once for the suite, in a scope of their own
+ * that the tests below cannot see. That last part is deliberate and is the
+ * one surprise this design refuses to import: a test that could read
+ * `${tenant.id}` bound by a suite's setup would be a different test when run
+ * alone, and running one test alone is how every failure is investigated.
+ * What a suite shares with its tests is a `suite`-scoped resource — declared,
+ * named, and set up on demand whether the suite's setup ran or not.
+ */
+export interface SuiteDef {
+  /**
+   * The suite's identity: the directory it declares, relative to the project
+   * root. Set by the kernel, never by the manifest — a name written by hand is
+   * a name that can collide with the directory next to it.
+   */
+  name: string
+  /** The sentence a report shows in place of the path. */
+  title?: string
+  /** Added to every test below, unioned with what the test declares. */
+  tags?: string[]
+  /**
+   * Parks the whole suite, and every test under it, with one reason.
+   *
+   * A parked suite does not run its `setup` either: there is nothing to bring
+   * into existence for tests that are not going to run.
+   */
+  pending?: string
+  /** Steps run once, before the first test anywhere below this suite. */
+  setup?: StepDef[]
+  /** Steps run once, after the last test below it, whatever happened to them. */
+  cleanup?: StepDef[]
+  /** Annotations, on the same terms as a test's — carried, never read. */
+  meta?: Record<string, unknown>
+  /** Set by the kernel: the manifest file this was read from. */
   source?: string
 }
 
@@ -268,13 +376,19 @@ export interface ResourceContext {
  *   `test.finished` follows all of them.
  * - **G3** — For any suite, `suite.started` precedes the `test.started` of
  *   every test in it, and `suite.finished` follows every `test.finished`.
+ *   Suites nest: a suite's `started` also precedes that of every suite naming
+ *   it as `parent`, and its `finished` follows all of theirs.
  * - **G4** — Events of *different* suites may interleave in any order. Within
  *   one suite the stream is totally ordered, and a reporter may rely on that.
  * - **G5** — Within a test, step events are ordered. Nesting is expressed by
  *   `parentId` and `depth`, never by adjacency.
- * - **G6** — Every event belonging to a test names it; a test names its suite
+ * - **G6** — Every event belonging to a test names it; a test names its file
  *   once, as `source` on `test.started`; a name identifies a test for the whole
- *   run.
+ *   run. Work that belongs to no test — a suite's own setup and cleanup —
+ *   names its suite instead. On `step.started`, `step.finished`,
+ *   `assertion.evaluated` and `artifact.attached`, exactly one of `test` and
+ *   `suite` is set, and a reporter that only knows about tests can skip the
+ *   others by asking for `test`.
  *
  * G4 is the one that costs something, and it is deliberately weaker than it
  * would be if tests ran concurrently: a reporter that groups by suite still
@@ -284,11 +398,11 @@ export interface ResourceContext {
  */
 export type RunEvent =
   | { type: 'run.started'; runId: string; tests: number; at: number }
-  | { type: 'suite.started'; suite: string }
-  | { type: 'test.started'; test: string; source?: string; title?: string; meta?: Record<string, unknown> }
+  | { type: 'suite.started'; suite: string; parent?: string; title?: string; pending?: string }
+  | { type: 'test.started'; test: string; source?: string; group?: string; title?: string; meta?: Record<string, unknown> }
   | { type: 'test.skipped'; test: string; reason: string }
-  | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
-  | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
+  | { type: 'step.started'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
+  | { type: 'step.finished'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
   /**
    * `expected` and `actual` are carried only when the assertion failed.
    *
@@ -300,8 +414,8 @@ export type RunEvent =
    * assertion in `events.jsonl` buys nothing, because a diff is a thing you
    * read about a failure.
    */
-  | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string; stepId?: string; expected?: unknown; actual?: unknown }
-  | { type: 'artifact.attached'; test: string; name: string; contentType: string; bytes: number; path?: string }
+  | { type: 'assertion.evaluated'; test?: string; suite?: string; assertionType: string; passed: boolean; message: string; stepId?: string; expected?: unknown; actual?: unknown }
+  | { type: 'artifact.attached'; test?: string; suite?: string; name: string; contentType: string; bytes: number; path?: string }
   | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number }
   | { type: 'suite.finished'; suite: string }
   | { type: 'run.finished'; runId: string; status: StepStatus; passed: number; failed: number; errored: number; skipped: number; durationMs: number }
@@ -317,6 +431,25 @@ export interface LoaderDef {
   /** Glob-ish suffixes this loader claims, e.g. ['.yaml', '.yml']. */
   extensions: string[]
   load(file: string, content: string): TestDef[] | Promise<TestDef[]>
+  /**
+   * Basenames, without extension, of the file that describes the directory it
+   * sits in rather than being a test — `['suite']`, and `['suite', 'init']`
+   * for a loader that also answers to an older spelling. Earlier names win.
+   *
+   * A file matching one of these is never a test, and the kernel will not
+   * pass it to `load`.
+   */
+  suiteFiles?: string[]
+  /**
+   * Read one of those files into a suite.
+   *
+   * Here rather than in the kernel for the same reason `load` is: the
+   * authoring format is a plugin point. What a suite *means* — the tree, the
+   * identity, the inheritance, when its setup runs — is the kernel's, and a
+   * loader that returns the fields is done. `name` and `source` are filled in
+   * by the kernel and anything the manifest writes there is ignored.
+   */
+  loadSuite?(file: string, content: string): SuiteDef | Promise<SuiteDef>
 }
 
 /* ------------------------------------------------------------------ */
@@ -393,8 +526,13 @@ export interface ValidationProblem {
 }
 
 export interface ValidateContext {
-  /** The test this step or assertion belongs to. */
-  readonly test: TestDef
+  /**
+   * The test this step or assertion belongs to — absent when it belongs to a
+   * suite instead, which a suite's own `setup` and `cleanup` do.
+   */
+  readonly test?: TestDef
+  /** The suite it belongs to, when it is not a test's. Exactly one is set. */
+  readonly suite?: SuiteDef
   /** The file it came from, as it will read in the diagnostic. */
   readonly file: string
   /** This plugin's block in speq.yaml, already validated against its schema. */
@@ -507,6 +645,7 @@ export interface Diagnostic {
 }
 
 export interface ArtifactRecord {
+  /** The test it was attached from — or the suite, when a suite's own step did. */
   test: string
   name: string
   contentType: string
@@ -520,6 +659,8 @@ export interface ArtifactRecord {
 export interface TestOutcome {
   name: string
   title?: string
+  /** The `cases` table this row came from, when it came from one. */
+  group?: string
   /** Set when the test did not run, carrying the reason it says. */
   pending?: string
   meta?: Record<string, unknown>
@@ -551,6 +692,15 @@ export interface DiscoverQuery {
   suite?: string
   /** Keep only tests carrying at least one of these tags. */
   tags?: string[]
+  /**
+   * Keep only tests with these exact names, cases included.
+   *
+   * The other three narrow by where a test lives or what it is labelled, and
+   * between them there was no way to say *that one*. Re-running a single
+   * failing case is the commonest thing anybody does after reading a report,
+   * and until this it meant running the file and watching the other nine.
+   */
+  names?: string[]
 }
 
 export interface RunRequest {

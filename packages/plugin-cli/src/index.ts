@@ -50,7 +50,7 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b] [--workers N]',
+      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N]',
       async run(argv) {
         const workers = readWorkers(argv)
         if (typeof workers === 'string') {
@@ -128,7 +128,7 @@ export default definePlugin({
      */
     cli.register('validate', {
       summary: 'check every test against the grammar the loaded plugins define',
-      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b]',
+      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b]',
       async run(argv) {
         const tests = await ctx.host.discover(query(argv))
         const diagnostics = ctx.host.validate(tests)
@@ -144,7 +144,7 @@ export default definePlugin({
 
     cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b]',
+      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b]',
       async run(argv) {
         const tests = await ctx.host.discover(query(argv))
         for (const test of tests) {
@@ -254,7 +254,12 @@ function linesFor(event: RunEvent): Line[] {
         : event.stepId
           ? `${event.stepId} ${dim(`(${event.stepType})`)}`
           : event.stepType
-      const lines: Line[] = [{ text: `  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}\n` }]
+      // A step with no test is a suite's own setup or cleanup. It has no
+      // header above it — there is no test to head — so it says where it is.
+      const where = event.test === undefined && event.suite ? dim(`  ${event.suite}`) : ''
+      const lines: Line[] = [
+        { text: `  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}${where}\n` }
+      ]
       if (event.message) lines.push({ text: `  ${indent}  ${red(event.message)}\n` })
       return lines
     }
@@ -399,12 +404,16 @@ function readWorkers(argv: string[]): number | string {
   return workers
 }
 
-/** The three flags that decide which tests a command is talking about. */
+/** The four flags that decide which tests a command is talking about. */
 function query(argv: string[]): DiscoverQuery {
   return {
     test: flag(argv, '--test'),
     suite: flag(argv, '--suite'),
-    tags: list(flag(argv, '--tags'))
+    tags: list(flag(argv, '--tags')),
+    // `--name` is the one that addresses a single test, cases included:
+    // `--name 'menu.create[eur]'`. The other three say where to look or what
+    // to look for, and after reading a report what you want is that one row.
+    names: list(flag(argv, '--name'))
   }
 }
 
