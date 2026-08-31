@@ -2,11 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import type {
-  AssertOutcome, AssertionDef, Diagnostic, DiscoverQuery, Host, PluginSpec, ResourceScope,
+  AssertOutcome, AssertionDef, Diagnostic, DiscoverQuery, Host, PluginSpec,
   RunEvent, RunOutcome, StepDef, StepRecord, TestDef
 } from '@speqkit/plugin-api'
 import {
-  Executor, Registry, createHost, resolveDeep, resolveDeepAsync, resolveString, runTests, validateTests
+  Executor, Registry, type ResourceFrame, createHost, resolveDeep, resolveDeepAsync, resolveString,
+  runTests, validateTests
 } from 'speqkit'
 
 /**
@@ -85,7 +86,8 @@ export class Harness {
   readonly #attached: Attachment[] = []
   #executor: Executor | undefined
   #last: Record<string, unknown> | undefined
-  #open: ResourceScope[] = []
+  /** The run/suite/test chain, opened on first use. Innermost last. */
+  #open: ResourceFrame[] = []
   #closed = false
 
   /** @internal — use `harness()`. */
@@ -142,8 +144,7 @@ export class Harness {
       last: input.last ?? this.#last,
       resolve: <T>(t: string) => resolveString(scope, t) as T,
       resolveDeep: <T>(v: T) => resolveDeep(scope, v),
-      resource: <T>(name: string) =>
-        this.registry.resources.acquire(name, (p) => this.registry.configFor(p)) as Promise<T>
+      resource: <T>(name: string) => this.#frame().acquire(name, (p) => this.registry.configFor(p)) as Promise<T>
     }
     const resolved = (await resolveDeepAsync(scope, { ...assertion })) as Record<string, unknown>
     const outcome = await entry.def.evaluate(ctx, resolved)
@@ -153,7 +154,7 @@ export class Harness {
   /** Acquire a resource, in a scope stack this harness holds open for you. */
   async resource<T = unknown>(name: string): Promise<T> {
     this.#ensureOpen()
-    return this.registry.resources.acquire(name, (p) => this.registry.configFor(p)) as Promise<T>
+    return this.#frame().acquire(name, (p) => this.registry.configFor(p)) as Promise<T>
   }
 
   /**
@@ -161,9 +162,9 @@ export class Harness {
    * can be observed without running a whole test.
    */
   async endTest(): Promise<void> {
-    if (!this.#open.includes('test')) return
-    await this.registry.resources.close('test', (p) => this.registry.configFor(p))
-    this.registry.resources.open('test')
+    if (this.#open.length === 0) return
+    await this.#frame().close((p) => this.registry.configFor(p))
+    this.#open[this.#open.length - 1] = this.#open.at(-2)!.open('test')
     // A fresh executor: the bindings belonged to the test that just ended.
     this.#executor = undefined
     this.#last = undefined
@@ -210,8 +211,8 @@ export class Harness {
     if (this.#closed) return
     this.#closed = true
     const configFor = (p: string) => this.registry.configFor(p)
-    for (const scope of [...this.#open].reverse()) {
-      await this.registry.resources.close(scope, configFor)
+    for (const frame of [...this.#open].reverse()) {
+      await frame.close(configFor)
     }
     this.#open = []
     if (this.#temporary) rmSync(this.root, { recursive: true, force: true })
@@ -221,6 +222,7 @@ export class Harness {
     this.#executor ??= new Executor({
       registry: this.registry,
       test: '(harness)',
+      resources: this.#frame(),
       attach: (name, body, contentType) => {
         this.#attached.push({ name, body, contentType })
       }
@@ -236,10 +238,15 @@ export class Harness {
   #ensureOpen(): void {
     if (this.#closed) throw new Error('this harness is closed')
     if (this.#open.length > 0) return
-    for (const scope of ['run', 'suite', 'test'] as const) {
-      this.registry.resources.open(scope)
-      this.#open.push(scope)
-    }
+    this.#open.push(this.registry.resources.open('run'))
+    this.#open.push(this.#open[0]!.open('suite'))
+    this.#open.push(this.#open[1]!.open('test'))
+  }
+
+  /** The innermost frame — the `test` one, which is where a step runs. */
+  #frame(): ResourceFrame {
+    this.#ensureOpen()
+    return this.#open.at(-1)!
   }
 }
 
