@@ -91,6 +91,25 @@ describe('the ledger says what is there', () => {
   })
 })
 
+describe('the command a clone gets', () => {
+  it('points bin at a file that is committed, not built', () => {
+    const manifest = JSON.parse(readFileSync(join(repo, 'packages/core/package.json'), 'utf8'))
+    const target = manifest.bin.speq as string
+    const files = manifest.files as string[]
+
+    // A package manager links `node_modules/.bin/speq` while it installs, and
+    // links nothing when the file `bin` names is not there yet. Here install
+    // runs before build, so naming `dist/bin.js` meant twenty "Failed to
+    // create bin" warnings on a fresh clone and no `speq` on the path —
+    // including in `examples/basic`, the first thing a stranger runs. The
+    // launcher is committed so the name always resolves; `dist` is one import
+    // away, and only the tarball needs it to exist at install time.
+    expect(target.startsWith('./dist/'), `bin points at ${target}, which does not exist until a build`).toBe(false)
+    expect(() => readFileSync(join(repo, 'packages/core', target), 'utf8'), `${target} is not committed`).not.toThrow()
+    expect(files, "add the launcher to `files` or the published package has no bin").toContain(target.replace(/^\.\//, ''))
+  })
+})
+
 describe('a release says what changed', () => {
   it('names the version being released in CHANGELOG.md', () => {
     const version = JSON.parse(readFileSync(join(repo, 'packages/core/package.json'), 'utf8')).version as string
