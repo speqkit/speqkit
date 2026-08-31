@@ -1,0 +1,42 @@
+{
+  "name": "@speqkit/plugin-data",
+  "version": "0.1.0",
+  "description": "Where values come from: generated test data, the environment, and project variables.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-data"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "keywords": [
+    "speqkit-plugin"
+  ],
+  "peerDependencies": {
+    "@speqkit/plugin-api": "workspace:^"
+  },
+  "devDependencies": {
+    "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/test-kit": "workspace:*",
+    "speqkit": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

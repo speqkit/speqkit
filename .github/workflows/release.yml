@@ -1,27 +1,146 @@
-# Cuts a release: four executables, their checksums, and the Homebrew formula
-# that points at them.
+# Delivery, end to end, with nobody holding the wheel.
 #
-#   git tag v0.2.0 && git push origin v0.2.0
+# Bump a version in a package.json, merge to main, and — if the gate is green
+# — that version is on npm, and if the kernel's version moved, four
+# executables, a GitHub release and the Homebrew formula follow it. There is
+# no separate "cut a release" gesture, because a gesture is a thing a human
+# forgets on the one Friday it mattered.
 #
-# Each binary is built on its own runner rather than cross-compiled. The SEA
-# blob carries a V8 code cache, which is valid only for the exact runtime it
-# is injected into, and a macOS binary has to be re-signed after injection by
-# a tool that only exists on macOS. Native runners make both problems vanish.
+#   what ships              decided by
+#   ----------              ----------
+#   an npm package          its version is not in the registry yet
+#   a tag + binaries + tap  packages/core's version has no tag on the remote
+#
+# Both questions are asked of the outside world rather than of this
+# repository, which is what makes re-running safe: a job that died halfway
+# through publishing finds, on its second run, that the packages it already
+# pushed are simply published packages. See scripts/release-plan.mjs.
+#
+# Secrets this needs, both set once:
+#   NPM_TOKEN           an npm automation token for the speqkit org
+#   HOMEBREW_TAP_TOKEN  a PAT with contents:write on speqkit/homebrew-tap
 name: release
 
 on:
   push:
-    tags: ['v*']
-  # Buildable without tagging: the artefacts are produced and checked, and
-  # nothing is published. Useful for finding out that a runner label changed
-  # underneath us on a day that is not release day.
+    branches: [main]
+  # Build and verify the artefacts without publishing anything. Useful for
+  # finding out that a runner label changed underneath us on a day that is
+  # not release day.
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and verify, publish nothing'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
+  # For npm provenance: the token that proves to the registry which workflow,
+  # at which commit, built the tarball. Drop this and the `--provenance` flag
+  # together if it ever gets in the way; nothing else depends on it.
+  id-token: write
+
+# Never cancel a release in flight. The CI of a superseded commit is worth
+# nothing, but a publish interrupted between package four and package five
+# leaves the registry in a state no later run can explain.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
+  # ------------------------------------------------------------------ #
+  # What, if anything, does this commit release?                        #
+  # ------------------------------------------------------------------ #
+  plan:
+    # A fork that pushes to its own main must not try to publish ours.
+    if: github.repository == 'speqkit/speqkit'
+    runs-on: ubuntu-latest
+    outputs:
+      anything: ${{ steps.plan.outputs.anything }}
+      publish_npm: ${{ steps.plan.outputs.publish_npm }}
+      cut_release: ${{ steps.plan.outputs.cut_release }}
+      tag: ${{ steps.plan.outputs.tag }}
+      core_version: ${{ steps.plan.outputs.core_version }}
+      npm_packages: ${{ steps.plan.outputs.npm_packages }}
+      dry_run: ${{ inputs.dry_run || false }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+
+      - id: plan
+        run: node scripts/release-plan.mjs --github-output
+
+      - name: say so in the summary
+        run: node scripts/release-plan.mjs >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ #
+  # The gate. Literally ci.yml, not a copy of it.                       #
+  # ------------------------------------------------------------------ #
+  gate:
+    needs: plan
+    if: needs.plan.outputs.anything == 'true' || needs.plan.outputs.dry_run == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  # ------------------------------------------------------------------ #
+  # npm                                                                 #
+  # ------------------------------------------------------------------ #
+  npm:
+    needs: [plan, gate]
+    if: needs.plan.outputs.publish_npm == 'true' && needs.plan.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # `pnpm publish -r` walks the workspace in dependency order, turns every
+      # `workspace:*` into the real version it resolved to, and skips whatever
+      # the registry already has — which is the same rule release-plan.mjs
+      # reported, asked of the same place. That skip is the default and
+      # `--force` is what turns it off, so nothing here has to enumerate
+      # anything. `--no-git-checks` because a CI checkout is detached and pnpm
+      # is right to be suspicious of that everywhere except here.
+      #
+      # Provenance is asked for twice on purpose. pnpm's own `--help` does not
+      # list the flag — it forwards it to npm, which does — and the env var is
+      # the documented config path. Either alone would probably do; neither can
+      # fail the publish, and losing provenance silently is the outcome worth
+      # spending a duplicated line to avoid.
+      - name: publish what the registry is missing
+        run: pnpm -r publish --access public --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: say what went out
+        run: |
+          {
+            echo "### Published to npm"
+            echo ""
+            for p in ${{ needs.plan.outputs.npm_packages }}; do echo "- \`$p\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ #
+  # Four executables, on four native runners                            #
+  # ------------------------------------------------------------------ #
+  #
+  # Each binary is built on its own runner rather than cross-compiled. The SEA
+  # blob carries a V8 code cache, which is valid only for the exact runtime it
+  # is injected into, and a macOS binary has to be re-signed after injection
+  # by a tool that only exists on macOS. Native runners make both problems
+  # vanish.
+  binaries:
+    needs: [plan, gate]
+    if: needs.plan.outputs.cut_release == 'true' || needs.plan.outputs.dry_run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +166,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+      # Downloads the pinned runtime from nodejs.org, checks it against
+      # SHASUMS256.txt, and smoke-tests the result with PATH emptied.
       - run: node scripts/build-binary.mjs
 
       # A release artefact nobody has run is a rumour. This installs it from a
@@ -56,20 +177,9 @@ jobs:
       - name: install.sh installs what was built
         run: |
           SPEQKIT_BASE_URL="file://$PWD/build" sh packaging/install.sh \
-            --version "v$(node -p "require('./packages/core/package.json').version")" \
+            --version "${{ needs.plan.outputs.tag }}" \
             --bin-dir "$RUNNER_TEMP/bin"
           env -i PATH="" "$RUNNER_TEMP/bin/speq" version
-
-      - name: the tag and the version must agree
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          pkg="v$(node -p "require('./packages/core/package.json').version")"
-          # Cheap to check, expensive to find out later: a tag that disagrees
-          # with package.json produces archives nothing can ever download,
-          # because the formula and install.sh both build the filename out of
-          # the version.
-          [ "$tag" = "$pkg" ] || { echo "tag $tag but package.json says $pkg"; exit 1; }
 
       - uses: actions/upload-artifact@v7
         with:
@@ -79,10 +189,24 @@ jobs:
             build/speqkit-*.tar.gz.sha256
           if-no-files-found: error
 
-  publish:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+  # ------------------------------------------------------------------ #
+  # The tag, the release, the formula                                   #
+  # ------------------------------------------------------------------ #
+  release:
+    needs: [plan, npm, binaries]
+    # `npm` is skipped when there was nothing to publish, and a skipped need
+    # would otherwise skip this job too. What must not happen is releasing
+    # binaries whose packages failed to publish, hence `!= 'failure'` rather
+    # than `always()`.
+    if: >-
+      !cancelled()
+      && needs.plan.outputs.cut_release == 'true'
+      && needs.plan.outputs.dry_run != 'true'
+      && needs.binaries.result == 'success'
+      && needs.npm.result != 'failure'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ needs.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -97,14 +221,19 @@ jobs:
       # partially failed matrix cannot become a tap that works on the
       # maintainer's laptop and nowhere else.
       - name: render the Homebrew formula
-        run: node scripts/render-formula.mjs --dist dist --version "${GITHUB_REF#refs/tags/}" --out dist/speqkit.rb
+        run: node scripts/render-formula.mjs --dist dist --version "${{ needs.plan.outputs.tag }}" --out dist/speqkit.rb
 
+      # `gh release create` creates the tag at this commit, so the tag and
+      # packages/core's version cannot disagree — the tag is derived from it.
+      # A tag pushed by GITHUB_TOKEN does not re-trigger workflows, which is
+      # what keeps this from looping back into itself.
       - name: create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
+          tag="${{ needs.plan.outputs.tag }}"
           gh release create "$tag" \
+            --target "$GITHUB_SHA" \
             --title "speqkit $tag" \
             --generate-notes \
             --notes-file - <<NOTES
@@ -113,7 +242,7 @@ jobs:
           \`\`\`sh
           brew install speqkit/tap/speqkit
           # or
-          curl -fsSL https://raw.githubusercontent.com/speqkit/speqkit/$tag/packaging/install.sh | sh
+          curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh
           # or, if Node is already there
           npm i -g speqkit
           \`\`\`
@@ -124,16 +253,62 @@ jobs:
           NOTES
           gh release upload "$tag" dist/speqkit-*.tar.gz dist/speqkit-*.tar.gz.sha256 dist/speqkit.rb
 
-      # The tap is a separate repository, so the formula is attached to the
-      # release and copied over rather than pushed from here. Written down in
-      # the summary because a step that a human performs is a step a human
-      # forgets.
-      - name: what is left to do by hand
+  # ------------------------------------------------------------------ #
+  # The tap                                                             #
+  # ------------------------------------------------------------------ #
+  #
+  # A separate repository, so the formula is pushed there rather than
+  # committed here. This used to be a line in the job summary telling a human
+  # to copy a file, which is another way of spelling "the tap is one release
+  # behind whenever the maintainer is on holiday".
+  tap:
+    needs: [plan, release]
+    if: needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # This repository, for the renderer and the template.
+      - uses: actions/checkout@v7
+        with: { path: src }
+
+      - uses: actions/checkout@v7
+        with:
+          repository: speqkit/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+
+      # Rendered again here rather than downloaded from the release, so the
+      # tap is built from the checksums of the artefacts themselves. One less
+      # hop that could serve something else. Absolute paths because the
+      # renderer resolves its arguments against its own repository root, and
+      # here that root is `src` while the files are not.
+      - name: render the formula
         run: |
-          {
-            echo "### Copy into speqkit/homebrew-tap"
-            echo ""
-            echo '```sh'
-            echo "gh release download ${GITHUB_REF#refs/tags/} -R speqkit/speqkit -p speqkit.rb -O Formula/speqkit.rb"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$GITHUB_WORKSPACE/tap/Formula"
+          node "$GITHUB_WORKSPACE/src/scripts/render-formula.mjs" \
+            --dist "$GITHUB_WORKSPACE/dist" \
+            --version "${{ needs.plan.outputs.tag }}" \
+            --out "$GITHUB_WORKSPACE/tap/Formula/speqkit.rb"
+
+      - name: push it
+        working-directory: tap
+        run: |
+          git config user.name  'speqkit release'
+          git config user.email 'release@speqkit.dev'
+          git add Formula/speqkit.rb
+          # A formula identical to the one already there is not an error: it
+          # is what a re-run of a release that already succeeded looks like.
+          if git diff --cached --quiet; then
+            echo "the tap already has ${{ needs.plan.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -m "speqkit ${{ needs.plan.outputs.tag }}"
+          git push
+          echo "### Tap updated to ${{ needs.plan.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"

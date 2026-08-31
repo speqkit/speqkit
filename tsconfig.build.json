@@ -20,6 +20,18 @@
       "path": "packages/plugin-loop/tsconfig.build.json"
     },
     {
+      "path": "packages/plugin-assert/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-data/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-use/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-json/tsconfig.build.json"
+    },
+    {
       "path": "packages/plugin-junit/tsconfig.build.json"
     },
     {

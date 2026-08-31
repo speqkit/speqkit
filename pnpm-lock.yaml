@@ -66,6 +66,8 @@ importers:
         specifier: ^2.6.1
         version: 2.9.0
 
+  packages/create-speqkit-plugin: {}
+
   packages/installer:
     dependencies:
       semver:
@@ -81,13 +83,50 @@ importers:
 
   packages/plugin-api: {}
 
+  packages/plugin-assert:
+    dependencies:
+      ajv:
+        specifier: ^8.17.1
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-cli:
     devDependencies:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
 
+  packages/plugin-data:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-http:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+
+  packages/plugin-json:
     devDependencies:
       '@speqkit/plugin-api':
         specifier: workspace:*
@@ -121,6 +160,22 @@ importers:
         specifier: workspace:*
         version: link:../plugin-api
 
+  packages/plugin-use:
+    dependencies:
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      '@speqkit/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-yaml:
     dependencies:
       yaml:
@@ -130,6 +185,21 @@ importers:
       '@speqkit/plugin-api':
         specifier: workspace:*
         version: link:../plugin-api
+      '@speqkit/plugin-assert':
+        specifier: workspace:*
+        version: link:../plugin-assert
+      '@speqkit/plugin-cli':
+        specifier: workspace:*
+        version: link:../plugin-cli
+      '@speqkit/plugin-data':
+        specifier: workspace:*
+        version: link:../plugin-data
+      '@speqkit/plugin-http':
+        specifier: workspace:*
+        version: link:../plugin-http
+      '@speqkit/plugin-use':
+        specifier: workspace:*
+        version: link:../plugin-use
       '@speqkit/test-kit':
         specifier: workspace:*
         version: link:../test-kit
@@ -614,6 +684,17 @@ packages:
   '@vitest/utils@2.1.9':
     resolution: {integrity: sha512-v0psaMSkNJ3A2NMrUEHFRzJtDPFn+/VWZ5WxImB21T9fjucJRmS7xCS3ppEnARb9y11OAzaD+P2Ps+b+BGX5iQ==}
 
+  ajv-formats@3.0.1:
+    resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
+    peerDependencies:
+      ajv: ^8.0.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
+
+  ajv@8.20.0:
+    resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
+
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
@@ -667,6 +748,12 @@ packages:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
 
+  fast-deep-equal@3.1.3:
+    resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
+
+  fast-uri@3.1.6:
+    resolution: {integrity: sha512-7Ical1vFEMr0onbVzEDIreM22I4khW+fzyQPwvAFWBp1iwdshSZRsL4jjRvPG9JP1uiqMHRto+YU6R2/CzDz5Q==}
+
   fsevents@2.3.2:
     resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -676,6 +763,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  json-schema-traverse@1.0.0:
+    resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
@@ -719,6 +809,10 @@ packages:
     resolution: {integrity: sha512-b9Eb8h2eVqNE8edvKdwqkrY6O7kAwmI8kcnBv1NScolYJbo59XUF0noFq+lxbC1yN20bmC0WBEbDC5H/7ASb0A==}
     engines: {node: '>=14.0.0'}
     hasBin: true
+
+  require-from-string@2.0.2:
+    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
+    engines: {node: '>=0.10.0'}
 
   rollup@4.63.1:
     resolution: {integrity: sha512-3Df9jsstwhccuEfmAMi9l8XUh/GOkVObmFTU7CCVBysEbcOZLl84jCtaAZMcPiMz2EGKsATzQcU+Xr3n/wU6cg==}
@@ -1122,6 +1216,17 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 1.2.0
 
+  ajv-formats@3.0.1(ajv@8.20.0):
+    optionalDependencies:
+      ajv: 8.20.0
+
+  ajv@8.20.0:
+    dependencies:
+      fast-deep-equal: 3.1.3
+      fast-uri: 3.1.6
+      json-schema-traverse: 1.0.0
+      require-from-string: 2.0.2
+
   assertion-error@2.0.1: {}
 
   cac@6.7.14: {}
@@ -1207,11 +1312,17 @@ snapshots:
 
   expect-type@1.4.0: {}
 
+  fast-deep-equal@3.1.3: {}
+
+  fast-uri@3.1.6: {}
+
   fsevents@2.3.2:
     optional: true
 
   fsevents@2.3.3:
     optional: true
+
+  json-schema-traverse@1.0.0: {}
 
   loupe@3.2.1: {}
 
@@ -1246,6 +1357,8 @@ snapshots:
   postject@1.0.0-alpha.6:
     dependencies:
       commander: 9.5.0
+
+  require-from-string@2.0.2: {}
 
   rollup@4.63.1:
     dependencies:

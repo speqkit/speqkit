@@ -124,12 +124,49 @@ async function runOne(
   const startedAt = Date.now()
   const configFor = (plugin: string) => registry.configFor(plugin)
 
-  registry.events.emit({ type: 'test.started', test: test.name, source: test.source })
+  const meta = test.meta && Object.keys(test.meta).length > 0 ? test.meta : undefined
+
+  // A pending test is announced and not run. It is still discovered, still
+  // counted and still validated — what it records is a gap the suite knows
+  // about, and a gap nobody is reminded of is a gap that has been deleted.
+  if (test.pending) {
+    registry.events.emit({
+      type: 'test.started',
+      test: test.name,
+      source: test.source,
+      ...(test.title ? { title: test.title } : {}),
+      ...(meta ? { meta } : {})
+    })
+    registry.events.emit({ type: 'test.skipped', test: test.name, reason: test.pending })
+    registry.events.emit({ type: 'test.finished', test: test.name, status: 'skipped', durationMs: 0 })
+    return {
+      name: test.name,
+      ...(test.title ? { title: test.title } : {}),
+      pending: test.pending,
+      ...(meta ? { meta } : {}),
+      source: test.source,
+      suite,
+      status: 'skipped',
+      durationMs: 0,
+      steps: [],
+      assertions: [],
+      artifacts: []
+    }
+  }
+
+  registry.events.emit({
+    type: 'test.started',
+    test: test.name,
+    source: test.source,
+    ...(test.title ? { title: test.title } : {}),
+    ...(meta ? { meta } : {})
+  })
   await registry.runHooks('test:before', { test: test.name })
 
   const executor = new Executor({
     registry,
     test: test.name,
+    ...(meta ? { meta } : {}),
     attach: (name, body, contentType) => {
       const record = artifacts.put(test.name, name, body, contentType)
       registry.events.emit({
@@ -144,16 +181,49 @@ async function runOne(
   })
 
   registry.resources.open('test')
-  let steps: StepRecord[] = []
+  let setup: StepRecord[] = []
+  let body: StepRecord[] = []
+  let cleanup: StepRecord[] = []
+  let ungiven: string | undefined
   const assertions: (AssertOutcome & { type: string })[] = []
 
   try {
-    steps = await executor.runSteps(test.steps)
+    // The givens come first: they are what the rest of the test is written in
+    // terms of. A test whose variables do not resolve has not begun, so
+    // neither setup nor cleanup runs — there is nothing yet to take down.
+    if (test.variables && Object.keys(test.variables).length > 0) {
+      try {
+        await executor.defineVariables(test.variables)
+      } catch (err) {
+        ungiven = err instanceof Error ? err.message : String(err)
+        registry.events.emit({
+          type: 'diagnostic',
+          level: 'error',
+          source: test.name,
+          message: `${ungiven.replace(/\.$/, '')}. The test did not run.`
+        })
+      }
+    }
+
+    // Setup runs in the test's own frame, not a nested one, so what it binds
+    // is addressable from the body, the assertions and the cleanup alike.
+    setup = !ungiven && test.setup?.length ? await executor.runPhase(test.setup, 'setup') : []
+    const setupBroke = ungiven !== undefined || setup.some((s) => s.status !== 'passed')
+    if (setupBroke && !ungiven) {
+      registry.events.emit({
+        type: 'diagnostic',
+        level: 'warn',
+        source: test.name,
+        message: `setup did not complete: ${setup.find((s) => s.message)?.message ?? 'no detail'}. The test did not run.`
+      })
+    }
+
+    body = setupBroke ? [] : await executor.runSteps(test.steps)
 
     // Assertions run only if every step produced a result to assert over.
     // Asserting after an errored step reports noise, not evidence.
-    if (!steps.some((s) => s.status === 'error')) {
-      const ctx = assertContext(registry, executor, steps)
+    if (!setupBroke && !body.some((s) => s.status === 'error')) {
+      const ctx = assertContext(registry, executor, body)
       for (const assertion of test.assert ?? []) {
         const entry = registry.assertions.get(assertion.type)
         if (!entry) {
@@ -164,7 +234,8 @@ async function runOne(
           })
           continue
         }
-        const input = (await resolveDeepAsync(executor.scope(), { ...assertion })) as Record<string, unknown>
+        const { meta: _annotations, ...written } = assertion
+        const input = (await resolveDeepAsync(executor.scope(), written)) as Record<string, unknown>
         try {
           const outcome = await entry.def.evaluate(ctx, input)
           assertions.push({ type: assertion.type, ...outcome })
@@ -186,14 +257,34 @@ async function runOne(
       }
     }
   } finally {
+    // Whatever happened above, including a setup that never finished: the rows
+    // a half-built test created are exactly the ones nobody else will delete.
+    cleanup = !ungiven && test.cleanup?.length ? await executor.runPhase(test.cleanup, 'cleanup') : []
     await registry.resources.close('test', configFor)
   }
 
-  const status: StepStatus = steps.some((s) => s.status === 'error')
+  const ran = [...setup, ...body]
+  let status: StepStatus = ungiven || ran.some((s) => s.status === 'error') || setup.some((s) => s.status !== 'passed')
     ? 'error'
-    : assertions.some((a) => !a.passed) || steps.some((s) => s.status === 'failed')
+    : assertions.some((a) => !a.passed) || ran.some((s) => s.status === 'failed')
       ? 'failed'
       : 'passed'
+
+  // A test that answered its question and then failed to put the world back is
+  // not a passing test: the next run inherits whatever it left behind. It does
+  // not overwrite a verdict already given, because that verdict is the news.
+  const dirty = cleanup.find((s) => s.status !== 'passed')
+  if (dirty) {
+    registry.events.emit({
+      type: 'diagnostic',
+      level: 'warn',
+      source: test.name,
+      message: `cleanup did not complete: ${dirty.message ?? 'no detail'}. The environment may be left dirty.`
+    })
+    if (status === 'passed') status = 'error'
+  }
+
+  const steps = [...setup, ...body, ...cleanup]
 
   const durationMs = Date.now() - startedAt
   await registry.runHooks('test:after', { test: test.name })
@@ -201,6 +292,8 @@ async function runOne(
 
   return {
     name: test.name,
+    ...(test.title ? { title: test.title } : {}),
+    ...(meta ? { meta } : {}),
     source: test.source,
     suite,
     status,

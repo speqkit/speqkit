@@ -4,11 +4,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow runs this same file as its gate. Not a copy of these
+  # steps and not a `workflow_run` that watches from outside: the thing that
+  # decides whether a commit ships has to be the identical battery a pull
+  # request faces, or the two drift and the release one is the one nobody
+  # reads until it is too late.
+  workflow_call:
 
 # A second push to the same branch cancels the first: nobody reads the CI of a
-# commit that has already been replaced.
+# commit that has already been replaced. `github.workflow` is in the key
+# because when release.yml calls this file the group is evaluated in *its*
+# context — without it, the gate of a release and the ordinary CI of the same
+# commit would land in one group and cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

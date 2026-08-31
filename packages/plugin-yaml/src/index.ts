@@ -1,35 +1,26 @@
-import { basename, extname } from 'node:path'
-import { parseAllDocuments } from 'yaml'
-import { definePlugin, type TestDef } from '@speqkit/plugin-api'
+import { definePlugin } from '@speqkit/plugin-api'
+import { loadTests } from './load.js'
+import { registerMigrate } from './migrate.js'
 
 /**
  * The authoring format is a plugin point, not a kernel concept. YAML ships as
  * the default because it is readable by people who do not program; a
  * TypeScript loader is an ordinary plugin someone can publish tomorrow without
  * touching the kernel.
+ *
+ * Owning the format is also what makes `speq migrate` this plugin's job. A
+ * codemod is a reader and a writer of one syntax, and the plugin that decides
+ * what `${...}` means is the only honest place to put the thing that rewrites
+ * `{{...}}` into it.
  */
 export default definePlugin({
   name: '@speqkit/plugin-yaml',
   setup(ctx) {
     ctx.defineLoader('yaml', {
       extensions: ['.yaml', '.yml'],
-      load(file, content) {
-        const tests: TestDef[] = []
-        for (const doc of parseAllDocuments(content)) {
-          if (doc.errors.length > 0) {
-            throw new Error(`${file}: ${doc.errors[0]!.message}`)
-          }
-          const value = doc.toJS() as Partial<TestDef> | null
-          if (!value) continue
-          tests.push({
-            name: value.name ?? basename(file, extname(file)),
-            tags: value.tags ?? [],
-            steps: value.steps ?? [],
-            assert: value.assert ?? []
-          })
-        }
-        return tests
-      }
+      load: (file, content) => loadTests(file, content, { root: ctx.host.root })
     })
+
+    registerMigrate(ctx)
   }
 })

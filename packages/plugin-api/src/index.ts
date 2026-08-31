@@ -17,22 +17,128 @@ export interface StepDef {
   type: string
   /** Present when a step type nests others (loop, retry, parallel). */
   steps?: StepDef[]
+  /**
+   * Checks against this step's own result, evaluated the moment it finishes.
+   *
+   * These are the `Assertion` of `Suite → Test → Step → Assertion`, so the
+   * kernel owns them and a step type never receives them as input — a plugin
+   * that closed its schema with `additionalProperties: false` would otherwise
+   * reject a block it has no business reading. A failing one makes the step
+   * `failed`: the system answered and the answer was wrong, which is a
+   * different thing from the step erroring.
+   */
+  assert?: AssertionDef[]
+  /**
+   * Annotations the kernel carries and never reads.
+   *
+   * Reserved here, unlike on a test, because every *other* unknown key on a
+   * step already belongs to the plugin that owns its `type` — it is that
+   * plugin's input. Writing `owner: mira` beside `url:` would be handed to
+   * `plugin-http`, which closes its schema and would reject it, and would be
+   * right to. The kernel lifts `meta` out before the schema is checked and
+   * before `execute` is called, so a plugin never sees it.
+   */
+  meta?: Record<string, unknown>
   [key: string]: unknown
 }
 
 export interface AssertionDef {
   type: string
+  /** Annotations, on the same terms as a step's — see `StepDef.meta`. */
+  meta?: Record<string, unknown>
   [key: string]: unknown
 }
 
 export interface TestDef {
+  /**
+   * The test's identity: stable, addressable, and what every event carries.
+   *
+   * A YAML test writes it as `id`, and the identity is the thing that must
+   * not move — a report read next quarter is comparing this run against a
+   * name, not against a sentence someone has since reworded.
+   */
   name: string
+  /**
+   * The sentence a human reads, when the identity is not one.
+   *
+   * `menu.items-create.creates-item` is a good name and a poor headline;
+   * "POST /restaurants/{id}/categories/{id}/items creates an item" is the
+   * reverse. A report shows this and falls back to `name`.
+   */
+  title?: string
   tags?: string[]
+  /**
+   * Why this test is not being run — and the fact that it is not.
+   *
+   * A reason rather than a flag, because a test parked without one is a test
+   * being deleted slowly. It records a gap the suite knows about: an endpoint
+   * whose 429 path cannot be reached from a stack configured to survive the
+   * rest of the run, a feature behind a flag nobody can turn on in CI. The
+   * text is what a reader needs and the only thing that makes the entry worth
+   * keeping over `git rm`.
+   *
+   * It is a field of the spine, not an annotation, and that is the line the
+   * whole `meta` design draws: this changes what happens, so it is declared
+   * and checked. A pending test is still validated — it is exactly the test
+   * that rots unnoticed — it simply does not run, and reports `skipped`.
+   */
+  pending?: string
+  /**
+   * The test's givens, resolved once before anything runs and addressable as
+   * `${name}` from setup, steps, assertions and cleanup alike.
+   *
+   * Resolved **in declaration order, one at a time**, each entry bound before
+   * the next is read. That is what makes a derived given possible —
+   * `email: "speq-${slug}@example.com"` — and it is what makes two entries
+   * that generate look like two values rather than one: resolution asks a
+   * value provider once per pass, so two `${gen:uuid}` written in a single
+   * pass would be a single uuid.
+   *
+   * Only the kernel can bind these. A step type sees the test through a
+   * nested scope that is popped when it returns, so a plugin that tried to
+   * seed the test's own frame would lose everything it seeded.
+   */
+  variables?: Record<string, unknown>
+  /**
+   * Steps that bring the test's world into existence, run before `steps`.
+   *
+   * They run in the test's own scope rather than a nested one, so what they
+   * bind is addressable from the body, the assertions and the cleanup alike.
+   */
+  setup?: StepDef[]
   steps: StepDef[]
   assert?: AssertionDef[]
+  /**
+   * Steps that take the world back down, run after the test whatever happened
+   * to it — including after a step errored, which is exactly when the rows a
+   * test created would otherwise be left behind.
+   */
+  cleanup?: StepDef[]
+  /**
+   * Everything about the test that is not the test — `owner`, `epic`,
+   * `severity`, a ticket number, whatever this team puts in its reports.
+   *
+   * The kernel carries it and does not read it. It has no opinion on which
+   * fields are right, does not validate them, and — the invariant that keeps
+   * this from becoming a second control language — **never branches on
+   * them**. The moment behaviour follows from a meta key (`retries: 3`,
+   * `skip: true`), a suite has control flow that `validate` cannot see, the
+   * report cannot explain, and the author cannot find. Behaviour is a step
+   * type or a config key: something declared, and something checked.
+   *
+   * A plugin that needs a field checks it where it reads it, and says so with
+   * a `Diagnostic`. A typo in `ownr` costs a missing label in a report; a typo
+   * in a step type costs a check that silently did not run. Different prices,
+   * different treatment — which is why there is no ninth contribution point
+   * for declaring test fields.
+   */
+  meta?: Record<string, unknown>
   /** Set by the loader; used to address the test from the CLI. */
   source?: string
 }
+
+/** Which part of a test a step belongs to. The body has no phase. */
+export type TestPhase = 'setup' | 'cleanup'
 
 /** Whatever a step returns is bound by its `id` and addressable as `${id.path}`. */
 export type StepResult = Record<string, unknown>
@@ -46,6 +152,10 @@ export interface StepRecord {
   result: StepResult
   message?: string
   durationMs: number
+  /** Outcomes of this step's own `assert` block, in the order written. */
+  assertions?: (AssertOutcome & { type: string })[]
+  /** `setup` or `cleanup` when the step ran outside the body. */
+  phase?: TestPhase
   /** Nested records, when the step ran children through `runSteps`. */
   children?: StepRecord[]
 }
@@ -135,10 +245,11 @@ export interface ResourceContext {
 export type RunEvent =
   | { type: 'run.started'; runId: string; tests: number; at: number }
   | { type: 'suite.started'; suite: string }
-  | { type: 'test.started'; test: string; source?: string }
-  | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number }
-  | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string }
-  | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string }
+  | { type: 'test.started'; test: string; source?: string; title?: string; meta?: Record<string, unknown> }
+  | { type: 'test.skipped'; test: string; reason: string }
+  | { type: 'step.started'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
+  | { type: 'step.finished'; test: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
+  | { type: 'assertion.evaluated'; test: string; assertionType: string; passed: boolean; message: string; stepId?: string }
   | { type: 'artifact.attached'; test: string; name: string; contentType: string; bytes: number; path?: string }
   | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number }
   | { type: 'suite.finished'; suite: string }
@@ -297,7 +408,12 @@ export interface ReporterDef {
 }
 
 export interface ValueProviderDef {
-  /** The prefix this provider claims, e.g. `env` for `${env:HOME}`. */
+  /**
+   * The prefix this provider claims, e.g. `env` for `${env:HOME}`.
+   *
+   * `meta` is the kernel's and is refused: `${meta:owner}` answers out of the
+   * running test's own annotations, so an `x-owner` header needs no plugin.
+   */
   prefix: string
   /**
    * Answer one key.
@@ -344,6 +460,10 @@ export interface ArtifactRecord {
 
 export interface TestOutcome {
   name: string
+  title?: string
+  /** Set when the test did not run, carrying the reason it says. */
+  pending?: string
+  meta?: Record<string, unknown>
   source?: string
   suite: string
   status: StepStatus

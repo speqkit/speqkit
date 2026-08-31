@@ -1,0 +1,155 @@
+# Release a speq plugin. Yours, not ours.
+#
+# A plugin author should not have to reinvent the four steps between "the
+# tests pass" and "a stranger can `speq add` it", so this file is callable
+# from any repository:
+#
+#   # .github/workflows/release.yml, in your plugin's repository
+#   name: release
+#   on:
+#     push:
+#       branches: [main]
+#   jobs:
+#     release:
+#       uses: speqkit/speqkit/.github/workflows/plugin-release.yml@main
+#       secrets:
+#         NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+#
+# That is the whole integration. Bump the version in your package.json, merge
+# to main, and the version ships if — and only if — the tests are green and
+# the package would actually load once installed. Push a commit that does not
+# touch the version and nothing is published, because the registry already has
+# that version and publishing is not how you change what is there.
+#
+# The token: create an npm **automation** token (npmjs.com → Access Tokens →
+# Granular / Automation), and put it in the repository as the `NPM_TOKEN`
+# secret. Automation rather than publish, because a publish token prompts for
+# a second factor and a CI runner has no thumbs.
+#
+# Nothing here is speqkit-specific except the conformance check, and that one
+# is the point: it is the same set of questions this project's own release
+# asks of its own eleven plugins.
+name: plugin-release
+
+on:
+  workflow_call:
+    inputs:
+      package-dir:
+        description: 'Directory holding the plugin package.json'
+        type: string
+        default: '.'
+      node-version:
+        description: 'Node to build and test on'
+        type: string
+        default: '24'
+      install-command:
+        # `npm install`, not `npm ci`: a freshly scaffolded plugin has no
+        # lockfile yet, and a release workflow that fails on the first commit
+        # is a release workflow nobody turns on. Switch this to `npm ci` once
+        # you commit a package-lock.json — it is the better answer, it just
+        # cannot be the default.
+        type: string
+        default: 'npm install'
+      build-command:
+        type: string
+        default: 'npm run build'
+      test-command:
+        type: string
+        default: 'npm test'
+      dry-run:
+        description: 'Run everything, publish nothing'
+        type: boolean
+        default: false
+      speqkit-ref:
+        description: 'Which speqkit revision the conformance check comes from'
+        type: string
+        default: 'main'
+    secrets:
+      NPM_TOKEN:
+        required: false
+    outputs:
+      published:
+        description: 'The version that went out, or empty'
+        value: ${{ jobs.release.outputs.published }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance: the registry records which workflow, at which commit,
+      # built the tarball, and anyone can check it. Free, and it is the only
+      # thing that distinguishes your plugin from a package with your name on
+      # it published by somebody else.
+      id-token: write
+    outputs:
+      published: ${{ steps.publish.outputs.version }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-dir }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: https://registry.npmjs.org
+
+      - run: ${{ inputs.install-command }}
+
+      - run: ${{ inputs.build-command }}
+
+      # `@speqkit/test-kit` assembles the real Registry, Executor and runner,
+      # so green here means green inside a kernel — there are no fakes to
+      # drift.
+      - run: ${{ inputs.test-command }}
+
+      # The conformance check, taken from speqkit itself rather than copied
+      # into your repository, so it gains checks as this project finds new
+      # ways to ship something unloadable.
+      - uses: actions/checkout@v7
+        with:
+          repository: speqkit/speqkit
+          ref: ${{ inputs.speqkit-ref }}
+          # Relative to the workspace. `defaults.run` does not reach this
+          # step — it only sets the shell's directory for `run:`.
+          path: .speqkit-checkout
+
+      - name: would this install and load?
+        id: check
+        run: |
+          node "$GITHUB_WORKSPACE/.speqkit-checkout/scripts/check-plugin-package.mjs" . \
+            | tee /dev/stderr
+          node "$GITHUB_WORKSPACE/.speqkit-checkout/scripts/check-plugin-package.mjs" . --json \
+            > "$RUNNER_TEMP/check.json"
+          echo "already_published=$(node -p "require('$RUNNER_TEMP/check.json').alreadyPublished")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('$RUNNER_TEMP/check.json').version")" >> "$GITHUB_OUTPUT"
+          echo "name=$(node -p "require('$RUNNER_TEMP/check.json').package")" >> "$GITHUB_OUTPUT"
+
+      - name: publish
+        id: publish
+        if: steps.check.outputs.already_published == 'false' && inputs.dry-run != true
+        run: |
+          npm publish --access public --provenance
+          echo "version=${{ steps.check.outputs.version }}" >> "$GITHUB_OUTPUT"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: say what happened
+        run: |
+          name='${{ steps.check.outputs.name }}'
+          version='${{ steps.check.outputs.version }}'
+          if [ '${{ inputs.dry-run }}' = 'true' ]; then
+            echo "### Dry run — \`$name@$version\` was built, tested and checked, and not published."
+          elif [ '${{ steps.check.outputs.already_published }}' = 'true' ]; then
+            echo "### Nothing to publish"
+            echo ""
+            echo "\`$name@$version\` is already in the registry. Bump the version in \`package.json\` to release."
+          else
+            echo "### Published \`$name@$version\`"
+            echo ""
+            echo '```sh'
+            echo "speq add $name"
+            echo '```'
+          fi >> "$GITHUB_STEP_SUMMARY"

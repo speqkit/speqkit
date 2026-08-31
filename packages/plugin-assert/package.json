@@ -1,0 +1,46 @@
+{
+  "name": "@speqkit/plugin-assert",
+  "version": "0.1.0",
+  "description": "The assertion vocabulary: equality, order, membership, text, presence, size, shape and JSON Schema.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-assert"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "keywords": [
+    "speqkit-plugin"
+  ],
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "peerDependencies": {
+    "@speqkit/plugin-api": "workspace:^"
+  },
+  "devDependencies": {
+    "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/test-kit": "workspace:*",
+    "speqkit": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

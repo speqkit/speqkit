@@ -15,12 +15,16 @@ it and publishes it; nothing needs to be agreed with us first.
 > belongs to an abandoned 0.0.0 placeholder and `@speq-ai/speq` is an unrelated
 > project; neither is us.
 
+Documentation: **<https://speqkit.github.io/speqkit/>** — quick start, the
+kernel, [writing declarative tests](https://speqkit.github.io/speqkit/writing-tests.html)
+and [how anything gets released](https://speqkit.github.io/speqkit/releasing.html).
+
 ## Status
 
-M0, M1, M2 and the architecture gate are done; M4 has started.
-All nine published packages are up — the kernel as `speqkit`, the contract and
-the plugins under `@speqkit` — so `npm i -g speqkit` installs the `speq`
-binary from the registry rather than from this checkout.
+M0, M1, M2 and the architecture gate are done; M4 has started. Fifteen
+packages — the kernel as `speqkit`, the contract and eleven plugins under
+`@speqkit`, plus the test kit and the scaffolder — so `npm i -g speqkit`
+installs the `speq` binary from the registry rather than from this checkout.
 
 `plugin-loop` was written against the published API with **no kernel changes**
 — control flow is genuinely a plugin. `plugin-playwright` then exercised the
@@ -61,6 +65,118 @@ That last part closed the third hole of the same kind the gate found twice:
 had ever called it — the console output went straight to `events.subscribe`,
 around the mechanism rather than through it. It is an ordinary reporter now,
 and the default one.
+
+The plugin list is settled — see `docs/architecture/plugins.html` for which
+plugins are ours and why — and the first one on it is written.
+`@speqkit/plugin-use` is composition: shared blocks, module actions and
+fixtures, all through one `use` step. It came first because a real suite says
+so: in the corpus it was written against, `use` outnumbers the HTTP step it
+composes, 179 to 115.
+
+Writing it found the rest of the test model missing. `Suite → Test → Step →
+Assertion` had assertions only at the test, and a test had a body but no way to
+build a world before it or take one down after — so 204 of the corpus's
+assertions and every one of its 50 cleanups had nowhere to go. Both are the
+kernel's, not a plugin's: a step type has no business reading an `assert:`
+block that is not its input, and a plugin cannot express `finally` without
+leaking its child scope back into the caller. Contract 0.6.0 adds
+`StepDef.assert`, `TestDef.setup` and `TestDef.cleanup`; `PLUGIN_API_VERSION`
+stays 1, and no ninth contribution point was opened. Cleanup runs after the
+test whatever happened to it — including after a setup that never finished,
+which is exactly when the rows a half-built test created would otherwise be
+left behind — and a test that passed but failed to clean up is an `error`,
+because the next run inherits what it left.
+
+`@speqkit/plugin-data` is the second: `${gen:…}` for data a test makes up,
+`${env:…}` moved out of `plugin-http` where it never belonged, and `${vars:…}`
+for the values an environment file sets. Generated values are derived from a
+seed rather than drawn from the system random source — the seed is the run id,
+so replaying a run's data means copying the string that already names its
+report directory, and a single failing test re-run alone sees exactly what it
+saw inside the suite.
+
+It also found the last piece of the test model missing. A test had no givens:
+nothing could put a value in scope before the first step, because a plugin's
+nested scope is popped the moment its step returns. Contract 0.7.0 adds
+`TestDef.variables`, resolved **one at a time, in declaration order** — which
+is what lets a given be written in terms of the one above it, and what keeps
+two generated slugs from being the same slug twice. speq asks a value provider
+once per resolution pass, deliberately; a whole block resolved in one pass
+would have made the test that proves two tenants stay apart test one tenant
+against itself.
+
+`@speqkit/plugin-assert` is the third, and the first one that is deliberately
+*wide*: twenty-one words for equality, order, membership, text, presence, size
+and shape, over one selector shared by all of them. Wide is not deep — a
+vocabulary is language, and language is the half of the line that is ours. A
+team that cannot write "at least" or "is one of" writes it as a regex over a
+stringified body, and the suite stops saying what it means. `schema` validates
+through ajv rather than a subset of our own: a schema generated from OpenAPI
+arrives with `oneOf` and `$ref`, and a validator that ignores the keywords it
+does not know reports a pass it never performed. Schemas are compiled during
+`speq validate`, so a typo in one is found in milliseconds.
+
+`jsonpath` and `body_contains` left `plugin-http` for it, along with `env`
+earlier: what is left in the HTTP plugin is the two checks that are actually
+about HTTP, the status line and the time on the wire. Both old names still
+work, and say what to write instead.
+
+`@speqkit/plugin-json` is the fifth, and the first whose deliverable is a
+*shape* rather than a feature: `reports/results/summary.json`, folded out of the
+event stream, with the keys a workflow already reads. `totals.pending` is the
+same number as `totals.skipped`, which is nobody's idea of a good design and is
+exactly the point — a `jq` expression in another repository says
+`.totals.pending // 0`, so renaming the key would make that workflow report zero
+pending tests instead of failing. The moment somebody parses a shape it stops
+being ours to tidy: keys get added, never renamed.
+
+`pending` had to become real for that number to mean anything, and it is a
+field of the spine rather than an annotation — it changes what happens, so it
+is declared and checked. Contract 0.9.0 takes a *reason*, not a flag: a test
+parked without one is a test being deleted slowly, and the reason is the only
+thing that makes the entry worth keeping over `git rm`. A pending test is still
+validated, because it is precisely the test nobody runs and therefore the one
+that rots unnoticed.
+
+`plugin-http` grew the two things the corpus's own "known gaps" section asks
+for. **Multipart**, because three upload paths there have no gate test at all —
+and the note explaining why says that `multipart`, `formData`, `form`, `files`,
+`bodyFile` and `bodyRaw` were every one of them *silently ignored*: the request
+went out empty and the test reported passed. Closed schemas mean an unknown key
+is a diagnostic before a request goes out, and a part naming a file that is not
+on disk is found the same way. And **retrying**, off by default, with two
+decisions in the defaults: 429 is not on the list, because a policy that
+repeats through a rate limiter makes the test that proves the limiter works
+pass whether it exists or not; and only idempotent methods repeat, because a
+502 means a gateway answered, not that the origin never saw the POST.
+
+`@speqkit/plugin-yaml` is the fourth, and it closes the loop the corpus opened:
+the whole 60-test suite it was designed against now migrates and validates —
+`speq migrate` rewrites 66 files, and `speq validate` reports nothing. The
+loader grew the decided test form (`id`, `title`, `tags`, `variables`, `setup`,
+`steps`, `assert`, `cleanup`) and the codemod turns `{{x}}` into `${x}`,
+`type: api` into `type: http`, `$steps.a.response.body` into `${a.body}`, a
+folded `bodyFromFixture` into the `use` step it always was, and
+`manifest.yaml` plus `environments/*` into a `speq.yaml` with layers. Comments
+survive, because a suite this size is documentation as much as it is tests.
+What has no successor yet — a suite-level `beforeEach`, a v1 retry policy — is
+named by file with what to do instead, never dropped: a codemod that silently
+drops what it does not understand leaves a suite that still runs with a guard
+that is simply gone.
+
+Contract 0.8.0 adds the field list nobody can close. `link`, `owner`, `epic`,
+`severity`, a ticket number — there will be as many of these as there are
+teams, so a test's spine is closed and everything outside it becomes `meta`,
+which the kernel carries and never reads. On a step it has to be written under
+a reserved `meta:`, because every *other* unknown key there belongs to the
+plugin that owns the step's `type`; the kernel lifts it out before the schema
+is checked. It reaches `test.started` and both step events, so a reporter gets
+it for free, and `${meta:owner}` resolves like any other value — an `x-owner`
+header on every request needs no plugin. **The kernel never branches on it**,
+and that is an invariant rather than an implementation detail: the moment
+behaviour follows from an annotation, a suite has control flow that `validate`
+cannot see and a report cannot explain. No ninth contribution point was opened
+for it, and none will be.
 
 M4 is the ecosystem, and the first pieces are here: `@speqkit/test-kit`
 runs a plugin inside the real kernel, `create-speqkit-plugin` scaffolds one with
@@ -127,10 +243,14 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speqkit/plugin-api` | The public contract. Types only. Its major version is the compatibility boundary. |
 | `speqkit` | The kernel and the `speq` bootstrap. Unscoped, because it is what you install. Knows no protocol and no UI. |
 | `@speqkit/installer` | Resolve, verify, store, lock. No npm CLI involved. |
-| `@speqkit/plugin-yaml` | The default authoring format — and proof the format is a plugin. |
+| `@speqkit/plugin-yaml` | The default authoring format, and `speq migrate` — proof the format is a plugin. |
+| `@speqkit/plugin-json` | The run as one JSON file, in the shape a workflow reads with `jq`. |
 | `@speqkit/plugin-http` | HTTP steps and the smoke assertion set. |
 | `@speqkit/plugin-cli` | The terminal surface. Publishes the `cli` service. |
 | `@speqkit/plugin-loop` | `loop` and `retry`. Control flow, contributed rather than built in. |
+| `@speqkit/plugin-use` | Composition: shared blocks, module actions and fixtures, called with `use`. |
+| `@speqkit/plugin-data` | Where values come from: seeded generated data, the environment, project variables. |
+| `@speqkit/plugin-assert` | The assertion vocabulary: equality, order, membership, text, presence, size, JSON Schema. |
 | `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
 | `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 | `@speqkit/test-kit` | Runs a plugin inside the real kernel, so an author can test one without a project. Not a plugin. |
@@ -149,14 +269,14 @@ not a plugin, it boots one.
 ## Using it in a repository that is not a Node project
 
 ```bash
-brew install speqkit             # or: curl -fsSL .../install.sh | sh
-                                 # or: npm i -g speqkit, if Node is there
-                                 # you install speqkit, you type speq
-speq init                        # scaffold .speq/
+brew install speqkit/tap/speqkit    # or: curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh
+                                    # or: npm i -g speqkit, if Node is there
+                                    # you install speqkit, you type speq
+speq init                           # scaffold .speq/
 speq add @speqkit/plugin-postgres   # edits speq.yaml, resolves, writes speq.lock
-speq install --frozen            # CI: exactly the lock, or fail
+speq install --frozen               # CI: exactly the lock, or fail
 speq link ../speqkit-plugin-mine    # a plugin you are writing, no publish needed
-speq doctor                      # environment, store, and what came from where
+speq doctor                         # environment, store, and what came from where
 ```
 
 Nothing lands in the repository except `.speq/` and `speq.lock`. The plugins
@@ -257,10 +377,63 @@ package manager's `node` may be a 66 KB stub in front of a shared `libnode`,
 with nothing to inject into. The second command is the same battery as above,
 pointed at the executable with `PATH` emptied.
 
-Releases are cut by tagging. `.github/workflows/release.yml` builds all four
-targets on native runners — cross-compiling is not an option, because the SEA
-blob carries a V8 code cache valid only for the exact runtime it goes into,
-and only macOS can re-sign a Mach-O after injection.
+### Releasing
+
+Nobody cuts a release. **Bump a version in a `package.json` and merge to
+main** — if the gate is green, that version goes to npm, and if
+`packages/core`'s version moved, four executables, a GitHub release and the
+Homebrew formula follow it.
+
+```bash
+node scripts/release-plan.mjs     # what would this commit release?
+```
+
+Both questions face outward rather than at this repository — the npm registry
+says which versions exist, the git tags on the remote say which releases were
+cut — which is what makes a half-finished release safe to simply re-run.
+`.github/workflows/release.yml` builds all four targets on native runners:
+cross-compiling is not an option, because the SEA blob carries a V8 code cache
+valid only for the exact runtime it goes into, and only macOS can re-sign a
+Mach-O after injection.
+
+It needs two secrets, set once — `NPM_TOKEN` (an npm *automation* token) and
+`HOMEBREW_TAP_TOKEN` (a PAT with `contents: write` on `speqkit/homebrew-tap`).
+The [Releasing page](https://speqkit.github.io/speqkit/releasing.html) has the
+rest.
+
+### Releasing a plugin — yours, not ours
+
+A plugin whose release is something its author does by hand is a plugin that
+gets its fix on the day its author has an afternoon. So the same machinery is
+callable from any repository:
+
+```yaml
+# .github/workflows/release.yml, in your plugin's repository
+jobs:
+  release:
+    uses: speqkit/speqkit/.github/workflows/plugin-release.yml@main
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+`npm create speqkit-plugin` writes that file for you. For the release you do by
+hand there is `packaging/release-plugin.sh`, which runs the same checks in the
+same order:
+
+```bash
+export NPM_TOKEN=npm_xxxxxxxx
+curl -fsSL https://speqkit.github.io/speqkit/release-plugin.sh | sh
+```
+
+Both paths run `scripts/check-plugin-package.mjs`, which refuses to publish a
+package that would not load: `exports` pointing at TypeScript, a `dist` that
+`files` does not carry, the kernel in `dependencies`, a missing
+`speqkit-plugin` keyword. Every one of those is a bug this project shipped or
+caught one commit before shipping, and it runs against any directory:
+
+```bash
+node scripts/check-plugin-package.mjs ../speqkit-plugin-kafka
+```
 
 ## License
 

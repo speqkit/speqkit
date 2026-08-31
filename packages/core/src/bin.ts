@@ -106,18 +106,24 @@ function commandInit(argv: string[]): number {
   mkdirSync(join(root, 'suites'), { recursive: true })
   mkdirSync(join(root, 'environments'), { recursive: true })
 
+  // The sample is a starting point, not a fixture. Beside a suite that already
+  // exists — the v1 tree `speq migrate` is about to rewrite — it is litter.
+  const empty = readdirSync(join(root, 'suites')).length === 0
+
   writeFileSync(
     join(root, 'speq.yaml'),
     `version: 1\n\n` +
       `plugins:\n  - yaml\n  - http\n  - cli\n  - junit\n\n` +
       `http:\n  baseUrl: http://localhost:8080\n`
   )
-  writeFileSync(
-    join(root, 'suites', 'health.yaml'),
-    `name: service is up\ntags: [smoke]\n\n` +
-      `steps:\n  - id: health\n    type: http\n    method: GET\n    url: /health\n\n` +
-      `assert:\n  - type: status\n    expected: 200\n`
-  )
+  if (empty) {
+    writeFileSync(
+      join(root, 'suites', 'health.yaml'),
+      `name: service is up\ntags: [smoke]\n\n` +
+        `steps:\n  - id: health\n    type: http\n    method: GET\n    url: /health\n\n` +
+        `assert:\n  - type: status\n    expected: 200\n`
+    )
+  }
   // Two environments, because one environment teaches nothing. What differs
   // between them is settings and only settings — see applyEnvironment().
   writeFileSync(

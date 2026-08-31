@@ -152,17 +152,33 @@ const yellow = (s: string) => `${E}33m${s}${E}0m`
  */
 function printEvent(event: RunEvent): void {
   switch (event.type) {
-    case 'test.started':
-      process.stdout.write(`\n${event.test}${event.source ? dim(`  ${event.source}`) : ''}\n`)
+    case 'test.started': {
+      // The title when there is one, because `menu.items-create.creates-item`
+      // is an identity and not a sentence; the identity stays visible next to
+      // it, since that is what a later report is compared against.
+      const headline = event.title ?? event.test
+      const aside = [event.title ? event.test : '', event.source ?? ''].filter(Boolean).join('  ')
+      process.stdout.write(`\n${headline}${aside ? dim(`  ${aside}`) : ''}\n`)
       break
+    }
     case 'step.finished': {
       const indent = '  '.repeat(Math.max(0, event.depth - 1))
       const mark = event.status === 'passed' ? green('.') : red('x')
-      const label = event.stepId ? `${event.stepId} ${dim(`(${event.stepType})`)}` : event.stepType
+      const named = typeof event.meta?.name === 'string' ? event.meta.name : undefined
+      const label = named
+        ? `${named} ${dim(`(${event.stepType})`)}`
+        : event.stepId
+          ? `${event.stepId} ${dim(`(${event.stepType})`)}`
+          : event.stepType
       process.stdout.write(`  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}\n`)
       if (event.message) process.stdout.write(`  ${indent}  ${red(event.message)}\n`)
       break
     }
+    case 'test.skipped':
+      // Printed rather than counted quietly. The reason is the only thing that
+      // makes a parked test worth keeping, so it is on screen every run.
+      process.stdout.write(`  ${yellow('pending')} ${dim(event.reason)}\n`)
+      break
     case 'artifact.attached':
       process.stdout.write(
         `    ${dim('+')} ${event.name} ${dim(`${event.bytes}b${event.path ? ` -> ${event.path}` : ''}`)}\n`
@@ -180,7 +196,8 @@ function printEvent(event: RunEvent): void {
       const parts = [
         green(`${event.passed} passed`),
         event.failed ? red(`${event.failed} failed`) : '',
-        event.errored ? yellow(`${event.errored} errored`) : ''
+        event.errored ? yellow(`${event.errored} errored`) : '',
+        event.skipped ? dim(`${event.skipped} pending`) : ''
       ].filter(Boolean)
       process.stdout.write(`\n${parts.join(dim(' - '))} ${dim(`in ${event.durationMs}ms`)}\n`)
       break

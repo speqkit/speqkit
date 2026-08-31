@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Writing declarative tests — speqkit</title>
+<meta name="description" content="The whole authoring language: the test form, values, steps, the assertion vocabulary, composition and cleanup.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="assets/speqkit.css">
+</head>
+<body>
+
+<nav class="sitenav">
+  <div class="inner">
+    <a class="brand" href="./">speq<span>kit</span></a>
+    <a class="link" href="./">Overview</a>
+    <a class="link" href="writing-tests.html" aria-current="page">Writing tests</a>
+    <a class="link" href="releasing.html">Releasing</a>
+    <a class="link" href="pipeline.html">Pipeline</a>
+    <span class="spacer"></span>
+    <a class="ext" href="https://github.com/speqkit/speqkit">GitHub</a>
+    <a class="ext" href="https://www.npmjs.com/package/speqkit">npm</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">The authoring language · YAML · one page</span>
+  <h1>Writing declarative tests</h1>
+  <p class="lede">
+    A test is data. It declares what must be true and never says how to check
+    it, which is what lets the same file be run by a terminal, an editor, or
+    something nobody has written yet — and what lets <code>speq validate</code>
+    find a mistake in milliseconds without a service being up.
+  </p>
+  <div class="meta">
+    <span><b>Format</b> a plugin, not a privilege</span>
+    <span><b>Substitution</b> one syntax, <code>${…}</code></span>
+    <span><b>Vocabulary</b> 21 assertions over one selector</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <ol>
+    <li><a href="#shape">The shape of a test</a></li>
+    <li><a href="#steps">Steps</a></li>
+    <li><a href="#values">Values</a></li>
+    <li><a href="#assertions">The vocabulary</a></li>
+    <li><a href="#composition">Composition</a></li>
+    <li><a href="#lifecycle">Setup and cleanup</a></li>
+    <li><a href="#annotations">Annotations</a></li>
+    <li><a href="#pending">Parking a test</a></li>
+    <li><a href="#running">Running them</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================== -->
+<section id="shape">
+  <span class="sect-label">The shape</span>
+  <h2>Eight fields, and the list is closed</h2>
+
+  <p>
+    One file, one test — or several, separated by <code>---</code>. Everything
+    except <code>steps</code> is optional, so the smallest useful file is two
+    lines.
+  </p>
+
+<pre><code><span class="c"># .speq/suites/menu/create-item.yaml</span>
+<span class="k">id:</span> menu.items.create
+<span class="k">title:</span> <span class="s">POST /categories/{id}/items creates an item</span>
+<span class="k">tags:</span> <span class="p">[</span>smoke, menu<span class="p">]</span>
+
+<span class="k">variables:</span>
+  <span class="k">slug:</span> <span class="s">"${gen:uuid}"</span>
+
+<span class="k">setup:</span>
+  <span class="p">-</span> <span class="k">id:</span> tenant
+    <span class="k">type:</span> use
+    <span class="k">ref:</span> register-tenant
+
+<span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">id:</span> created
+    <span class="k">type:</span> http
+    <span class="k">method:</span> POST
+    <span class="k">url:</span> <span class="s">"/categories/${tenant.categoryId}/items"</span>
+    <span class="k">body:</span> <span class="p">{</span> <span class="k">name:</span> <span class="s">"speq-${slug}"</span>, <span class="k">price_cents:</span> <span class="p">1200</span> <span class="p">}</span>
+    <span class="k">assert:</span>
+      <span class="p">-</span> <span class="k">type:</span> status
+        <span class="k">expected:</span> <span class="p">201</span>
+
+<span class="k">assert:</span>
+  <span class="p">-</span> <span class="k">type:</span> equals
+    <span class="k">path:</span> created.body.name
+    <span class="k">expected:</span> <span class="s">"speq-${slug}"</span>
+
+<span class="k">cleanup:</span>
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> DELETE
+    <span class="k">url:</span> <span class="s">"/items/${created.body.id}"</span></code></pre>
+
+  <ul class="points">
+    <li><span class="name">id</span><span class="what">the test's identity — stable, and what every event carries</span></li>
+    <li><span class="name">title</span><span class="what">the sentence a person reads, when the identity is not one</span></li>
+    <li><span class="name">tags</span><span class="what">what <code>--tags</code> filters on</span></li>
+    <li><span class="name">variables</span><span class="what">the test's givens, resolved once before anything runs</span></li>
+    <li><span class="name">setup</span><span class="what">building the world this test needs</span></li>
+    <li><span class="name">steps</span><span class="what">what it does</span></li>
+    <li><span class="name">assert</span><span class="what">checks over the whole test, after the last step</span></li>
+    <li><span class="name">cleanup</span><span class="what">what runs afterwards, whatever happened</span></li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">Why closed</span>
+    <p>
+      Everything <em>outside</em> that list is an annotation and travels in
+      <code>meta</code> — see <a href="#annotations">below</a>. The list has to
+      be closed for the annotations to be open: if <code>owner:</code> could be
+      a spine field, every team's field would become a contract of ours, and
+      there are as many of those as there are teams.
+    </p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="steps">
+  <span class="sect-label">Steps</span>
+  <h2>A step does something and publishes what it found</h2>
+
+  <p>
+    Every step has a <code>type</code>, which names the plugin that owns it,
+    and optionally an <code>id</code>. The id is how later steps read what it
+    produced: <code>${created.body.name}</code>. A step without an id runs and
+    publishes nothing, which is the right choice for the ones nobody refers to.
+  </p>
+
+<pre><code><span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">id:</span> menu
+    <span class="k">type:</span> http                    <span class="c"># @speqkit/plugin-http</span>
+    <span class="k">method:</span> GET
+    <span class="k">url:</span> <span class="s">/restaurants/${slug}/menu</span>
+
+  <span class="p">-</span> <span class="k">id:</span> each
+    <span class="k">type:</span> loop                    <span class="c"># @speqkit/plugin-loop</span>
+    <span class="k">over:</span> <span class="s">"${menu.body.categories}"</span>
+    <span class="k">as:</span> category
+    <span class="k">steps:</span>
+      <span class="p">-</span> <span class="k">type:</span> http
+        <span class="k">method:</span> GET
+        <span class="k">url:</span> <span class="s">"/categories/${category.id}/items"</span>
+        <span class="k">assert:</span>
+          <span class="p">-</span> <span class="k">type:</span> status
+            <span class="k">expected:</span> <span class="p">200</span></code></pre>
+
+  <p class="under">
+    <b>An unknown key is a mistake, not a comment.</b> A step's schema is
+    closed, so <code>bodyRaw:</code> where the plugin expects
+    <code>body:</code> is a diagnostic from <code>speq validate</code> before
+    any request goes out. This is not pedantry: the suite this framework was
+    designed against had six such keys silently ignored, three upload paths
+    with no coverage at all, and a green tick on every run.
+  </p>
+
+  <h3>Assertions belong to the step that produced the result</h3>
+  <p>
+    A check on a response is written under the step that made the request, not
+    at the bottom of the test in a block that has to name it again. Both places
+    exist and mean different things: <code>assert:</code> on a step is about
+    that step, <code>assert:</code> on the test is about the whole thing —
+    usually comparing two steps, or a step against a given.
+  </p>
+
+  <h3>Control flow is a plugin</h3>
+  <p>
+    <code>loop</code>, <code>repeat</code> and <code>retry</code> come from
+    <code>@speqkit/plugin-loop</code> and the kernel contains none of them. The
+    plugin calls back into the executor through <code>ctx.runSteps</code> with
+    its own child variable scope, which is also why <code>${category}</code>
+    inside the loop does not exist outside it.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="values">
+  <span class="sect-label">Values</span>
+  <h2>One substitution syntax, four kinds of answer</h2>
+
+  <p>
+    Everything is <code>${…}</code>. A bare name reads a binding — a variable,
+    or an earlier step's result. A prefix asks a provider, and a provider is
+    just another plugin contribution.
+  </p>
+
+  <ul class="points">
+    <li><span class="name">${step.field}</span><span class="what">what an earlier step published, by its <code>id</code></span></li>
+    <li><span class="name">${gen:uuid}</span><span class="what">a value made for this test — <code>uuid</code>, <code>string</code>, <code>int</code>, <code>email</code>, <code>date</code>, or one you declared</span></li>
+    <li><span class="name">${env:NAME}</span><span class="what">the process environment. <code>${env:NAME:-fallback}</code> when it is optional; unset and without a fallback is an error, not an empty string</span></li>
+    <li><span class="name">${vars:name}</span><span class="what">a project value from <code>data.vars</code>, tuned per environment file</span></li>
+    <li><span class="name">${meta:owner}</span><span class="what">an annotation off the running test</span></li>
+  </ul>
+
+  <h3>Variables are where a generated value gets its name</h3>
+<pre><code><span class="k">variables:</span>
+  <span class="k">slug:</span> <span class="s">"${gen:uuid}"</span>
+  <span class="k">foreignSlug:</span> <span class="s">"${gen:uuid}"</span>          <span class="c"># a different uuid</span>
+  <span class="k">email:</span> <span class="s">"speq-${slug}@example.com"</span>   <span class="c"># written in terms of the one above</span></code></pre>
+
+  <div class="note">
+    <span class="tag">Resolved one at a time, in order</span>
+    <p>
+      That is not an implementation detail. A block resolved in a single pass
+      would hand <code>slug</code> and <code>foreignSlug</code> the same uuid,
+      and the test that exists to prove two tenants stay apart would be
+      checking one tenant against itself — silently, and forever green.
+    </p>
+  </div>
+
+  <p>
+    Generated values are derived from a seed rather than drawn from the system
+    random source, and the seed is the run id — the same string that already
+    names the report directory. Replaying a run's data means copying a string
+    off the screen, and a single failing test re-run on its own sees exactly
+    what it saw inside the suite.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="assertions">
+  <span class="sect-label">The vocabulary</span>
+  <h2>Twenty-one words over one selector</h2>
+
+  <p>
+    Every assertion asks the same two questions: <strong>what</strong> are we
+    looking at, and <strong>what must be true of it</strong>. The first is one
+    selector shared by all of them. Learning the plugin is learning that
+    selector and a list of words.
+  </p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Selector</th><th>Means</th></tr></thead>
+    <tbody>
+      <tr><td><code>path:</code></td><td>a dotted path into the step's whole result, with <code>[n]</code> indexing</td></tr>
+      <tr><td><code>value:</code></td><td>an explicit value, usually a template — for checks that are not about the last step</td></tr>
+      <tr><td>neither</td><td>the whole result</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="under">
+    <b>Why <code>body.</code> and not just the field.</b> <code>path</code>
+    reads into the step's whole result, not into a body it assumes is there. An
+    HTTP step returns <code>{ status, body, text, headers, durationMs }</code>,
+    so a check on the payload is <code>path: body.items[0].sku</code>. That
+    extra word is exactly what the plugin buys: the same <code>at_least</code>
+    reads a SQL row, a file's contents and a browser's page state, because
+    nothing in this vocabulary believes it is looking at a response.
+  </p>
+
+  <div class="duo">
+    <div>
+      <h4>Equality — structural</h4>
+      <ul><li><code>equals</code></li><li><code>not_equals</code></li></ul>
+
+      <h4>Order</h4>
+      <ul>
+        <li><code>greater_than</code></li>
+        <li><code>at_least</code></li>
+        <li><code>less_than</code></li>
+        <li><code>at_most</code></li>
+      </ul>
+
+      <h4>Membership, from both sides</h4>
+      <ul>
+        <li><code>contains</code> — substring, array element, object key</li>
+        <li><code>not_contains</code></li>
+        <li><code>one_of</code> — the subject is one of a list</li>
+        <li><code>not_one_of</code></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Text</h4>
+      <ul>
+        <li><code>matches</code> — a regex, refused before the run if it does not compile</li>
+        <li><code>starts_with</code></li>
+        <li><code>ends_with</code></li>
+      </ul>
+
+      <h4>Presence</h4>
+      <ul>
+        <li><code>exists</code></li>
+        <li><code>missing</code></li>
+        <li><code>empty</code></li>
+        <li><code>not_empty</code></li>
+      </ul>
+
+      <h4>Size and shape</h4>
+      <ul>
+        <li><code>length</code> — <code>expected</code>, or <code>at_least</code> / <code>at_most</code></li>
+        <li><code>is_type</code></li>
+        <li><code>schema</code> — a JSON Schema file, through ajv</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>A failure names the subject, the requirement and what was there</h3>
+<pre><code><span class="c">expected body.price_cents to be at least 900, got 450</span>
+<span class="c">body.categories does not match menu/menu.schema.json: /0/status must be equal to one of the allowed values</span>
+<span class="c">body.discount is not there</span></code></pre>
+  <p>
+    A path that leads nowhere is reported as that, not as a comparison against
+    nothing — <em>is not there</em>, rather than <em>expected at least 900, got
+    undefined</em>, which reads like a wrong number when the field is simply
+    missing. The four presence checks are the exception, because a missing path
+    is the question they are asking.
+  </p>
+
+  <h3><code>schema</code>, by a real implementation</h3>
+  <p>
+    Validated through <a href="https://ajv.js.org">ajv</a>, against draft-07 as
+    written. A hand-rolled subset is the tempting version and the dangerous
+    one: schemas generated from OpenAPI arrive with <code>oneOf</code>,
+    <code>$ref</code> and <code>patternProperties</code>, and a validator that
+    quietly ignores keywords it does not understand reports a pass it never
+    performed. <strong>A gate that lies is worse than no gate.</strong>
+  </p>
+  <p>
+    Schemas are compiled during <code>speq validate</code>, so a typo in one is
+    found in milliseconds:
+  </p>
+<pre><code><span class="c">suites/menu/lists-items.yaml
+  assert[2].ref  no such schema: /repo/schemas/menu/itmes.schema.json</span></code></pre>
+
+  <div class="note warn">
+    <span class="tag">Deliberately absent</span>
+    <p>
+      No <code>and</code> / <code>or</code> / <code>not</code>. A block already
+      reads as "all of these hold", every assertion in it runs, and each
+      reports for itself — which is precisely what a combinator would take
+      away. And no custom comparators: a check this list does not have is
+      twenty lines in a plugin of your own, through the public
+      <code>defineAssertion</code>, not a pull request against ours.
+    </p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="composition">
+  <span class="sect-label">Composition</span>
+  <h2><code>use</code> — calling something declared somewhere else</h2>
+
+  <p>
+    In the real 60-test suite this framework was designed against,
+    <code>use</code> outnumbers the HTTP step it composes, <strong>179 to
+    115</strong>. Composition is the most common thing a suite does, which is
+    why it is one plugin, one keyword and three forms rather than three
+    filing-cabinet dividers a tester has to learn.
+  </p>
+
+<pre><code><span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">id:</span> setup
+    <span class="k">type:</span> use
+    <span class="k">ref:</span> register-tenant          <span class="c"># shared/register-tenant.yaml</span>
+
+  <span class="p">-</span> <span class="k">id:</span> category
+    <span class="k">type:</span> use
+    <span class="k">action:</span> menu.createCategory   <span class="c"># modules/menu.yaml, action createCategory</span>
+    <span class="k">properties:</span>
+      <span class="k">accessToken:</span> <span class="s">"${setup.token}"</span>
+      <span class="k">name:</span> <span class="s">"starters"</span>
+
+  <span class="p">-</span> <span class="k">id:</span> item
+    <span class="k">type:</span> use
+    <span class="k">fixture:</span> menu-item            <span class="c"># fixtures/menu-item.yaml</span>
+    <span class="k">overrides:</span>
+      <span class="k">name:</span> <span class="s">"speq-item"</span>
+
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> POST
+    <span class="k">url:</span> <span class="s">"/categories/${category.id}/items"</span>
+    <span class="k">body:</span> <span class="s">"${item}"</span></code></pre>
+
+  <p>
+    A <code>use</code> step is a step: it binds by <code>id</code> like every
+    other one, and <code>${id.…}</code> reads what it published. That is the
+    one meaningful difference from how v1 worked, and it is the point of the
+    migration — a shared block used to publish its own ids straight into the
+    calling test, so <code>${tenant.token}</code> appeared with nothing to say
+    where <code>tenant</code> came from. Now the block runs in its own scope
+    and hands its result back through the step that called it. A leak became a
+    written-down name.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="lifecycle">
+  <span class="sect-label">Setup and cleanup</span>
+  <h2>Building a world, and putting it back</h2>
+
+  <p>
+    <code>setup</code> and <code>cleanup</code> are the kernel's, not a
+    plugin's — a plugin cannot express <code>finally</code> without leaking its
+    child scope back into the caller, which is the invariant the scope exists
+    for.
+  </p>
+
+  <div class="cards two">
+    <div class="card">
+      <h3>Cleanup runs whatever happened</h3>
+      <p>
+        Including after a <code>setup</code> that never finished — which is
+        exactly the moment the rows a half-built test created would otherwise
+        be left behind forever.
+      </p>
+    </div>
+    <div class="card">
+      <h3>A test that could not clean up is <code>error</code></h3>
+      <p>
+        Not <code>passed</code>. It answered its own question and then left
+        something behind, and the next run inherits it. A verdict already
+        reached is not overwritten, though: a test that failed reports the
+        failure — that is the news.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="annotations">
+  <span class="sect-label">Annotations</span>
+  <h2>Everything else the test carries</h2>
+
+  <p>
+    <code>link</code>, <code>owner</code>, <code>epic</code>,
+    <code>severity</code>, a ticket number — there will be as many of these as
+    there are teams. So the spine is closed and everything outside it is
+    <code>meta</code>, which the kernel carries and never reads.
+  </p>
+
+<pre><code><span class="k">id:</span> menu.items.create
+<span class="k">title:</span> <span class="s">POST /categories/{id}/items creates an item</span>
+<span class="k">owner:</span> mira
+<span class="k">epic:</span> menu
+<span class="k">jira:</span> SHOP-4417</code></pre>
+
+  <p>
+    Nothing has to be declared. On a <em>step</em> it goes under a reserved
+    <code>meta:</code> instead, because every other unknown key there already
+    belongs to the plugin that owns the step's <code>type</code> — the kernel
+    lifts it out before the schema is checked.
+  </p>
+
+  <p>
+    It reaches <code>test.started</code> and both step events, so a reporter
+    gets it for free, and it is readable while the test runs — an
+    <code>x-owner</code> header on every request needs no plugin:
+  </p>
+
+<pre><code><span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> GET
+    <span class="k">url:</span> <span class="s">/orders</span>
+    <span class="k">headers:</span>
+      <span class="k">x-owner:</span> <span class="s">"${meta:owner}"</span></code></pre>
+
+  <div class="note warn">
+    <span class="tag">The line meta does not cross</span>
+    <p>
+      <strong>Meta describes a test; it never controls one.</strong> The moment
+      behaviour follows from an annotation — <code>retries: 3</code>,
+      <code>skip: true</code>, <code>parallel: false</code> — a suite has
+      control flow that <code>speq validate</code> cannot see, a report cannot
+      explain and a user cannot find. Behaviour is a step type or a config key:
+      something declared, and something checked. The kernel never branches on
+      meta, and that is an invariant rather than a current implementation.
+    </p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="pending">
+  <span class="sect-label">Parking a test</span>
+  <h2><code>pending</code> takes a reason, not a flag</h2>
+
+<pre><code><span class="k">id:</span> menu.items.bulk-upload
+<span class="k">pending:</span> <span class="s">"blocked on SHOP-4417 — the endpoint 500s on files over 2 MB"</span></code></pre>
+
+  <p>
+    A test parked without a reason is a test being deleted slowly, and the
+    reason is the only thing that makes the entry worth keeping over
+    <code>git rm</code>. A pending test is still <em>validated</em>, because it
+    is precisely the test nobody runs and therefore the one that rots
+    unnoticed.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="running">
+  <span class="sect-label">Running them</span>
+  <h2>The commands</h2>
+
+<pre><code>speq validate                              <span class="c"># typos, schemas, unknown keys. No network.</span>
+speq run                                   <span class="c"># everything</span>
+speq run --tags smoke                      <span class="c"># by tag</span>
+speq run --test suites/menu/create.yaml    <span class="c"># one file</span>
+speq run --suite suites/menu               <span class="c"># one directory</span>
+speq run --env ci --reporter console,junit
+speq report --list                         <span class="c"># runs already recorded</span>
+speq report                                <span class="c"># re-render one, without re-running it</span></code></pre>
+
+  <p>
+    <code>--env ci</code> layers an <code>environments/ci.yaml</code> of
+    settings — and only settings. An environment cannot add a plugin, because
+    the plugin set is what <code>speq.lock</code> pins and
+    <code>speq install --frozen</code> runs in CI before anyone has said which
+    environment the run will use.
+  </p>
+
+  <h3>Coming from speq v1</h3>
+<pre><code>speq migrate</code></pre>
+  <p>
+    Rewrites <code>{{x}}</code> to <code>${x}</code>, <code>type: api</code> to
+    <code>type: http</code>, <code>$steps.a.response.body</code> to
+    <code>${a.body}</code>, a folded <code>bodyFromFixture</code> into the
+    <code>use</code> step it always was, and <code>manifest.yaml</code> plus
+    <code>environments/*</code> into a <code>speq.yaml</code> with layers.
+    Comments survive, because a suite of any size is documentation as much as
+    it is tests.
+  </p>
+  <p class="under">
+    <b>What has no successor is named, never dropped.</b> A suite-level
+    <code>beforeEach</code>, a v1 retry policy — these are reported by file
+    with what to write instead. A codemod that silently discards what it does
+    not understand leaves a suite that still goes green with the guard simply
+    gone.
+  </p>
+</section>
+
+<footer>
+  Reference for each plugin lives in its own README:
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-yaml">yaml</a>,
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-http">http</a>,
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-assert">assert</a>,
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-data">data</a>,
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-use">use</a>,
+  <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-loop">loop</a>.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

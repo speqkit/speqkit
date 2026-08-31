@@ -1,0 +1,437 @@
+/* speqkit.css — the design system these pages share.
+ *
+ * Lifted verbatim from docs/architecture/*.html, which had it inline. New
+ * pages link it instead of copying it, so a colour decided once is decided
+ * everywhere. The two architecture documents still carry their own copy;
+ * they are frozen prose and not worth the risk of a reflow.
+ *
+ * Everything below the rule is additions the multi-page site needs and a
+ * single document did not: a nav bar, cards, a hero.
+ */
+
+:root{
+  --bg:#EEF2F4;
+  --surface:#FFFFFF;
+  --surface-2:#E4EAEE;
+  --ink:#16222C;
+  --ink-soft:#3A4C58;
+  --muted:#63757F;
+  --rule:#CFDAE0;
+  --rule-soft:#E1E8EC;
+  --accent:#0F5C7A;
+  --accent-ink:#0A4258;
+  --accent-wash:#DCEAF0;
+  --flag:#9C5A22;
+  --flag-wash:#F4E7DA;
+  --good:#2B6A50;
+  --code-bg:#1A2830;
+  --code-ink:#D7E3E9;
+  --shadow:0 1px 2px rgba(22,34,44,.06), 0 8px 24px -18px rgba(22,34,44,.5);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1418;
+    --surface:#141E23;
+    --surface-2:#1B282E;
+    --ink:#DDE7EB;
+    --ink-soft:#B4C4CB;
+    --muted:#8496A0;
+    --rule:#26363E;
+    --rule-soft:#1E2C33;
+    --accent:#63B6D6;
+    --accent-ink:#8FCDE6;
+    --accent-wash:#152D39;
+    --flag:#D69A62;
+    --flag-wash:#2E2317;
+    --good:#6FB894;
+    --code-bg:#0A1115;
+    --code-ink:#C6D6DE;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1418;
+  --surface:#141E23;
+  --surface-2:#1B282E;
+  --ink:#DDE7EB;
+  --ink-soft:#B4C4CB;
+  --muted:#8496A0;
+  --rule:#26363E;
+  --rule-soft:#1E2C33;
+  --accent:#63B6D6;
+  --accent-ink:#8FCDE6;
+  --accent-wash:#152D39;
+  --flag:#D69A62;
+  --flag-wash:#2E2317;
+  --good:#6FB894;
+  --code-bg:#0A1115;
+  --code-ink:#C6D6DE;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"IBM Plex Serif","Georgia",serif;
+  font-size:16.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-wash);color:var(--ink)}
+
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding:0 28px 120px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+}
+@media(min-width:1080px){
+  .wrap{grid-template-columns:210px minmax(0,1fr);column-gap:56px;padding-right:40px}
+  .masthead{grid-column:1/-1}
+}
+
+/* ---------- masthead ---------- */
+.masthead{
+  border-bottom:1px solid var(--rule);
+  padding:64px 0 40px;
+  margin-bottom:52px;
+}
+.eyebrow{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11.5px;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--accent);
+}
+.masthead h1{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:800;
+  font-size:clamp(34px,5.4vw,58px);
+  line-height:1.02;
+  letter-spacing:-.025em;
+  margin:16px 0 0;
+  text-wrap:balance;
+  max-width:15ch;
+}
+.masthead .lede{
+  margin:22px 0 0;
+  max-width:60ch;
+  font-size:19px;
+  line-height:1.6;
+  color:var(--ink-soft);
+}
+.meta{
+  display:flex;flex-wrap:wrap;gap:10px 28px;
+  margin-top:30px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:12.5px;
+  color:var(--muted);
+}
+.meta b{color:var(--ink);font-weight:600}
+
+/* ---------- side nav ---------- */
+nav.toc{display:none}
+@media(min-width:1080px){
+  nav.toc{
+    display:block;
+    position:sticky;
+    top:32px;
+    align-self:start;
+    font-family:"Golos Text",system-ui,sans-serif;
+    font-size:13px;
+    line-height:1.45;
+  }
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+  nav.toc a{
+    color:var(--muted);text-decoration:none;
+    display:block;
+    border-left:2px solid var(--rule-soft);
+    padding-left:12px;
+    transition:color .15s, border-color .15s;
+  }
+  nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-left-color:var(--accent)}
+}
+
+/* ---------- sections ---------- */
+main{min-width:0}
+section{margin:0 0 68px;scroll-margin-top:24px}
+h2{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:700;
+  font-size:clamp(24px,3vw,31px);
+  letter-spacing:-.018em;
+  line-height:1.14;
+  margin:0 0 6px;
+  text-wrap:balance;
+}
+.sect-label{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);
+  display:block;margin-bottom:14px;
+}
+h3{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:600;font-size:18px;letter-spacing:-.01em;
+  margin:38px 0 10px;
+}
+h4{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);
+  margin:26px 0 10px;
+}
+p{margin:0 0 16px;max-width:66ch}
+ul,ol{max-width:66ch;padding-left:22px;margin:0 0 16px}
+li{margin-bottom:7px}
+a{color:var(--accent);text-underline-offset:2px}
+strong{font-weight:600}
+hr.rule{border:0;border-top:1px solid var(--rule);margin:52px 0}
+
+code{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.87em;
+  background:var(--surface-2);
+  padding:1px 5px;
+  border-radius:3px;
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;
+  line-height:1.66;
+  padding:20px 22px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  box-shadow:var(--shadow);
+}
+pre code{background:none;padding:0;font-size:inherit;color:inherit}
+pre .c{color:#7F98A4}
+pre .k{color:#8FCDE6}
+pre .s{color:#B7CE9C}
+pre .p{color:#E0AF7C}
+
+/* ---------- decision table ---------- */
+.tablewrap{overflow-x:auto;margin:0 0 22px;-webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse;
+  width:100%;
+  min-width:560px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:14.5px;
+  line-height:1.5;
+}
+th{
+  text-align:left;
+  font-weight:600;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  padding:0 16px 9px 0;
+  border-bottom:1px solid var(--rule);
+  vertical-align:bottom;
+}
+td{
+  padding:13px 16px 13px 0;
+  border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;
+}
+td:first-child{font-weight:600;color:var(--ink)}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+
+.chip{
+  display:inline-block;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;white-space:nowrap;
+}
+.chip.fixed{background:var(--accent-wash);color:var(--accent-ink)}
+.chip.open{background:var(--flag-wash);color:var(--flag)}
+
+/* ---------- callout ---------- */
+.note{
+  border-left:3px solid var(--accent);
+  background:var(--surface);
+  padding:18px 22px;
+  margin:0 0 22px;
+  border-radius:0 5px 5px 0;
+  box-shadow:var(--shadow);
+}
+.note.warn{border-left-color:var(--flag)}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:7px;
+}
+.note.warn .tag{color:var(--flag)}
+
+/* ---------- lifecycle ---------- */
+.steps{list-style:none;margin:0;padding:0;max-width:none}
+.step{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  column-gap:22px;
+  padding-bottom:30px;
+  position:relative;
+}
+.step:not(:last-child)::before{
+  content:"";
+  position:absolute;
+  left:15px;top:36px;bottom:0;
+  width:1px;background:var(--rule);
+}
+.step .num{
+  width:31px;height:31px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1px solid var(--rule);
+  color:var(--accent);
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;z-index:1;
+  font-variant-numeric:tabular-nums;
+}
+.step .body{padding-top:2px;min-width:0}
+.step h3{margin:0 0 8px;font-size:17px}
+.step p{margin-bottom:12px}
+.step pre{margin-bottom:12px}
+.under{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;
+  color:var(--muted);
+  border-top:1px dashed var(--rule);
+  padding-top:9px;
+  max-width:66ch;
+}
+.under b{color:var(--ink-soft);font-weight:600}
+
+/* ---------- point list ---------- */
+.points{list-style:none;padding:0;max-width:none;display:grid;gap:0}
+.points li{
+  display:grid;
+  grid-template-columns:minmax(150px,190px) minmax(0,1fr);
+  gap:6px 24px;
+  padding:14px 0;
+  border-bottom:1px solid var(--rule-soft);
+  margin:0;
+}
+.points li:first-child{border-top:1px solid var(--rule)}
+.points .name{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13.5px;
+  font-weight:500;
+  color:var(--accent-ink);
+}
+.points .what{font-size:15.5px;color:var(--ink-soft)}
+@media(max-width:620px){
+  .points li{grid-template-columns:1fr}
+}
+
+footer{
+  border-top:1px solid var(--rule);
+  padding-top:22px;
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13px;
+  color:var(--muted);
+  max-width:66ch;
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+
+/* ================================================================== */
+/* Additions for the site                                             */
+/* ================================================================== */
+
+/* ---------- top bar ---------- */
+.sitenav{
+  border-bottom:1px solid var(--rule);
+  background:var(--surface);
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:13.5px;
+}
+.sitenav .inner{
+  max-width:1180px;margin:0 auto;padding:0 28px;
+  display:flex;align-items:center;gap:8px 26px;flex-wrap:wrap;
+  min-height:52px;
+}
+.sitenav .brand{
+  font-weight:700;letter-spacing:-.02em;font-size:16px;
+  color:var(--ink);text-decoration:none;margin-right:6px;
+}
+.sitenav .brand span{color:var(--accent)}
+.sitenav a.link{color:var(--muted);text-decoration:none;padding:4px 0;border-bottom:2px solid transparent}
+.sitenav a.link:hover,.sitenav a.link:focus-visible{color:var(--accent)}
+.sitenav a.link[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.sitenav .spacer{flex:1}
+.sitenav .ext{color:var(--muted);text-decoration:none}
+.sitenav .ext:hover{color:var(--accent)}
+@media(max-width:620px){.sitenav .spacer{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:74px 0 44px;border-bottom:1px solid var(--rule);margin-bottom:52px}
+.hero h1{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-weight:800;font-size:clamp(38px,6.4vw,68px);
+  line-height:1;letter-spacing:-.035em;margin:14px 0 0;
+}
+.hero h1 span{color:var(--accent)}
+.hero .lede{margin:22px 0 0;max-width:56ch;font-size:20px;line-height:1.55;color:var(--ink-soft)}
+.hero .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.hero .cta a{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:14px;font-weight:600;text-decoration:none;
+  padding:10px 18px;border-radius:5px;
+}
+.hero .cta a.primary{background:var(--accent);color:var(--bg)}
+.hero .cta a.primary:hover{background:var(--accent-ink)}
+.hero .cta a.ghost{color:var(--accent);box-shadow:inset 0 0 0 1px var(--rule)}
+.hero .cta a.ghost:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+
+/* ---------- cards ---------- */
+.cards{display:grid;gap:18px;grid-template-columns:1fr;margin:0 0 24px}
+@media(min-width:720px){.cards.two{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.cards.three{grid-template-columns:repeat(3,1fr)}}
+.card{
+  background:var(--surface);border:1px solid var(--rule);border-radius:6px;
+  padding:22px 24px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;
+}
+.card h3{margin:0 0 8px;font-size:16.5px}
+.card p{font-size:15px;color:var(--ink-soft);margin-bottom:12px;max-width:none}
+.card p:last-child{margin-bottom:0}
+.card a.more{
+  font-family:"Golos Text",system-ui,sans-serif;font-size:13px;font-weight:600;
+  text-decoration:none;margin-top:auto;
+}
+.card a.more::after{content:" →"}
+
+/* ---------- inline label on a paragraph ---------- */
+.kicker{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:6px;
+}
+
+/* ---------- two-column prose ---------- */
+.duo{display:grid;gap:0 40px;grid-template-columns:1fr;margin-bottom:22px}
+@media(min-width:820px){.duo{grid-template-columns:1fr 1fr}}
+.duo ul{max-width:none}
+
+/* ---------- language marker on a link ---------- */
+.lang{
+  font-family:"Golos Text",system-ui,sans-serif;
+  font-size:10px;font-weight:700;letter-spacing:.1em;
+  color:var(--muted);border:1px solid var(--rule);border-radius:3px;
+  padding:1px 5px;margin-left:7px;vertical-align:2px;
+}

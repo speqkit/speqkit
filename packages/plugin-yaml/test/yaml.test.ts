@@ -23,6 +23,33 @@ async function kitWithYaml(): Promise<Harness> {
 }
 
 describe('reading a suite file', () => {
+  it('carries the whole test, not only its body', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/lifecycle.yaml', [
+      'name: a tenant can be renamed',
+      'variables:',
+      '  slug: "${gen:uuid}"',
+      'setup:',
+      '  - type: echo',
+      '    value: register',
+      'steps:',
+      '  - type: echo',
+      '    value: rename',
+      'cleanup:',
+      '  - type: echo',
+      '    value: deregister'
+    ].join('\n'))
+
+    // A loader that dropped these would leave the kernel's own lifecycle
+    // unreachable from the format everybody writes tests in.
+    const [test] = await kit.discover()
+    expect(test).toMatchObject({
+      variables: { slug: '${gen:uuid}' },
+      setup: [{ type: 'echo', value: 'register' }],
+      cleanup: [{ type: 'echo', value: 'deregister' }]
+    })
+  })
+
   it('loads a test, its steps and its assertions', async () => {
     const kit = await kitWithYaml()
     kit.file('suites/smoke.yaml', [
@@ -80,6 +107,91 @@ describe('reading a suite file', () => {
     kit.file('suites/broken.yaml', 'name: [unclosed\n')
 
     await expect(kit.discover()).rejects.toThrow(/broken\.yaml/)
+  })
+})
+
+describe('the test form', () => {
+  it('takes the identity from id and the headline from title', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/items.yaml', [
+      'id: menu.items-create.creates-item',
+      'title: POST /categories/{id}/items creates an item',
+      'steps: [{type: echo}]'
+    ].join('\n'))
+
+    // The identity is what a report is compared against next quarter; the
+    // title is what a person reads. Collapsing them into one field means
+    // rewording the sentence renames the test.
+    const [test] = await kit.discover()
+    expect(test).toMatchObject({
+      name: 'menu.items-create.creates-item',
+      title: 'POST /categories/{id}/items creates an item'
+    })
+  })
+
+  it('carries a key outside the spine as an annotation', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/owned.yaml', [
+      'name: t', 'owner: mira', 'epic: menu', 'severity: blocker', 'steps: [{type: echo}]'
+    ].join('\n'))
+
+    // Nothing was declared. That is the trade: the kernel carries what it does
+    // not understand rather than making every team's field a contract of ours.
+    expect((await kit.discover())[0]!.meta).toEqual({ owner: 'mira', epic: 'menu', severity: 'blocker' })
+  })
+
+  it('reads an explicit meta block the same way', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/explicit.yaml', 'name: t\nmeta:\n  owner: mira\nsteps: [{type: echo}]\n')
+
+    expect((await kit.discover())[0]!.meta).toEqual({ owner: 'mira' })
+  })
+
+  it('leaves the spine out of the annotations', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/spine.yaml', 'id: a\ntitle: b\ntags: [c]\nsteps: [{type: echo}]\n')
+
+    expect((await kit.discover())[0]!.meta).toBeUndefined()
+  })
+})
+
+describe('a directory that describes itself', () => {
+  it('hands its annotations to every test under it', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/init.yaml', 'epic: menu\nowner: mira\n')
+    kit.file('suites/menu/items/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
+
+    // Written once on the directory that is the menu group, rather than
+    // copied into twelve files where the thirteenth is forgotten.
+    expect((await kit.discover())[0]!.meta).toEqual({ epic: 'menu', owner: 'mira' })
+  })
+
+  it('lets the nearer file and then the test sharpen it', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/init.yaml', 'epic: everything\nowner: platform\n')
+    kit.file('suites/menu/init.yaml', 'epic: menu\n')
+    kit.file('suites/menu/lists.yaml', 'name: lists\nowner: mira\nsteps: [{type: echo}]\n')
+
+    expect((await kit.discover())[0]!.meta).toEqual({ epic: 'menu', owner: 'mira' })
+  })
+
+  it('is never a test itself', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/init.yaml', 'epic: menu\n')
+
+    // It has no steps, so a loader that treated it as a test would report an
+    // empty test as broken on every run.
+    expect(await kit.discover()).toEqual([])
+  })
+
+  it('answers the same for one file as for the whole suite', async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/init.yaml', 'epic: menu\n')
+    kit.file('suites/menu/lists.yaml', 'name: lists\nsteps: [{type: echo}]\n')
+
+    // A report must not depend on how the run was started.
+    const alone = await kit.discover({ test: 'suites/menu/lists.yaml' })
+    expect(alone[0]!.meta).toEqual({ epic: 'menu' })
   })
 })
 

@@ -4,14 +4,28 @@
     "noEmit": true,
     "baseUrl": ".",
     "types": ["node"],
+    // Every workspace package, pointed at its source. Typechecking must not
+    // need a build to have happened: without an entry here TypeScript falls
+    // back to `exports`, which names `dist/index.d.ts`, and the check passes
+    // on any machine that has built once and fails on a clean clone. That is
+    // the worst possible place for a check to disagree with itself, and it is
+    // exactly how this was found — three packages had gone missing from the
+    // list. `packages/core/test/workspace.test.ts` fails if a fourth does.
     "paths": {
       "@speqkit/plugin-api": ["packages/plugin-api/src/index.ts"],
       "speqkit": ["packages/core/src/index.ts"],
       "@speqkit/installer": ["packages/installer/src/index.ts"],
+      "@speqkit/plugin-assert": ["packages/plugin-assert/src/index.ts"],
+      "@speqkit/plugin-cli": ["packages/plugin-cli/src/index.ts"],
+      "@speqkit/plugin-data": ["packages/plugin-data/src/index.ts"],
+      "@speqkit/plugin-http": ["packages/plugin-http/src/index.ts"],
+      "@speqkit/plugin-json": ["packages/plugin-json/src/index.ts"],
       "@speqkit/plugin-junit": ["packages/plugin-junit/src/index.ts"],
-      "@speqkit/test-kit": ["packages/test-kit/src/index.ts"],
       "@speqkit/plugin-loop": ["packages/plugin-loop/src/index.ts"],
+      "@speqkit/plugin-playwright": ["packages/plugin-playwright/src/index.ts"],
+      "@speqkit/plugin-use": ["packages/plugin-use/src/index.ts"],
       "@speqkit/plugin-yaml": ["packages/plugin-yaml/src/index.ts"],
+      "@speqkit/test-kit": ["packages/test-kit/src/index.ts"],
       "create-speqkit-plugin": ["packages/create-speqkit-plugin/src/index.ts"]
     }
   },
