@@ -9,11 +9,25 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b] [--workers N]
+speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate
 speq list
 ```
+
+## Four flags choose the tests
+
+`--test` takes a file, `--suite` a directory, `--tags` a label. `--name` takes
+the test's own name, which is the only one of the four that addresses a single
+test:
+
+```bash
+speq run --name 'menu.create[jpy]'
+```
+
+Reading a report and wanting to re-run exactly that row is the commonest thing
+anybody does, and until this flag it meant running the file and watching the
+other nine. All four apply to `run`, `validate` and `list` alike.
 
 ## It is a plugin, and that is the point
 
@@ -53,6 +67,10 @@ The console reporter holds a test's output until the test is over and then
 prints the block whole, because with `--workers` above one two tests are open
 at once and printing each event as it arrives puts one test's steps under
 another test's header.
+
+A step printed with a suite beside it — `. tenant (http)  suites/menu` —
+belongs to that suite rather than to a test: it is the suite's own setup or
+cleanup, and there is no test header above it to inherit.
 
 ## `--workers N` runs N suites at once
 

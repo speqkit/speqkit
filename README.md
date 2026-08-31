@@ -210,6 +210,27 @@ stream produced a file with one of two tests in it — and neither needed a
 contract change to fix, which is the tell that they were wrong before anything
 ran at once.
 
+A suite is now a thing rather than a file path. A directory holding a
+`suite.yaml` is a suite: it has a title, a parent, annotations and tags every
+test below it inherits outside-in, a `pending` that parks the lot with one
+reason, and a `setup` and `cleanup` that run once — before the first test
+anywhere under it and after the last, whatever happened to them. Suites nest,
+and `suite.started` names its parent, so a reporter can rebuild the tree
+without relying on adjacency. What a suite's setup binds stays in the suite:
+a test that could read `${tenant.id}` from the directory above it would be a
+different test when run alone, and running one test alone is how every failure
+gets looked at. What crosses that line is a `suite`-scoped resource, which is
+declared and named. The manifest is read by the loader — `LoaderDef.loadSuite`
+— so YAML is where the fields are parsed and nowhere near where they mean
+something.
+
+A `cases:` table is one test per row, expanded by the kernel at discovery so a
+case is an ordinary test everywhere it matters: `speq validate` checks five,
+the report has five rows, and `speq run --name 'menu.create[jpy]'` re-runs one
+of them. The id is written and never counted, because an index moves the day
+somebody inserts a row above it and a report read next quarter is comparing
+against a name.
+
 ## Writing a plugin
 
 ```bash
@@ -346,6 +367,10 @@ in the kernel, not in the test.
 - A crash inside a plugin is `error`, never `failed`.
 - All three resource scopes are real: `run` outlives the suite, `suite` outlives
   the test, and the outer ones tear down even when a test blows up.
+- A suite opens once however many of its files run at the same time, and closes
+  after the last of them — including the suites above that one.
+- A suite whose setup did not complete blocks every test below it, says so once,
+  and still runs its cleanup.
 - Bytes handed to `attach` come back out of the run byte-for-byte, and every
   reporter is told where they went.
 - A plugin installed from a registry loads out of the store, with its own

@@ -46,11 +46,13 @@
 <nav class="toc" aria-label="On this page">
   <ol>
     <li><a href="#shape">The shape of a test</a></li>
+    <li><a href="#cases">Cases</a></li>
     <li><a href="#steps">Steps</a></li>
     <li><a href="#values">Values</a></li>
     <li><a href="#assertions">The vocabulary</a></li>
     <li><a href="#composition">Composition</a></li>
     <li><a href="#lifecycle">Setup and cleanup</a></li>
+    <li><a href="#suites">Suites</a></li>
     <li><a href="#annotations">Annotations</a></li>
     <li><a href="#pending">Parking a test</a></li>
     <li><a href="#running">Running them</a></li>
@@ -62,7 +64,7 @@
 <!-- ============================================================== -->
 <section id="shape">
   <span class="sect-label">The shape</span>
-  <h2>Eight fields, and the list is closed</h2>
+  <h2>Nine fields, and the list is closed</h2>
 
   <p>
     One file, one test — or several, separated by <code>---</code>. Everything
@@ -112,6 +114,7 @@
     <li><span class="name">steps</span><span class="what">what it does</span></li>
     <li><span class="name">assert</span><span class="what">checks over the whole test, after the last step</span></li>
     <li><span class="name">cleanup</span><span class="what">what runs afterwards, whatever happened</span></li>
+    <li><span class="name">cases</span><span class="what">a table of inputs — one test per row, <a href="#cases">below</a></span></li>
   </ul>
 
   <div class="note">
@@ -122,6 +125,58 @@
       be closed for the annotations to be open: if <code>owner:</code> could be
       a spine field, every team's field would become a contract of ours, and
       there are as many of those as there are teams.
+    </p>
+  </div>
+</section>
+
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="cases">
+  <span class="sect-label">Cases</span>
+  <h2>One test, many inputs</h2>
+
+  <p>
+    A table of inputs is the most copied thing in a suite: the same eight steps
+    written five times because the currency differs. <code>cases</code> is that
+    table, and each row is a whole test.
+  </p>
+
+<pre><code><span class="k">id:</span> menu.create
+<span class="k">title:</span> <span class="s">creates an item</span>
+
+<span class="k">cases:</span>
+  <span class="p">-</span> <span class="k">id:</span> eur
+    <span class="k">variables:</span> <span class="p">{</span> <span class="k">currency:</span> EUR <span class="p">}</span>
+  <span class="p">-</span> <span class="k">id:</span> usd
+    <span class="k">variables:</span> <span class="p">{</span> <span class="k">currency:</span> USD <span class="p">}</span>
+  <span class="p">-</span> <span class="k">id:</span> jpy
+    <span class="k">variables:</span> <span class="p">{</span> <span class="k">currency:</span> JPY <span class="p">}</span>
+    <span class="k">pending:</span> <span class="s">no yen in staging</span>
+
+<span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> POST
+    <span class="k">url:</span> <span class="s">/items</span>
+    <span class="k">body:</span> <span class="p">{</span> <span class="k">currency:</span> <span class="s">"${currency}"</span> <span class="p">}</span></code></pre>
+
+  <p>
+    Three tests — <code>menu.create[eur]</code>, <code>menu.create[usd]</code>,
+    <code>menu.create[jpy]</code> — each with its own status, its own setup and
+    cleanup, and its own row in the report. A case's <code>variables</code> are
+    laid over the test's rather than instead of them; its <code>tags</code> and
+    annotations are merged; its <code>pending</code> and <code>title</code>
+    override.
+  </p>
+
+  <div class="note">
+    <span class="tag">The id is written, never counted</span>
+    <p>
+      A position would move the day somebody inserts a row above it, and a
+      report read next quarter is comparing this run against a name. That name
+      is also how one row is run on its own:
+      <code>speq run --name 'menu.create[jpy]'</code>.
     </p>
   </div>
 </section>
@@ -439,6 +494,65 @@
   </div>
 </section>
 
+
+<hr class="rule">
+
+<!-- ============================================================== -->
+<section id="suites">
+  <span class="sect-label">Suites</span>
+  <h2>A directory is a suite when it says so</h2>
+
+  <p>
+    A <code>suite.yaml</code> describes the directory it sits in and is never a
+    test. Suites nest, and a test inherits what every suite above it declares,
+    outside-in, with the nearest winning and the test winning over all of them.
+  </p>
+
+<pre><code><span class="c"># .speq/suites/menu/suite.yaml</span>
+<span class="k">title:</span> <span class="s">The menu</span>
+<span class="k">epic:</span> menu
+<span class="k">tags:</span> <span class="p">[</span>menu<span class="p">]</span>
+
+<span class="k">setup:</span>
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> POST
+    <span class="k">url:</span> <span class="s">/admin/tenants</span>
+
+<span class="k">cleanup:</span>
+  <span class="p">-</span> <span class="k">type:</span> http
+    <span class="k">method:</span> DELETE
+    <span class="k">url:</span> <span class="s">/admin/tenants/current</span></code></pre>
+
+  <ul class="points">
+    <li><span class="name">setup / cleanup</span><span class="what">run <em>once</em> — before the first test anywhere under the suite, and after the last, whatever happened to them</span></li>
+    <li><span class="name">tags</span><span class="what">added to every test below, unioned with what the test declares</span></li>
+    <li><span class="name">pending</span><span class="what">parks the whole suite with one reason, and its setup does not run either</span></li>
+    <li><span class="name">title</span><span class="what">what a report shows in place of the path</span></li>
+    <li><span class="name">anything else</span><span class="what">an annotation, inherited by every test below — <code>epic</code> written once instead of in twelve files</span></li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">What the suite binds stays in the suite</span>
+    <p>
+      A test cannot read <code>${tenant.id}</code> from the suite above it. It
+      would be a different test when run alone, and running one test alone is
+      how every failure gets looked at. What crosses that line is a
+      <code>suite</code>-scoped resource — declared, named, and set up on demand
+      whether the suite's setup ran or not.
+    </p>
+  </div>
+
+  <div class="note">
+    <span class="tag">A suite that could not start</span>
+    <p>
+      If a suite's setup does not complete, every test below it is announced,
+      counted and reported <code>error</code> without running — a report showing
+      twelve tests fewer than last week reads as twelve tests deleted. Its
+      cleanup still runs.
+    </p>
+  </div>
+</section>
+
 <hr class="rule">
 
 <!-- ============================================================== -->
@@ -524,6 +638,7 @@ speq run                                   <span class="c"># everything</span>
 speq run --tags smoke                      <span class="c"># by tag</span>
 speq run --test suites/menu/create.yaml    <span class="c"># one file</span>
 speq run --suite suites/menu               <span class="c"># one directory</span>
+speq run --name <span class="s">'menu.create[jpy]'</span>          <span class="c"># one test, or one case of one</span>
 speq run --env ci --reporter console,junit
 speq report --list                         <span class="c"># runs already recorded</span>
 speq report                                <span class="c"># re-render one, without re-running it</span></code></pre>
