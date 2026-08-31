@@ -3,6 +3,7 @@ import type {
   ExecContext, StepStatus, TestPhase
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
+import type { ResourceFrame } from './resources.js'
 import {
   resolveDeep, resolveDeepAsync, resolveString, type ResolveScope, type ValueProviderFn
 } from './interpolate.js'
@@ -16,6 +17,15 @@ const RESERVED_INPUT = new Set(['id', 'type', 'timeout', 'assert', 'meta'])
 export interface ExecutorOptions {
   registry: Registry
   test: string
+  /**
+   * The `test` frame this executor runs inside.
+   *
+   * Handed in rather than reached for. The resource manager holds no current
+   * frame any more, because under concurrency there is no such thing: two
+   * tests are inside two frames at the same moment, and each one has to be
+   * told which is its own.
+   */
+  resources: ResourceFrame
   /** The test's annotations, answered as `${meta:…}` and carried on events. */
   meta?: Record<string, unknown>
   defaultTimeoutMs?: number
@@ -33,6 +43,7 @@ export interface ExecutorOptions {
 export class Executor {
   readonly #registry: Registry
   readonly #test: string
+  readonly #resources: ResourceFrame
   readonly #meta: Record<string, unknown>
   readonly #defaultTimeoutMs: number
   readonly #attach: ExecutorOptions['attach']
@@ -46,6 +57,7 @@ export class Executor {
   constructor(options: ExecutorOptions) {
     this.#registry = options.registry
     this.#test = options.test
+    this.#resources = options.resources
     this.#meta = options.meta ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
     this.#attach = options.attach
@@ -313,7 +325,7 @@ export class Executor {
       resolve: <T>(t: string) => resolveString(self.scope(), t) as T,
       resolveDeep: <T>(v: T) => resolveDeep(self.scope(), v),
       resource: <T>(name: string) =>
-        self.#registry.resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>
+        self.#resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>
     }
   }
 
@@ -347,7 +359,7 @@ export class Executor {
       resolveDeep: <T>(value: T) => resolveDeep(self.scope(), value),
       runSteps: (steps, options) => self.runSteps(steps, options),
       resource: <T>(name: string) =>
-        self.#registry.resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>,
+        self.#resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>,
       config: <T>() => self.#registry.configFor(owner) as T,
       attach: (name, body, contentType = 'application/octet-stream') =>
         self.#attach(name, body, contentType),

@@ -4,6 +4,7 @@ import type {
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
+import type { ResourceFrame } from './resources.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
 import { RunLog } from './run-log.js'
 import { startReporters, runDirFor } from './reporters.js'
@@ -56,7 +57,7 @@ export async function runTests(
     registry.events.emit({ type: 'run.started', runId, tests: tests.length, at: startedAt })
     await registry.runHooks('run:before', {})
 
-    registry.resources.open('run')
+    const runFrame = registry.resources.open('run')
     const outcomes: TestOutcome[] = []
 
     try {
@@ -66,19 +67,19 @@ export async function runTests(
       for (const group of groupIntoSuites(tests)) {
         registry.events.emit({ type: 'suite.started', suite: group.suite })
         await registry.runHooks('suite:before', { suite: group.suite })
-        registry.resources.open('suite')
+        const suiteFrame = runFrame.open('suite')
         try {
           for (const test of group.tests) {
-            outcomes.push(await runOne(registry, test, group.suite, artifacts))
+            outcomes.push(await runOne(registry, test, group.suite, artifacts, suiteFrame))
           }
         } finally {
-          await registry.resources.close('suite', configFor)
+          await suiteFrame.close(configFor)
         }
         await registry.runHooks('suite:after', { suite: group.suite })
         registry.events.emit({ type: 'suite.finished', suite: group.suite })
       }
     } finally {
-      await registry.resources.close('run', configFor)
+      await runFrame.close(configFor)
     }
 
     const counts = tally(outcomes)
@@ -120,7 +121,8 @@ async function runOne(
   registry: Registry,
   test: TestDef,
   suite: string,
-  artifacts: ArtifactStore
+  artifacts: ArtifactStore,
+  suiteFrame: ResourceFrame
 ): Promise<TestOutcome> {
   const startedAt = Date.now()
   const configFor = (plugin: string) => registry.configFor(plugin)
@@ -164,9 +166,11 @@ async function runOne(
   })
   await registry.runHooks('test:before', { test: test.name })
 
+  const testFrame = suiteFrame.open('test')
   const executor = new Executor({
     registry,
     test: test.name,
+    resources: testFrame,
     ...(meta ? { meta } : {}),
     attach: (name, body, contentType) => {
       const record = artifacts.put(test.name, name, body, contentType)
@@ -181,7 +185,6 @@ async function runOne(
     }
   })
 
-  registry.resources.open('test')
   let setup: StepRecord[] = []
   let body: StepRecord[] = []
   let cleanup: StepRecord[] = []
@@ -224,7 +227,7 @@ async function runOne(
     // Assertions run only if every step produced a result to assert over.
     // Asserting after an errored step reports noise, not evidence.
     if (!setupBroke && !body.some((s) => s.status === 'error')) {
-      const ctx = assertContext(registry, executor, body)
+      const ctx = assertContext(registry, executor, body, testFrame)
       for (const assertion of test.assert ?? []) {
         const entry = registry.assertions.get(assertion.type)
         if (!entry) {
@@ -262,7 +265,7 @@ async function runOne(
     // Whatever happened above, including a setup that never finished: the rows
     // a half-built test created are exactly the ones nobody else will delete.
     cleanup = !ungiven && test.cleanup?.length ? await executor.runPhase(test.cleanup, 'cleanup') : []
-    await registry.resources.close('test', configFor)
+    await testFrame.close(configFor)
   }
 
   const ran = [...setup, ...body]
@@ -306,7 +309,12 @@ async function runOne(
   }
 }
 
-function assertContext(registry: Registry, executor: Executor, steps: StepRecord[]): AssertContext {
+function assertContext(
+  registry: Registry,
+  executor: Executor,
+  steps: StepRecord[],
+  frame: ResourceFrame
+): AssertContext {
   const results = executor.results()
   const last = [...steps].reverse().find((s) => s.status === 'passed')?.result
   return {
@@ -314,8 +322,7 @@ function assertContext(registry: Registry, executor: Executor, steps: StepRecord
     last,
     resolve: <T>(t: string) => resolveString(executor.scope(), t) as T,
     resolveDeep: <T>(v: T) => resolveDeep(executor.scope(), v),
-    resource: <T>(name: string) =>
-      registry.resources.acquire(name, (p) => registry.configFor(p)) as Promise<T>
+    resource: <T>(name: string) => frame.acquire(name, (p) => registry.configFor(p)) as Promise<T>
   }
 }
 

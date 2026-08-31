@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { definePlugin, type StepDef } from '@speqkit/plugin-api'
-import { Registry, runTests, validateTests } from 'speqkit'
+import { definePlugin, type ResourceScope, type StepDef } from '@speqkit/plugin-api'
+import { Registry, ResourceManager, runTests, validateTests } from 'speqkit'
 
 /**
  * These are architecture tests, not feature tests. Each one pins an invariant
@@ -181,6 +181,114 @@ describe('resources close in reverse order when their scope ends', () => {
       'page up', 'page down',
       'browser down'
     ])
+  })
+})
+
+describe('a resource frame belongs to whoever opened it', () => {
+  const configFor = () => ({})
+
+  /**
+   * One resource, a counter, and a log of what went up and what came down.
+   * `slowMs` is the whole point of the first test: the fault these pin is a
+   * window the length of `setup`, and a setup that returns immediately has
+   * no window to race in.
+   */
+  function counting(log: string[], scope: ResourceScope, slowMs = 0) {
+    const resources = new ResourceManager()
+    let issued = 0
+    resources.define('conn', 'res', {
+      scope,
+      setup: async () => {
+        const id = ++issued
+        log.push(`up ${id}`)
+        if (slowMs) await new Promise((r) => setTimeout(r, slowMs))
+        return id
+      },
+      teardown: (value) => { log.push(`down ${String(value)}`) }
+    })
+    return resources
+  }
+
+  it('hands one value to everyone who asks at the same moment', async () => {
+    const log: string[] = []
+    const run = counting(log, 'suite', 20).open('run')
+    const suite = run.open('suite')
+
+    // Two tests of one suite, both asking before either answer arrives. The
+    // cache used to hold the resolved value, so both found it empty, both ran
+    // `setup`, and the second overwrote the first: one resource leaked and
+    // the other was torn down twice.
+    const [first, second] = await Promise.all([
+      suite.open('test').acquire('conn', configFor),
+      suite.open('test').acquire('conn', configFor)
+    ])
+
+    expect(first).toBe(second)
+    await suite.close(configFor)
+    expect(log).toEqual(['up 1', 'down 1'])
+  })
+
+  it('gives each suite its own, and takes each one down once', async () => {
+    const log: string[] = []
+    const run = counting(log, 'suite', 20).open('run')
+    const one = run.open('suite')
+    const two = run.open('suite')
+
+    const values = await Promise.all([
+      one.acquire('conn', configFor),
+      two.acquire('conn', configFor)
+    ])
+    expect(new Set(values).size).toBe(2)
+
+    await Promise.all([one.close(configFor), two.close(configFor)])
+    expect(log.filter((l) => l.startsWith('down')).sort()).toEqual(['down 1', 'down 2'])
+  })
+
+  it('closes the frame it was told to, not the innermost one', async () => {
+    const log: string[] = []
+    const run = counting(log, 'test').open('run')
+    const here = run.open('suite').open('test')
+    const there = run.open('suite').open('test')
+
+    expect(await here.acquire('conn', configFor)).toBe(1)
+    expect(await there.acquire('conn', configFor)).toBe(2)
+
+    // The frames were one stack, so this popped whichever was opened last —
+    // `there`. The suite that was still running then acquired a second time,
+    // and its teardown ran against a scope that had already ended.
+    await here.close(configFor)
+    expect(await there.acquire('conn', configFor)).toBe(2)
+
+    await there.close(configFor)
+    expect(log).toEqual(['up 1', 'up 2', 'down 1', 'down 2'])
+  })
+
+  it('does not tear down, or retry, a setup that never succeeded', async () => {
+    const log: string[] = []
+    const resources = new ResourceManager()
+    let attempts = 0
+    resources.define('conn', 'res', {
+      scope: 'test',
+      setup: () => { attempts += 1; throw new Error('no route to host') },
+      teardown: () => { log.push('down') }
+    })
+
+    const frame = resources.open('run').open('suite').open('test')
+    await expect(frame.acquire('conn', configFor)).rejects.toThrow('no route to host')
+    await expect(frame.acquire('conn', configFor)).rejects.toThrow('no route to host')
+
+    await frame.close(configFor)
+    expect(attempts).toBe(1)
+    expect(log).toEqual([])
+  })
+
+  it('refuses to set anything up in a scope that has ended', async () => {
+    const log: string[] = []
+    const frame = counting(log, 'test').open('run').open('suite').open('test')
+    await frame.close(configFor)
+    await expect(frame.acquire('conn', configFor)).rejects.toThrow(
+      "resource 'conn' was asked for after its 'test' scope closed"
+    )
   })
 })
 
