@@ -9,7 +9,7 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b]
+speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--reporter a,b] [--workers N]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate
 speq list
@@ -48,6 +48,29 @@ framework exercises the extension point every time.
 
 `--reporter console,junit` drives both. An unknown name fails before the first
 test rather than after the last one.
+
+The console reporter holds a test's output until the test is over and then
+prints the block whole, because with `--workers` above one two tests are open
+at once and printing each event as it arrives puts one test's steps under
+another test's header.
+
+## `--workers N` runs N suites at once
+
+One by default, and one is not a placeholder. Every other runner defaults to
+the CPU count because its bottleneck is the local processor; speq's is somebody
+else's service, and `--workers 8` is eight times the load on the system under
+test. Step timeouts start firing where they did not fire in sequence, which
+means the number could change a verdict — so nothing guesses it, and there is
+no `auto`.
+
+Concurrency is between suites and nowhere else. A test runs whole, interleaved
+with nothing; the tests inside one suite stay sequential, so a suite's hooks
+and its `suite`-scoped resources behave exactly as they did. A suite that fails
+frees its slot rather than stopping the run.
+
+`--workers 0`, `--workers auto` and `--workers 2.5` are refused before anything
+is discovered, rather than quietly falling back to one — a twenty-minute suite
+that pretends to obey is worse than one that says no.
 
 ## It does not import the kernel
 
