@@ -341,6 +341,45 @@ describe('a test is the atomic unit', () => {
   })
 })
 
+describe('a hook knows which suite it is firing in', () => {
+  it('names the suite on every hook that has one', async () => {
+    const seen: string[] = []
+    const watcher = definePlugin({
+      name: 'watcher',
+      setup(ctx) {
+        for (const name of ['suite:before', 'test:before', 'step:before', 'step:after', 'test:after', 'suite:after'] as const) {
+          ctx.defineHook(name, (payload) => { seen.push(`${name} ${payload.suite ?? 'nowhere'}`) })
+        }
+      }
+    })
+
+    const registry = await registryWith(echo, watcher)
+    await runTests(registry, [
+      { name: 'one', source: 'suites/a.yaml', steps: [{ type: 'echo', value: 1 }] },
+      { name: 'two', source: 'suites/b.yaml', steps: [{ type: 'echo', value: 2 }] }
+    ])
+
+    // `HookPayload.suite` was declared from the first commit and populated
+    // only for `suite:before` and `suite:after`. The other four are the ones a
+    // hook holding per-suite state actually fires on, and under concurrency the
+    // same function is called by two suites at once.
+    expect(seen).toEqual([
+      'suite:before suites/a.yaml',
+      'test:before suites/a.yaml',
+      'step:before suites/a.yaml',
+      'step:after suites/a.yaml',
+      'test:after suites/a.yaml',
+      'suite:after suites/a.yaml',
+      'suite:before suites/b.yaml',
+      'test:before suites/b.yaml',
+      'step:before suites/b.yaml',
+      'step:after suites/b.yaml',
+      'test:after suites/b.yaml',
+      'suite:after suites/b.yaml'
+    ])
+  })
+})
+
 describe('a plugin contributes to a surface that may not be loaded', () => {
   const contributor = definePlugin({
     name: 'contributor',

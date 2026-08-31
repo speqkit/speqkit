@@ -18,6 +18,14 @@ export interface ExecutorOptions {
   registry: Registry
   test: string
   /**
+   * The suite the test belongs to, carried so a step hook can name it.
+   *
+   * A hook is registered once for the whole run, so under concurrency the same
+   * function is called by two suites at a time. Without this it has the test
+   * name and no way to tell which group it is in.
+   */
+  suite: string
+  /**
    * The `test` frame this executor runs inside.
    *
    * Handed in rather than reached for. The resource manager holds no current
@@ -49,6 +57,7 @@ export interface ExecutorOptions {
 export class Executor {
   readonly #registry: Registry
   readonly #test: string
+  readonly #suite: string
   readonly #resources: ResourceFrame
   readonly #meta: Record<string, unknown>
   readonly #defaultTimeoutMs: number
@@ -63,6 +72,7 @@ export class Executor {
   constructor(options: ExecutorOptions) {
     this.#registry = options.registry
     this.#test = options.test
+    this.#suite = options.suite
     this.#resources = options.resources
     this.#meta = options.meta ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -191,7 +201,7 @@ export class Executor {
     }
 
     this.#registry.events.emit({ type: 'step.started', ...base })
-    await this.#registry.runHooks('step:before', { test: this.#test, step })
+    await this.#registry.runHooks('step:before', { test: this.#test, suite: this.#suite, step })
 
     const timeoutMs = readTimeout(step.timeout) ?? entry.def.timeoutMs ?? this.#defaultTimeoutMs
     const controller = new AbortController()
@@ -254,7 +264,7 @@ export class Executor {
       this.#parentId = previousParent
     }
 
-    await this.#registry.runHooks('step:after', { test: this.#test, step, record })
+    await this.#registry.runHooks('step:after', { test: this.#test, suite: this.#suite, step, record })
     return record
   }
 

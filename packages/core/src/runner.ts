@@ -164,12 +164,13 @@ async function runOne(
     ...(test.title ? { title: test.title } : {}),
     ...(meta ? { meta } : {})
   })
-  await registry.runHooks('test:before', { test: test.name })
+  await registry.runHooks('test:before', { test: test.name, suite })
 
   const testFrame = suiteFrame.open('test')
   const executor = new Executor({
     registry,
     test: test.name,
+    suite,
     resources: testFrame,
     ...(meta ? { meta } : {}),
     attach: (name, body, contentType) => {
@@ -292,7 +293,7 @@ async function runOne(
   const steps = [...setup, ...body, ...cleanup]
 
   const durationMs = Date.now() - startedAt
-  await registry.runHooks('test:after', { test: test.name })
+  await registry.runHooks('test:after', { test: test.name, suite })
   registry.events.emit({ type: 'test.finished', test: test.name, status, durationMs })
 
   return {
