@@ -17,3 +17,7 @@ build/
 # Temporary projects the create-speqkit-plugin tests generate. Inside the
 # repository rather than /tmp, so Node resolution finds vitest.
 speq-scaffold-*/
+
+# Temporary projects the parallel gate builds. Under examples/basic so
+# that the workspace plugins resolve, which is why they are ignored here.
+examples/basic/speq-gate-*/
