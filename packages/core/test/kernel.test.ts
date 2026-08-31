@@ -292,6 +292,55 @@ describe('a resource frame belongs to whoever opened it', () => {
   })
 })
 
+describe('a test is the atomic unit', () => {
+  const branching = definePlugin({
+    name: 'branching',
+    setup(ctx) {
+      ctx.defineStepType('both', {
+        async execute(exec, input) {
+          const [left, right] = input.steps as StepDef[]
+          const branches = await Promise.all([exec.runSteps([left!]), exec.runSteps([right!])])
+          return { branches: branches.map((b) => b.map((r) => r.result)) }
+        }
+      })
+    }
+  })
+
+  it('refuses a step type that runs two branches at once, and says why', async () => {
+    const registry = await registryWith(echo, branching)
+    const outcome = await runTests(registry, [{
+      name: 'two branches',
+      steps: [{
+        type: 'both',
+        steps: [{ id: 'l', type: 'echo', value: 'left' }, { id: 'r', type: 'echo', value: 'right' }]
+      }]
+    }])
+
+    // It used to answer, and answer wrongly: both branches shared one frame
+    // stack, so this returned the same branch twice and the step passed.
+    expect(outcome.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.message).toContain(
+      "step type 'both' called runSteps while its own nested steps were still running"
+    )
+    expect(outcome.tests[0]!.steps[0]!.message).toContain('concurrency lives between suites')
+  })
+
+  it('leaves nesting alone, which is what runSteps is for', async () => {
+    const registry = await registryWith(echo, looper)
+    const outcome = await runTests(registry, [{
+      name: 'a loop inside a loop',
+      steps: [{
+        id: 'outer',
+        type: 'loop',
+        over: [1, 2],
+        steps: [{ id: 'inner', type: 'loop', over: ['a', 'b'], steps: [{ type: 'echo', value: '${item}' }] }]
+      }]
+    }])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps[0]!.result.iterations).toBe(2)
+  })
+})
+
 describe('a plugin contributes to a surface that may not be loaded', () => {
   const contributor = definePlugin({
     name: 'contributor',
