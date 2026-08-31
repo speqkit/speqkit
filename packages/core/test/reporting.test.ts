@@ -258,6 +258,37 @@ describe('the reporter mechanism', () => {
 /* The run log and replay                                              */
 /* ------------------------------------------------------------------ */
 
+describe('a failed assertion', () => {
+  it('carries what it expected and what it got', async () => {
+    const registry = await registryWith(suite)
+    const seen: RunEvent[] = []
+    registry.events.subscribe((e) => seen.push(e))
+
+    await runTests(registry, tests)
+    const evaluated = seen.filter((e) => e.type === 'assertion.evaluated')
+
+    // `AssertOutcome` has had both fields since the first commit and the event
+    // dropped them, so every surface downstream had a sentence and no values:
+    // the only way to see a diff was to run the suite again behind a proxy.
+    const failed = evaluated.find((e) => !e.passed)
+    expect(failed).toMatchObject({ expected: 'goodbye', actual: 'hello' })
+  })
+
+  it('is the only one that carries them', async () => {
+    const registry = await registryWith(suite)
+    const seen: RunEvent[] = []
+    registry.events.subscribe((e) => seen.push(e))
+
+    await runTests(registry, tests)
+    const passed = seen.filter((e) => e.type === 'assertion.evaluated').find((e) => e.passed)!
+
+    // A response body per passing assertion in events.jsonl buys nothing: a
+    // diff is a thing you read about a failure.
+    expect(Object.hasOwn(passed, 'expected')).toBe(false)
+    expect(Object.hasOwn(passed, 'actual')).toBe(false)
+  })
+})
+
 describe('the run log', () => {
   it('records every event the run emitted, in order', async () => {
     const registry = await registryWith(suite)

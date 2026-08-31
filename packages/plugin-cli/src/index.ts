@@ -198,6 +198,7 @@ function printEvent(event: RunEvent): void {
     case 'assertion.evaluated': {
       const mark = event.passed ? green('✓') : red('✗')
       process.stdout.write(`    ${mark} ${dim(event.assertionType)} ${event.message}\n`)
+      for (const line of comparison(event)) process.stdout.write(`      ${line}\n`)
       break
     }
     case 'diagnostic':
@@ -214,6 +215,84 @@ function printEvent(event: RunEvent): void {
       break
     }
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* The diff                                                            */
+/* ------------------------------------------------------------------ */
+
+const DIFF_LINE_BUDGET = 40
+
+/**
+ * What a failed assertion compared, when the values are in the event.
+ *
+ * The alternative was a proxy: the message says "expected 201, got 500" and
+ * stops, so anything shaped — a body, a header set, a list — had to be read by
+ * running the suite again with something in front of it. Nothing here is
+ * computed; the values arrive on `assertion.evaluated` and this only decides
+ * how they are laid out.
+ */
+function comparison(event: Extract<RunEvent, { type: 'assertion.evaluated' }>): string[] {
+  if (event.expected === undefined && event.actual === undefined) return []
+
+  const expected = render(event.expected)
+  const actual = render(event.actual)
+
+  // Two scalars are a comparison, not a diff. `- 201 / + 500` is diff notation
+  // applied to something that has no structure to align.
+  if (expected.length === 1 && actual.length === 1) {
+    return [`${dim('expected')} ${green(expected[0]!)}`, `${dim('actual  ')} ${red(actual[0]!)}`]
+  }
+  return [`${green('- expected')}  ${red('+ actual')}`, ...clip(unified(expected, actual))]
+}
+
+function render(value: unknown): string[] {
+  if (value === undefined) return [dim('(nothing)')]
+  try {
+    return JSON.stringify(value, null, 2)?.split('\n') ?? [String(value)]
+  } catch {
+    // A value that cannot be serialised is still worth naming.
+    return [String(value)]
+  }
+}
+
+/** Longest common subsequence over lines: the ordinary unified diff. */
+function unified(left: string[], right: string[]): string[] {
+  const common = Array.from({ length: left.length + 1 }, () => Array<number>(right.length + 1).fill(0))
+  for (let i = left.length - 1; i >= 0; i--) {
+    for (let j = right.length - 1; j >= 0; j--) {
+      common[i]![j] = left[i] === right[j]
+        ? common[i + 1]![j + 1]! + 1
+        : Math.max(common[i + 1]![j]!, common[i]![j + 1]!)
+    }
+  }
+
+  const out: string[] = []
+  let i = 0
+  let j = 0
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      out.push(dim(`  ${left[i]}`))
+      i++
+      j++
+    } else if (common[i + 1]![j]! >= common[i]![j + 1]!) {
+      out.push(green(`- ${left[i]}`))
+      i++
+    } else {
+      out.push(red(`+ ${right[j]}`))
+      j++
+    }
+  }
+  while (i < left.length) out.push(green(`- ${left[i++]}`))
+  while (j < right.length) out.push(red(`+ ${right[j++]}`))
+  return out
+}
+
+/** A 900-line body is not a diff anybody reads in a terminal. */
+function clip(lines: string[]): string[] {
+  if (lines.length <= DIFF_LINE_BUDGET) return lines
+  const rest = lines.length - DIFF_LINE_BUDGET
+  return [...lines.slice(0, DIFF_LINE_BUDGET), dim(`… ${rest} more line(s); the full values are in the report`)]
 }
 
 function printDiagnostics(diagnostics: Diagnostic[]): void {

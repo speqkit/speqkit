@@ -6,6 +6,7 @@ import type { Registry } from './registry.js'
 import {
   resolveDeep, resolveDeepAsync, resolveString, type ResolveScope, type ValueProviderFn
 } from './interpolate.js'
+import { comparison } from './events.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -297,7 +298,8 @@ export class Executor {
         assertionType: assertion.type,
         passed: latest.passed,
         message: latest.message,
-        ...(step.id ? { stepId: step.id } : {})
+        ...(step.id ? { stepId: step.id } : {}),
+        ...comparison(latest)
       })
     }
     return out

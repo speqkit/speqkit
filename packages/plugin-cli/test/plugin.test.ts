@@ -129,7 +129,61 @@ describe('the console reporter', () => {
     expect(printed).toContain('✗ status expected 201, got 500')
     expect(printed).toContain('0 passed - 1 failed')
   })
+
+  it('shows two scalars as a comparison', async () => {
+    const printed = await render([{
+      type: 'assertion.evaluated', test: 't', assertionType: 'status',
+      passed: false, message: 'expected 201, got 500', expected: 201, actual: 500
+    }])
+
+    expect(printed).toContain('expected 201')
+    expect(printed).toContain('actual   500')
+    // Diff notation over two numbers aligns nothing; it just looks like a diff.
+    expect(printed).not.toContain('- 201')
+  })
+
+  it('shows two shapes as a diff of the lines that differ', async () => {
+    const printed = await render([{
+      type: 'assertion.evaluated', test: 't', assertionType: 'equals',
+      passed: false, message: 'body does not equal the expected object',
+      expected: { id: 1, name: 'a', tags: ['x'] },
+      actual: { id: 1, name: 'b', tags: ['x'] }
+    }])
+
+    // The whole point: the reader sees which field moved without running the
+    // suite again behind a proxy.
+    expect(printed).toContain('- expected')
+    expect(printed).toContain('-   "name": "a",')
+    expect(printed).toContain('+   "name": "b",')
+    expect(printed).toContain('    "id": 1,')
+    expect(printed).not.toContain('-   "id": 1,')
+  })
+
+  it('says nothing extra when the assertion had nothing to compare', async () => {
+    const printed = await render([{
+      type: 'assertion.evaluated', test: 't', assertionType: 'visible',
+      passed: false, message: 'h1 is not visible'
+    }])
+
+    expect(printed).not.toContain('expected')
+    expect(printed).not.toContain('(nothing)')
+  })
 })
+
+/** Drive the console reporter over a stream and return what it printed. */
+async function render(events: RunEvent[]): Promise<string> {
+  kit = await harness(cli)
+  const reporter = kit.registry.reporters.get('console')!
+  const said: string[] = []
+  const stdout = process.stdout.write.bind(process.stdout)
+  process.stdout.write = ((s: string) => { said.push(String(s)); return true }) as typeof process.stdout.write
+  try {
+    for (const event of events) reporter.def.on(event)
+  } finally {
+    process.stdout.write = stdout
+  }
+  return said.join('').replace(/\x1b\[\d+m/g, '')
+}
 
 function stream(): RunEvent[] {
   return [

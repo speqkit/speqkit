@@ -8,6 +8,7 @@ import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
 import { RunLog } from './run-log.js'
 import { startReporters, runDirFor } from './reporters.js'
 import { resolveDeep, resolveDeepAsync, resolveString } from './interpolate.js'
+import { comparison } from './events.js'
 
 export type { RunOutcome, TestOutcome }
 
@@ -252,7 +253,8 @@ async function runOne(
           test: test.name,
           assertionType: assertion.type,
           passed: last.passed,
-          message: last.message
+          message: last.message,
+          ...comparison(last)
         })
       }
     }
