@@ -26,6 +26,9 @@ packages — the kernel as `speqkit`, the contract and eleven plugins under
 `@speqkit`, plus the test kit and the scaffolder — so `npm i -g speqkit`
 installs the `speq` binary from the registry rather than from this checkout.
 
+What is next, in the order it has to happen — and which of it is cheap now and
+expensive after 1.0 — is in [ROADMAP.md](ROADMAP.md).
+
 `plugin-loop` was written against the published API with **no kernel changes**
 — control flow is genuinely a plugin. `plugin-playwright` then exercised the
 two parts of the spine the loop never touched, scoped resources and binary
