@@ -231,3 +231,39 @@ describe('retrying', () => {
     expect(step.result.attempts).toBe(2)
   })
 })
+
+describe('a request that never arrives', () => {
+  it('names the URL and what the socket said', async () => {
+    // A port nobody is listening on: bound to find a free one, then released.
+    const spare = createServer()
+    await new Promise<void>((r) => spare.listen(0, '127.0.0.1', r))
+    const address = spare.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    await new Promise<void>((r) => spare.close(() => r()))
+
+    const kit = await withHttp({ baseUrl: `http://127.0.0.1:${port}` })
+    const step = await kit.step({ type: 'http', url: '/health' })
+
+    // What used to come out of here was 'fetch failed' — undici's wrapper,
+    // four words, no port, no errno, identical for a refused connection, an
+    // unknown host and a bad certificate. The cause was on the error the
+    // whole time and was being dropped on the way out.
+    expect(step.status).toBe('error')
+    expect(step.message).toContain(`GET http://127.0.0.1:${port}/health failed`)
+    expect(step.message).toMatch(/ECONNREFUSED/)
+    expect(step.message).not.toBe('fetch failed')
+  })
+
+  it('says how many times it asked before giving up', async () => {
+    const spare = createServer()
+    await new Promise<void>((r) => spare.listen(0, '127.0.0.1', r))
+    const address = spare.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    await new Promise<void>((r) => spare.close(() => r()))
+
+    const kit = await withHttp({ baseUrl: `http://127.0.0.1:${port}`, retry: { attempts: 2, delayMs: 1 } })
+    const step = await kit.step({ type: 'http', url: '/health' })
+
+    expect(step.message).toContain('failed after 2 attempts')
+  })
+})

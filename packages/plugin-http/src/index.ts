@@ -136,7 +136,9 @@ export default definePlugin({
           try {
             response = await fetch(url, { method, headers, body: payload, signal: exec.signal })
           } catch (err) {
-            if (exec.signal.aborted || !worthRepeating(policy, method, undefined, attempts)) throw err
+            if (exec.signal.aborted || !worthRepeating(policy, method, undefined, attempts)) {
+              throw requestFailed(err, method, url, attempts)
+            }
             await pause(policy, attempts, exec.signal)
             continue
           }
@@ -206,6 +208,46 @@ const CONTENT_TYPES: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.txt': 'text/plain'
+}
+
+/**
+ * `TypeError: fetch failed` names nothing a person can act on.
+ *
+ * That is the whole message undici throws for a refused connection, an
+ * unresolvable host, a self-signed certificate and a closed socket alike — and
+ * it was going out of here unchanged, so a suite pointed at the wrong port
+ * reported four words and no port. What the reader needs is on `err.cause`,
+ * one or two links down: the sentence, and the errno that says which of the
+ * four it was. The original is kept as the cause of this one, so nothing is
+ * lost for whoever wants the stack.
+ */
+function requestFailed(err: unknown, method: string, url: string, attempts: number): Error {
+  const tried = attempts > 1 ? ` after ${attempts} attempts` : ''
+  return new Error(`${method} ${url} failed${tried}: ${reasonOf(err)}`, { cause: err })
+}
+
+/** The chain under a wrapper, as one sentence, deepest cause last. */
+function reasonOf(err: unknown): string {
+  const said: string[] = []
+  const seen = new Set<unknown>()
+  let current: unknown = err
+
+  while (current instanceof Error && !seen.has(current) && said.length < 3) {
+    seen.add(current)
+    // 'fetch failed' is the wrapper itself. Saying it adds nothing to the
+    // sentence and pushes the one that matters off the end.
+    if (current.message && current.message !== 'fetch failed') {
+      const code = (current as NodeJS.ErrnoException).code
+      said.push(code && !current.message.includes(code) ? `${current.message} (${code})` : current.message)
+    }
+    // An AggregateError is what a host with several addresses fails as: one
+    // error per address tried, all of them the same thing.
+    current = current instanceof AggregateError && current.errors.length > 0
+      ? current.errors[0]
+      : current.cause
+  }
+
+  return said.join(': ') || 'the request did not complete, and nothing said why'
 }
 
 function partsOf(value: unknown): Record<string, unknown> {
