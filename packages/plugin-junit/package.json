@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-junit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "JUnit XML from the run's event stream. What CI reads.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

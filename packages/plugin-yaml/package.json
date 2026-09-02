@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-yaml",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "YAML loader and the speq 1.x codemod. The default authoring format — and proof that the format is a plugin.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

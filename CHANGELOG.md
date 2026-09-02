@@ -18,6 +18,169 @@ on `0.x` pins the minor for exactly that reason.
 
 Nothing yet.
 
+## [0.3.0] — 2026-09-02
+
+The release where a run stops doing one thing at a time, and a suite stops being
+a file path. Both move `RunEvent`, so they went out together: a reporter written
+against 0.2.0 breaks once here rather than twice.
+
+### Added
+
+- **Suites run at once — `speq run --workers N`.** Concurrency is between suites
+  and nowhere else: a test is atomic, a suite's tests stay sequential, and the
+  suites are pulled from a shared cursor rather than a partition, so a suite that
+  fails frees its slot immediately and nothing waits for the slowest slice. The
+  default is **one**, and it is not a placeholder for a better default arriving
+  later — every runner surveyed defaults to the CPU count because its bottleneck
+  is the local processor, and speq's is somebody else's service. `--workers 8` is
+  eight times the load on the system under test and can change a verdict. There
+  is no `auto`, and `--workers 0`, `auto` and `2.5` are refused before discovery
+  rather than quietly falling back to one.
+- **Six ordering guarantees, G1–G6**, written beside the `RunEvent` union,
+  because that is where a reporter author looks. G4 is the one that costs
+  something and is deliberately weak: events of different suites interleave;
+  events of one suite never do.
+- **A suite is a thing.** A directory holding a `suite.yaml` is a suite. It has a
+  title, a parent, tags and annotations inherited outside-in with the nearest
+  declaration winning, a `pending` that parks everything below it with one
+  reason, and a `setup` and `cleanup` that run **once** — before the first test
+  anywhere beneath it and after the last, whatever happened to them. Suites nest.
+  What a suite's setup binds stays in the suite: a test that could read
+  `${tenant.id}` from the directory above it would be a different test when run
+  alone, and running one test alone is how every failure gets looked at. What
+  crosses that line is a `suite`-scoped resource, which is declared and named.
+- **`cases` — one test, many inputs.** A table of inputs expands during
+  discovery, before validation and before anything counts tests, so a case is an
+  ordinary test everywhere it matters: five names `speq validate` checks, five
+  rows in the report, and one of them re-runnable. The id is written, never
+  counted — an index moves the day somebody inserts a row above it. A malformed
+  table is left unexpanded and reported by `validate`, so there is something to
+  point at.
+- **`speq run --name a,b`** — the fourth selection flag. The other three say
+  where to look or what to look for; after reading a report, what anybody wants
+  is that row.
+- **`expected` and `actual` on `assertion.evaluated`.** `AssertOutcome` has
+  carried both since the first commit and the event dropped them, so every
+  surface downstream had a sentence and no values. The console now renders two
+  scalars as a comparison and two shapes as a unified diff. They ride on failure
+  only: a response body per passing assertion buys nothing.
+- **Contract 0.9.0 → 0.10.0**: `SuiteDef` and `CaseDef`; `LoaderDef.suiteFiles`
+  and `LoaderDef.loadSuite`, so a loader can declare suites without
+  reimplementing the tree, the identity or the inheritance; `TestDef.cases`,
+  `TestDef.group` and `TestDef.suites`; `RunRequest.concurrency`;
+  `DiscoverQuery.names`; `TestOutcome.group`; `ValidateContext.suite`.
+  `suite.started` gained `parent`, `title` and `pending`, and `test.started`
+  gained `group`. `PLUGIN_API_VERSION` stays `1` and no ninth contribution point
+  was opened — a suite was tried as a plugin first, and the experiment came back
+  no: grouping, identity and inheritance are all settled before any hook fires.
+- **`@speqkit/test-kit`, `@speqkit/plugin-cli`, `@speqkit/plugin-junit` and
+  `@speqkit/plugin-playwright` have tests of their own.** The CLI is the plugin
+  every author copies and playwright is half the architecture gate; both were
+  claims rather than properties. One CI job installs chromium and sets
+  `SPEQ_REQUIRE_BROWSER=1`, because otherwise "green" and "did not run" look the
+  same from outside.
+
+### Changed
+
+- **Both reporters read identity instead of adjacency**, which they were wrong
+  about before this release for reasons that have nothing to do with
+  concurrency. JUnit keyed nothing and held one open case, so a second
+  `test.started` overwrote the first and the file came out with one of two tests
+  in it — while the run still exited non-zero, so nobody opened the report to
+  notice. It now keys open cases by test name and takes the suite from the event.
+  The console printed each event as it arrived, which reads perfectly while one
+  test runs and turns to noise the moment two do; it now holds a test's lines and
+  prints the block whole. Held per **test**, not per suite: a suite at eight
+  workers is minutes of silence, and a suite's tests are no longer contiguous.
+- **`init.yaml` is now `suite.yaml`.** The old name is still read, because a
+  project written against it would otherwise start running its manifest as an
+  empty test, and `speq migrate` writes the new one.
+- **`step.started`, `step.finished`, `assertion.evaluated` and
+  `artifact.attached` made `test` optional, beside a new `suite`**, because a
+  suite's own setup and cleanup belong to no test. Exactly one of the two is
+  set. G3 and G6 were amended next to the union. JUnit writes no element for the
+  suites in the middle that hold no cases; the console prints a suite's own steps
+  with the suite beside them, since there is no test header above them.
+- **`parallel` is not a step type anybody can write, and the promise is
+  withdrawn where it was made** — six documents, one of them a decision table
+  marked decided. A `parallel` plugin would have to run two `runSteps` calls at
+  once, and that is now refused. What is refused is concurrent `runSteps`, not
+  concurrent I/O: a step type may fan out fifty requests inside one `execute`,
+  and `http.batch` stays writable. That is where nearly all the real demand was
+  going.
+- **A concurrent `runSteps` is refused where the mistake is.** Both calls used to
+  share one frame stack, so the second branch's bindings landed in the first
+  branch's frame and a throwaway `parallel` plugin got the same branch twice —
+  passing. The wrong answer surfaced in an assertion three steps later with
+  nothing pointing back. Nesting is untouched: `loop` and `retry` call `runSteps`
+  from inside a running one and always will. What is refused is siblings.
+- **Every in-box plugin's minor moved with the contract's.** A caret on `0.x`
+  pins the minor, so a plugin left at its old version would make an install fetch
+  a second, older copy of `@speqkit/plugin-api`. Nothing about the four plugins
+  with no other change changed except the range they ask for.
+
+### Fixed
+
+- **Resource frames were one stack for the whole kernel, and the cache held the
+  resolved value.** Both are fine for a sequential run and neither survives two
+  suites at a time: `close` popped whatever was innermost, which could be another
+  suite's frame, and two callers arriving inside a setup's window both set the
+  resource up. Measured on a 20ms setup acquired twice: two setups, one resource
+  never released and the other released twice. Frames are now a tree, each handed
+  to whoever runs inside it, and the cache holds the **promise**, written before
+  anything is awaited — so the window is not narrower, it is gone.
+- **`HookPayload.suite` was declared since the first commit and populated for
+  `suite:before` and `suite:after` only** — not for the four hooks a plugin
+  holding per-suite state actually fires on. A hook is registered once for the
+  whole run, so under `--workers` the same function is called by two suites at
+  once and had no way to keep them apart.
+- **Two tests could share a name.** Every event a run emits is keyed by the
+  test's name and nothing checked it was unique, so the second test overwrote the
+  first: one line where there should have been two, with no sign anything was
+  lost.
+- **A fresh clone had no `speq` to run.** `bin` named `./dist/bin.js`, and a
+  package manager links nothing when that file is not there yet — so the first
+  install printed twenty "Failed to create bin" warnings and left nothing on the
+  path, and the second install, the one after a build, silently fixed it. The
+  manifest now names a committed file that imports the built entry.
+- **`speq validate` and `speq list` ignored `--test`, `--suite` and `--tags` in
+  silence**, and checked the whole project instead. A checking command that
+  answers a different question than the one it was asked is worse than one that
+  refuses, because the answer looks right.
+- **`plugin-http` rethrew `TypeError: fetch failed` unchanged**, which is what
+  undici says for a refused connection, an unresolvable host, a bad certificate
+  and a closed socket alike — so a suite pointed at the wrong port reported four
+  words and no port. The sentence and the errno were on `err.cause` the whole
+  time; they are now in the message, with the original kept as its cause.
+- **`examples/basic` had been red**, and nothing in CI executed it: `jsonpath`
+  moved into `plugin-assert` and the example's plugin list never followed. The
+  deliberately broken file moved out of `suites/` so the default check is green
+  and the typo is still shown being caught. The run goes against a stub on
+  localhost, because a gate that crosses the public internet reports somebody
+  else's outage as our broken example.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.3.0 |
+| `@speqkit/plugin-api` | 0.10.0 |
+| `@speqkit/plugin-yaml` | 0.3.0 |
+| `@speqkit/plugin-http` | 0.3.0 |
+| `@speqkit/plugin-cli` | 0.3.0 |
+| `@speqkit/plugin-loop` | 0.3.0 |
+| `@speqkit/plugin-junit` | 0.3.0 |
+| `@speqkit/plugin-playwright` | 0.3.0 |
+| `@speqkit/plugin-use` | 0.2.0 |
+| `@speqkit/plugin-data` | 0.2.0 |
+| `@speqkit/plugin-assert` | 0.2.0 |
+| `@speqkit/plugin-json` | 0.2.0 |
+| `@speqkit/test-kit` | 0.2.0 |
+| `create-speqkit-plugin` | 0.2.0 |
+
+`@speqkit/installer` stays at 0.2.0: nothing in it changed, and it is the one
+package here with no peer range on the contract to keep current.
+
 ## [0.2.0] — 2026-08-31
 
 The release that made releasing not a thing anyone does. Also the first one you
@@ -124,6 +287,7 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/speqkit/speqkit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/speqkit/speqkit/releases/tag/v0.2.0
 [0.1.0]: https://www.npmjs.com/package/speqkit/v/0.1.0

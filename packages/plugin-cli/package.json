@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The terminal surface: run, validate, list. One surface among several, not the framework.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
