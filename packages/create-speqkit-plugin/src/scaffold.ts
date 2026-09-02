@@ -207,9 +207,15 @@ export default definePlugin({
       // anything — a host that resolves, a file that is on disk, two fields
       // that exclude each other. It runs in front of the run, so the answer
       // costs milliseconds instead of arriving halfway through one.
+      //
+      // \`code\` is for a program and the message is for a person: a repair
+      // loop reading \`speq validate --json\` switches on the code, so the
+      // sentence stays free to be reworded. The kernel prefixes it with this
+      // plugin's short name — \`${name}/empty-target\` — so nothing you name
+      // here can ever collide with a code the kernel adds later.
       validate(step) {
         if (typeof step.to === 'string' && step.to.trim() === '') {
-          return [{ path: 'to', message: "'to' is empty" }]
+          return [{ path: 'to', code: 'empty-target', message: "'to' is empty" }]
         }
         return []
       },
@@ -297,7 +303,8 @@ describe('${type}', () => {
     ])
 
     expect(diagnostics).toHaveLength(1)
-    expect(diagnostics[0]!.message).toContain('to')
+    // The kernel's own codes are bare words; a plugin's are namespaced.
+    expect(diagnostics[0]!.code).toBe('missing-field')
   })
 
   it('rejects an input the schema cannot judge, before anything runs', async () => {
@@ -307,7 +314,12 @@ describe('${type}', () => {
     ])
 
     expect(diagnostics).toEqual([
-      { file: 'suites/a.yaml', path: 'steps[0].to', message: "'to' is empty" }
+      {
+        file: 'suites/a.yaml',
+        path: 'steps[0].to',
+        code: '${name}/empty-target',
+        message: "'to' is empty"
+      }
     ])
   })
 })

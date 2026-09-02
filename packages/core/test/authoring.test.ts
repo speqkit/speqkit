@@ -179,6 +179,7 @@ describe('case 2 — schemas stored under the speq root', () => {
       {
         file: 'a.yaml',
         path: 'assert[0].schema',
+        code: 'schema/invalid',
         message: expect.stringContaining("no schema 'nope.json'"),
         hint: 'available: user'
       }

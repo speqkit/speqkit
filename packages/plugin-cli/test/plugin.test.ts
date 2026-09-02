@@ -28,7 +28,25 @@ afterEach(async () => {
 const noop = definePlugin({
   name: 'test-plugin-noop',
   setup(ctx) {
-    ctx.defineStepType('noop', { async execute() { return { ok: true } } })
+    ctx.defineStepType('noop', {
+      schema: { type: 'object', properties: { label: { type: 'string' } } },
+      async execute() { return { ok: true } }
+    })
+    // A step that errors and an assertion that can fail, so the machine-
+    // readable side of `run` has something other than green to describe.
+    ctx.defineStepType('boom', { async execute() { throw new Error('the fixture exploded') } })
+    ctx.defineAssertion('is-ok', {
+      schema: { type: 'object', properties: { expected: { type: 'boolean' } }, required: ['expected'] },
+      evaluate(assert, input) {
+        const actual = assert.last?.ok
+        return {
+          passed: actual === input.expected,
+          message: `ok is ${String(actual)}`,
+          expected: input.expected,
+          actual
+        }
+      }
+    })
   }
 })
 
@@ -422,3 +440,208 @@ function stream(): RunEvent[] {
     }
   ]
 }
+
+/**
+ * The whole bet — that a generated suite can be checked before it runs — was
+ * unreachable from outside the process. A caller could start `speq validate`,
+ * and then had to read sentences off coloured stderr and match substrings of
+ * them, so a reworded message quietly changed what it concluded.
+ *
+ * These pin the two halves of the fix: that the answer has a shape, and that
+ * `code` is the part of it that does not move.
+ */
+describe('answering a machine', () => {
+  const parse = (out: string): Record<string, unknown> => JSON.parse(out) as Record<string, unknown>
+
+  it('gives validate a document with a code on every problem', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'validate', ['--json'])
+    expect(answer.code).toBe(2)
+    // Everything on stdout, including the bad news: stderr keeps what went
+    // wrong with the *command*, which is a different question.
+    expect(answer.err).toBe('')
+
+    const document = parse(answer.out)
+    expect(document.checked).toBe(3)
+    expect(document.diagnostics).toEqual([
+      {
+        file: 'suites/orders/typo.yaml',
+        path: 'steps[0].type',
+        code: 'unknown-step-type',
+        message: "unknown step type 'nooop'",
+        hint: expect.stringContaining('noop')
+      }
+    ])
+  })
+
+  it('says a clean project is clean in the same shape', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'validate', ['--json', '--test', 'suites/health.yaml'])
+    expect(answer.code).toBe(0)
+    expect(parse(answer.out)).toEqual({ checked: 1, diagnostics: [] })
+  })
+
+  it('gives list the identities and not the steps', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'list', ['--json', '--tags', 'smoke'])
+    expect(answer.code).toBe(0)
+    expect(parse(answer.out)).toEqual({
+      tests: [{
+        name: 'health answers',
+        source: 'suites/health.yaml',
+        suites: [],
+        tags: ['smoke']
+      }]
+    })
+  })
+
+  it('slices the list document the way it slices the list', async () => {
+    const commands = await withNineTests()
+
+    // One at a time: `invoke` swaps process.stdout for the length of a call,
+    // so two of them in flight would be reading each other's output.
+    const shards: string[][] = []
+    for (const index of [1, 2, 3]) {
+      const answer = await invoke(commands, 'list', ['--json', '--shard', `${index}/3`])
+      shards.push((parse(answer.out).tests as { name: string }[]).map((test) => test.name))
+    }
+
+    expect(shards.map((shard) => shard.length)).toEqual([3, 3, 3])
+    const whole = await invoke(commands, 'list', ['--json'])
+    expect(shards.flat()).toEqual((parse(whole.out).tests as { name: string }[]).map((t) => t.name))
+  })
+
+  it('gives run one document and nothing else on stdout', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'run', ['--json', '--test', 'suites/health.yaml'])
+    expect(answer.code).toBe(0)
+
+    // The load-bearing assertion: the console reporter did not also write
+    // here. `--json` replaces the default reporter, so the whole of stdout
+    // parses or the test fails.
+    const document = parse(answer.out)
+    expect(document).toMatchObject({
+      status: 'passed',
+      passed: 1, failed: 0, errored: 0, skipped: 0,
+      tests: [{ name: 'health answers', status: 'passed', failures: [] }]
+    })
+    expect(document.runDir).toContain(String(document.runId))
+  })
+
+  it('carries what a failing test compared, not just that it failed', async () => {
+    const commands = await withProject()
+    kit.file(
+      'suites/red.yaml',
+      'name: a red test\nsteps:\n  - id: one\n    type: noop\nassert:\n  - type: is-ok\n    expected: false\n'
+    )
+
+    const answer = await invoke(commands, 'run', ['--json', '--test', 'suites/red.yaml'])
+    expect(answer.code).toBe(1)
+
+    const [test] = parse(answer.out).tests as { status: string; failures: unknown[] }[]
+    expect(test?.status).toBe('failed')
+    expect(test?.failures).toEqual([
+      { kind: 'assertion', type: 'is-ok', message: 'ok is true', expected: false, actual: true }
+    ])
+  })
+
+  it('names the step that errored, by its id', async () => {
+    const commands = await withProject()
+    kit.file('suites/blown.yaml', 'name: a blown test\nsteps:\n  - id: detonate\n    type: boom\n')
+
+    const answer = await invoke(commands, 'run', ['--json', '--test', 'suites/blown.yaml'])
+    expect(answer.code).toBe(1)
+
+    const [test] = parse(answer.out).tests as { failures: Record<string, unknown>[] }[]
+    expect(test?.failures[0]).toMatchObject({
+      kind: 'step',
+      step: 'detonate',
+      type: 'boom',
+      status: 'error',
+      message: expect.stringContaining('the fixture exploded')
+    })
+  })
+
+  it('refuses in the document rather than beside it', async () => {
+    const commands = await withProject()
+
+    // Both refusals a caller can hit: a project that will not validate, and
+    // a selection that matched nothing. Exit codes unchanged — a machine
+    // reading the document and a CI job reading `$?` get the same answer.
+    const invalid = await invoke(commands, 'run', ['--json'])
+    expect(invalid.code).toBe(2)
+    expect(parse(invalid.out)).toMatchObject({
+      status: 'invalid',
+      diagnostics: [{ code: 'unknown-step-type' }]
+    })
+
+    const empty = await invoke(commands, 'run', ['--json', '--tags', 'nobody-uses-this'])
+    expect(empty.code).toBe(2)
+    expect(parse(empty.out)).toEqual({ status: 'no-tests', message: 'no tests matched' })
+  })
+
+  it('leaves a chosen reporter alone', async () => {
+    const commands = await withProject()
+
+    // `--json` replaces the *default* reporter, not one that was asked for:
+    // the document on stdout and a file on disk answer different callers, and
+    // wanting both is the ordinary case in CI.
+    const answer = await invoke(commands, 'run', ['--json', '--reporter', 'console', '--test', 'suites/health.yaml'])
+    expect(answer.code).toBe(0)
+    expect(answer.out).toContain('health answers')
+    expect(() => parse(answer.out)).toThrow()
+  })
+})
+
+/**
+ * The grammar was in the registry from the moment a plugin registered, and
+ * nothing outside the process could read it. So an editor, a palette and a
+ * prompt describing speq to a model each carried a copy that went stale
+ * silently the moment somebody installed a plugin.
+ */
+describe('speq capabilities', () => {
+  it('enumerates what may be written, with the schemas and the owners', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'capabilities', ['--json'])
+    expect(answer.code).toBe(0)
+
+    const document = JSON.parse(answer.out) as Record<string, never>
+    expect(document.apiVersion).toBe(1)
+    expect(document.stepTypes).toEqual([
+      { name: 'boom', plugin: 'test-plugin-noop' },
+      {
+        name: 'noop',
+        plugin: 'test-plugin-noop',
+        schema: { type: 'object', properties: { label: { type: 'string' } } }
+      }
+    ])
+    expect(document.assertions).toEqual([{
+      name: 'is-ok',
+      plugin: 'test-plugin-noop',
+      schema: {
+        type: 'object',
+        properties: { expected: { type: 'boolean' } },
+        required: ['expected']
+      }
+    }])
+    expect(document.reporters).toEqual([{ name: 'console', plugin: '@speqkit/plugin-cli' }])
+    expect(document.loaders).toMatchObject([{ name: 'yaml', extensions: ['.yaml', '.yml'] }])
+  })
+
+  it('prints the same thing for a person, required fields starred', async () => {
+    const commands = await withProject()
+
+    const answer = await invoke(commands, 'capabilities')
+    expect(answer.code).toBe(0)
+    expect(answer.out).toContain('plugin-api v1')
+    expect(answer.out).toContain('boom')
+    // The star is the whole of the schema a terminal is the right place for:
+    // that `expected` exists and has to be written.
+    expect(answer.out).toMatch(/is-ok[\s\S]*expected\*/)
+  })
+})

@@ -16,13 +16,59 @@ on `0.x` pins the minor for exactly that reason.
 
 ## [Unreleased]
 
-Nothing in the kernel, so no release names this yet. `@speqkit/plugin-cli`
-**0.4.0** goes out on its own — a plugin's version moves independently, and
-`speq` loads plugins at run time rather than baking them into the executable,
-so a standalone binary picks this up without being rebuilt.
+The contract moves again, additively: `Host` gains `capabilities()` and
+`Diagnostic` gains a required `code`. Nothing published is broken by either —
+both are new fields on things the kernel produces — but a caret range on `0.x`
+pins the minor, so the release that carries this moves
+`@speqkit/plugin-api` and every in-box plugin's peer range with it, in one
+commit. A plugin left behind makes an install pull two copies of the contract.
+
+`@speqkit/plugin-cli` **0.4.0** went out on its own before this, carrying
+`--shard`: a plugin's version moves independently, and `speq` loads plugins at
+run time rather than baking them into the executable, so a standalone binary
+picked it up without being rebuilt.
 
 ### Added
 
+- **`speq capabilities [--json]` and `host.capabilities()`** — every step type,
+  assertion, value provider, reporter and loader the loaded plugins define,
+  with the `InputSchema` each declared. All of it has been in the registry
+  since the plugin that owns it registered, and none of it could be reached
+  from outside the process — so an editor offering completion, a palette in a
+  panel and a system prompt describing speq to a model each carried a copy of
+  the vocabulary. That copy goes stale the moment somebody installs a plugin,
+  and goes stale *silently*, because a suite written against the wrong
+  vocabulary looks exactly like a suite with a typo in it. Ordered by name, so
+  two runs of one project produce the same document and a diff between two of
+  them means something.
+  - Resources are deliberately not in it: a resource name is something a
+    *plugin* asks for, never a word anybody writes in a suite, and this
+    document answers "what may I write". `speq plugins` is the other half of
+    the question — who is loaded, grouped by owner — and is unchanged.
+- **`--json` on `run`, `validate` and `list`** — one document on stdout instead
+  of prose. `validate` answers `{ checked, diagnostics }`; `list` gives the
+  identities and not the steps, since the steps are in the file it names;
+  `run` gives the counts and, per test, `failures` — present and empty on a
+  green test, with `expected` and `actual` on what compared badly. Everything
+  else stays in the report already written under the `runDir` the document
+  names.
+  - The document goes to stdout **even when the news is bad**, including from
+    `run`, which also answers `{"status": "invalid"}` with the diagnostics and
+    `{"status": "no-tests"}` rather than refusing in prose. stderr keeps what
+    went wrong with the *command* — a malformed `--shard` — which is a bug in
+    the caller rather than a result to read. Exit codes do not move.
+  - `--json` replaces the **default** reporter, not a chosen one:
+    `--json --reporter junit` still writes the XML, because a document on
+    stdout and a file on disk answer different callers.
+- **`code` on every `Diagnostic`** — `unknown-step-type` is now a different
+  thing from `missing-field` without matching substrings of coloured stderr.
+  The message is written for a person and may be reworded in any release; the
+  code is written for a program and may not. The kernel's sixteen are bare
+  words; anything a plugin's own `validate` found is prefixed with that
+  plugin's short name — `http/unknown-topic`, or `http/invalid` when the plugin
+  named none — so the two sets cannot collide, and a plugin that starts naming
+  its problems next year cannot take a word the kernel wants. `ValidationProblem`
+  gains an optional `code` for that, and the scaffolded plugin now writes one.
 - **`speq run --shard i/n`** — n machines each taking a slice, where
   `--workers` is one machine doing more at once. They compose. Entirely in
   `plugin-cli`: it touches neither the kernel nor the contract, because

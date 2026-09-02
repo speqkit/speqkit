@@ -1,7 +1,9 @@
+import { join } from 'node:path'
 import {
   definePlugin,
-  type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type ReporterDef,
-  type RunEvent, type TestDef
+  type Capabilities, type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery,
+  type InputSchema, type ReporterDef, type RunEvent, type RunOutcome, type StepRecord,
+  type StepStatus, type TestDef, type TestOutcome
 } from '@speqkit/plugin-api'
 
 const EXIT_OK = 0
@@ -50,8 +52,12 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n]',
+      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json]',
       async run(argv) {
+        // A malformed flag stays plain text on stderr even here: there is no
+        // run to describe, and a caller that wrote `--shard 5/4` has a bug in
+        // itself rather than a result to read.
+        const asJson = wantsJson(argv)
         const workers = readWorkers(argv)
         if (typeof workers === 'string') {
           process.stderr.write(`${workers}\n`)
@@ -66,22 +72,29 @@ export default definePlugin({
 
         const tests = shardOf(await ctx.host.discover(query(argv)), shard)
         if (tests.length === 0) {
-          process.stderr.write(shard ? 'no tests in this shard\n' : 'no tests matched\n')
+          const message = shard ? 'no tests in this shard' : 'no tests matched'
+          if (asJson) writeJson({ status: 'no-tests', message })
+          else process.stderr.write(`${message}\n`)
           return EXIT_CONFIG
         }
 
         const diagnostics = ctx.host.validate(tests)
         if (diagnostics.length > 0) {
-          printDiagnostics(diagnostics)
+          if (asJson) writeJson({ status: 'invalid', diagnostics })
+          else printDiagnostics(diagnostics)
           return EXIT_CONFIG
         }
 
-        if (ctx.host.env) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
+        if (ctx.host.env && !asJson) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
 
         const outcome = await ctx.host.run(tests, {
-          reporters: list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS,
+          // `--json` replaces the *default* reporter and not a chosen one:
+          // `--json --reporter junit` still writes the XML, because the
+          // document on stdout and the file on disk answer different callers.
+          reporters: list(flag(argv, '--reporter')) ?? (asJson ? [] : DEFAULT_REPORTERS),
           concurrency: workers
         })
+        if (asJson) writeJson(summarise(outcome, ctx.host.reportDir))
         return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
       }
     })
@@ -134,10 +147,18 @@ export default definePlugin({
      */
     cli.register('validate', {
       summary: 'check every test against the grammar the loaded plugins define',
-      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b]',
+      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--json]',
       async run(argv) {
         const tests = await ctx.host.discover(query(argv))
         const diagnostics = ctx.host.validate(tests)
+
+        // Emitted as they came back, not reshaped. A `Diagnostic` is already
+        // the contract's own record — file, path, code, message, hint — and a
+        // second spelling of it here would be a second thing to keep in step.
+        if (wantsJson(argv)) {
+          writeJson({ checked: tests.length, diagnostics })
+          return diagnostics.length === 0 ? EXIT_OK : EXIT_CONFIG
+        }
 
         if (diagnostics.length === 0) {
           process.stdout.write(`${tests.length} test(s) valid\n`)
@@ -150,7 +171,7 @@ export default definePlugin({
 
     cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--shard i/n]',
+      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--shard i/n] [--json]',
       async run(argv) {
         // `--shard` is here and not only on `run` because the property worth
         // checking — four shards between them run each test exactly once — is
@@ -162,11 +183,38 @@ export default definePlugin({
         }
 
         const tests = shardOf(await ctx.host.discover(query(argv)), shard)
+
+        if (wantsJson(argv)) {
+          writeJson({ tests: tests.map(identityOf) })
+          return EXIT_OK
+        }
+
         for (const test of tests) {
           const tags = test.tags?.length ? `  [${test.tags.join(', ')}]` : ''
           process.stdout.write(`${test.source ?? '?'}  ${test.name}${tags}\n`)
         }
         process.stdout.write(`\n${tests.length} test(s)\n`)
+        return EXIT_OK
+      }
+    })
+
+    /**
+     * The grammar, from the session that actually knows it.
+     *
+     * `speq plugins` answers "who is loaded and what did they bring", grouped
+     * by owner. This answers "what may I write", grouped by kind and carrying
+     * the schemas — which is the half a machine needs and the half that has
+     * never left the process. It is a plugin command rather than a bootstrap
+     * one for the same reason `run` is: the question is about the plugins,
+     * so it cannot be asked before they are loaded.
+     */
+    cli.register('capabilities', {
+      summary: 'the grammar the loaded plugins define, with the schemas',
+      usage: 'speq capabilities [--json]',
+      run(argv) {
+        const capabilities = ctx.host.capabilities()
+        if (wantsJson(argv)) writeJson(capabilities)
+        else printCapabilities(capabilities)
         return EXIT_OK
       }
     })
@@ -392,6 +440,209 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
     process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ?? ''}\n`)
   }
   process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
+}
+
+/* ------------------------------------------------------------------ */
+/* The machine-readable side                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `--json`: this command's answer as one document on stdout.
+ *
+ * The bet the whole project rests on is that a generated suite can be checked
+ * before it runs. Checking it meant reading `speq validate` — a sentence per
+ * problem, coloured, on stderr — so the caller doing the checking had to match
+ * substrings, and a reworded message silently changed what it concluded. With
+ * `--json` the answer has a shape, and `Diagnostic.code` has a spelling that
+ * does not move.
+ *
+ * On stdout even when the news is bad, and even from `run`. stderr keeps what
+ * it always had: things that went wrong with the command rather than with the
+ * tests.
+ */
+function wantsJson(argv: string[]): boolean {
+  return argv.includes('--json')
+}
+
+/** Indented, because a person reads this too — a machine cannot tell. */
+function writeJson(document: unknown): void {
+  process.stdout.write(`${JSON.stringify(document, null, 2)}\n`)
+}
+
+/**
+ * What `list --json` says about a test: its identity, and where it lives.
+ *
+ * Deliberately not the `TestDef`. The steps are in the file the `source` names
+ * and a caller that wants them can read it; what only speq can answer is which
+ * tests exist after loaders ran, `cases` tables expanded and the four
+ * selection flags were applied — the names a `--name` would take.
+ */
+function identityOf(test: TestDef): Record<string, unknown> {
+  return {
+    name: test.name,
+    title: test.title,
+    source: test.source,
+    /** Outermost first, the chain of declared suites the test is inside. */
+    suites: test.suites?.map((suite) => suite.name) ?? [],
+    /** The name the `cases` table was written under, when it came from one. */
+    group: test.group,
+    tags: test.tags ?? [],
+    pending: test.pending
+  }
+}
+
+/** One thing that went wrong, flat enough to switch on. */
+interface Failure {
+  kind: 'step' | 'assertion'
+  /** The step it happened in, when the step had an id to name it by. */
+  step?: string
+  /** The step type, or the assertion type. */
+  type: string
+  status?: StepStatus
+  message?: string
+  expected?: unknown
+  actual?: unknown
+}
+
+/**
+ * What `run --json` prints once the run is over.
+ *
+ * The counts and the status are the whole outcome; per test it carries the
+ * identity and the failures and stops there. The alternative was the whole
+ * `TestOutcome` — every step, every result, every artifact — but that is the
+ * report, and the report is already on disk under `runDir`, in a form nothing
+ * here has to keep in step. This document is what a caller reads to decide
+ * what to do next.
+ */
+function summarise(outcome: RunOutcome, reportDir: string): Record<string, unknown> {
+  return {
+    status: outcome.status,
+    runId: outcome.runId,
+    durationMs: outcome.durationMs,
+    passed: outcome.passed,
+    failed: outcome.failed,
+    errored: outcome.errored,
+    skipped: outcome.skipped,
+    /** Where the event log and the artifacts of this run were written. */
+    runDir: join(reportDir, outcome.runId),
+    tests: outcome.tests.map((test) => ({
+      name: test.name,
+      status: test.status,
+      durationMs: test.durationMs,
+      suite: test.suite,
+      source: test.source,
+      pending: test.pending,
+      // Present and empty on a green test, so the shape of a row does not
+      // depend on how the row came out.
+      failures: failuresOf(test)
+    }))
+  }
+}
+
+function failuresOf(test: TestOutcome): Failure[] {
+  const failures: Failure[] = []
+
+  const assertions = (of: (AssertOutcomeRecord)[] | undefined, step?: string): void => {
+    for (const outcome of of ?? []) {
+      if (outcome.passed) continue
+      failures.push({
+        kind: 'assertion',
+        step,
+        type: outcome.type,
+        message: outcome.message,
+        expected: outcome.expected,
+        actual: outcome.actual
+      })
+    }
+  }
+
+  // Nested records included, because a step that failed inside a loop is the
+  // step that failed; the loop around it only reports that something did.
+  const walk = (records: StepRecord[]): void => {
+    for (const record of records) {
+      if (record.status === 'failed' || record.status === 'error') {
+        failures.push({
+          kind: 'step',
+          step: record.id,
+          type: record.type,
+          status: record.status,
+          message: record.message
+        })
+      }
+      assertions(record.assertions, record.id)
+      if (record.children) walk(record.children)
+    }
+  }
+
+  walk(test.steps)
+  assertions(test.assertions)
+  return failures
+}
+
+type AssertOutcomeRecord = TestOutcome['assertions'][number]
+
+/**
+ * The grammar as a person reads it: what may be written, and by whose leave.
+ *
+ * A star marks a field the schema requires. The rest of the schema — types,
+ * enums, nested shapes — is in `--json`, because a terminal is where you find
+ * out that `http` exists and takes a `url`, not where you settle whether
+ * `timeout` is a number or a string.
+ */
+function printCapabilities(capabilities: Capabilities): void {
+  const plugins = capabilities.plugins
+    .map((plugin) => (plugin.version ? `${plugin.name} ${plugin.version}` : plugin.name))
+    .join(', ')
+  process.stdout.write(`plugin-api v${capabilities.apiVersion}\n${dim(plugins)}\n`)
+
+  const section = (
+    title: string,
+    entries: { name: string; plugin: string; note?: string; schema?: InputSchema }[]
+  ): void => {
+    process.stdout.write(`\n${title}\n`)
+    if (entries.length === 0) {
+      process.stdout.write(`${dim('  (none)')}\n`)
+      return
+    }
+    const width = Math.max(...entries.map((entry) => entry.name.length))
+    for (const entry of entries) {
+      const note = entry.note ? `  ${dim(entry.note)}` : ''
+      process.stdout.write(`  ${entry.name.padEnd(width)}  ${dim(entry.plugin)}${note}\n`)
+      const fields = fieldsOf(entry.schema)
+      if (fields) process.stdout.write(`  ${' '.repeat(width)}  ${fields}\n`)
+    }
+  }
+
+  section('step types', capabilities.stepTypes)
+  section('assertions', capabilities.assertions)
+  section(
+    'value providers',
+    // Shown as the thing that is written, not as the name it was registered
+    // under: nobody types the registration name into a suite.
+    capabilities.valueProviders.map((provider) => ({ ...provider, name: `\${${provider.prefix}:…}` }))
+  )
+  section('reporters', capabilities.reporters)
+  section(
+    'loaders',
+    capabilities.loaders.map((loader) => ({
+      ...loader,
+      note: [
+        loader.extensions.join(' '),
+        loader.suiteFiles?.length ? `suite: ${loader.suiteFiles.join(', ')}` : ''
+      ].filter(Boolean).join('   ')
+    }))
+  )
+}
+
+/** `method* url* headers body` — the fields, starred where required. */
+function fieldsOf(schema: InputSchema | undefined): string | undefined {
+  if (!schema) return undefined
+  const required = new Set(schema.required ?? [])
+  // Required-but-undeclared is a schema somebody wrote by hand; it is still a
+  // field you have to write, so it belongs in the line.
+  const names = [...new Set([...Object.keys(schema.properties ?? {}), ...required])]
+  if (names.length === 0) return undefined
+  return names.map((name) => (required.has(name) ? `${name}*` : dim(name))).join(' ')
 }
 
 /**

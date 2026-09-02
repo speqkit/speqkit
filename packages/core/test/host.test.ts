@@ -43,7 +43,18 @@ export default {
       extensions: ['.json'],
       load: (file, content) => JSON.parse(content)
     })
-    ctx.defineStepType('noop', { execute: () => ({ ok: true }) })
+    ctx.defineStepType('noop', {
+      schema: { type: 'object', properties: { label: { type: 'string' } } },
+      execute: () => ({ ok: true })
+    })
+    // Registered after 'noop' and listed before it: capabilities are ordered
+    // by name, so two runs of one project produce the same document.
+    ctx.defineStepType('echo', { execute: () => ({ ok: true }) })
+    ctx.defineAssertion('is-ok', {
+      schema: { type: 'object', properties: { expected: {} }, required: ['expected'] },
+      evaluate: () => ({ passed: true, message: 'ok' })
+    })
+    ctx.defineValueProvider('clock', { prefix: 'now', resolve: () => 1 })
   }
 }
 `
@@ -98,6 +109,51 @@ describe('ctx.host', () => {
     // have re-run every setup() here, into a registry this session never sees.
     expect(probe.setups).toBe(1)
     expect(session.registry.loadedPlugins()).toEqual(['probe'])
+  })
+
+  /**
+   * The schemas have existed in the registry since the plugin registered and
+   * never left it, so an editor offering completion, a palette in a panel and
+   * a prompt describing speq to a model each carried a copy of the vocabulary
+   * — one that goes stale the moment somebody installs a plugin, and goes
+   * stale silently, because a suite written against the wrong vocabulary looks
+   * exactly like a suite with a typo in it.
+   */
+  it('hands out the grammar the loaded plugins define, schemas included', async () => {
+    const root = project()
+    const session = await bootstrap({ root })
+    const host = (session.registry.service('probe') as Probe).host
+
+    const capabilities = host.capabilities()
+
+    expect(capabilities.apiVersion).toBe(1)
+    expect(capabilities.plugins.map((plugin) => plugin.name)).toEqual(['probe'])
+
+    // A step type the kernel has never heard of, described in full by the
+    // session that loaded it.
+    expect(capabilities.stepTypes).toEqual([
+      { name: 'echo', plugin: 'probe', schema: undefined },
+      {
+        name: 'noop',
+        plugin: 'probe',
+        schema: { type: 'object', properties: { label: { type: 'string' } } }
+      }
+    ])
+    expect(capabilities.assertions).toEqual([
+      {
+        name: 'is-ok',
+        plugin: 'probe',
+        schema: { type: 'object', properties: { expected: {} }, required: ['expected'] }
+      }
+    ])
+    // The prefix, because `${now:...}` is what gets written; the name it was
+    // registered under is nobody's business but the registry's.
+    expect(capabilities.valueProviders).toEqual([
+      { name: 'clock', plugin: 'probe', prefix: 'now' }
+    ])
+    expect(capabilities.loaders).toEqual([
+      { name: 'json', plugin: 'probe', extensions: ['.json'], suiteFiles: undefined }
+    ])
   })
 
   it('writes runs where speq report looks for them, and replays them', async () => {

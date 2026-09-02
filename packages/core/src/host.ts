@@ -1,8 +1,10 @@
 import { join } from 'node:path'
 import type {
-  DiscoverQuery, Diagnostic, Host, RecordedRun, RunEvent, RunOutcome, RunRequest, TestDef
+  Capabilities, Capability, DiscoverQuery, Diagnostic, Host, RecordedRun, RunEvent, RunOutcome,
+  RunRequest, TestDef
 } from '@speqkit/plugin-api'
-import type { Registry } from './registry.js'
+import { PLUGIN_API_VERSION } from '@speqkit/plugin-api'
+import type { Registry, Registered } from './registry.js'
 import { discoverTests } from './tests.js'
 import { validateTests } from './validate.js'
 import { runTests } from './runner.js'
@@ -45,6 +47,10 @@ export function createHost(registry: Registry, session: HostSession): Host {
 
     validate(tests: TestDef[]): Diagnostic[] {
       return validateTests(registry, tests)
+    },
+
+    capabilities(): Capabilities {
+      return capabilitiesOf(registry)
     },
 
     run(tests: TestDef[], options: RunRequest = {}): Promise<RunOutcome> {
@@ -90,8 +96,50 @@ export function detachedHost(): Host {
     get env(): string | undefined { return fail() },
     discover: fail,
     validate: fail,
+    capabilities: fail,
     run: fail,
     runs: fail,
     replay: fail
+  }
+}
+
+/**
+ * The registry, read as a grammar rather than as a lookup table.
+ *
+ * Nothing is derived here: every field is something a plugin already declared,
+ * turned from a map keyed for execution into a list ordered for reading. The
+ * only judgement in it is what to leave out — resources are not here, because
+ * a resource is a name a *plugin* asks for and never a word anybody writes in
+ * a suite, and this document answers the question "what may I write".
+ */
+function capabilitiesOf(registry: Registry): Capabilities {
+  const named = <T>(map: Map<string, Registered<T>>): [string, Registered<T>][] =>
+    [...map].sort(([a], [b]) => a.localeCompare(b))
+
+  const basic = <T extends { schema?: Capability['schema'] }>(
+    map: Map<string, Registered<T>>
+  ): Capability[] =>
+    named(map).map(([name, entry]) => ({ name, plugin: entry.owner, schema: entry.def.schema }))
+
+  return {
+    apiVersion: PLUGIN_API_VERSION,
+    plugins: registry.loadedPlugins().map((name) => {
+      const source = registry.sources.get(name)
+      return { name, version: source?.version, origin: source?.origin }
+    }),
+    stepTypes: basic(registry.stepTypes),
+    assertions: basic(registry.assertions),
+    valueProviders: named(registry.valueProviders).map(([name, entry]) => ({
+      name,
+      plugin: entry.owner,
+      prefix: entry.def.prefix
+    })),
+    reporters: named(registry.reporters).map(([name, entry]) => ({ name, plugin: entry.owner })),
+    loaders: named(registry.loaders).map(([name, entry]) => ({
+      name,
+      plugin: entry.owner,
+      extensions: entry.def.extensions,
+      suiteFiles: entry.def.suiteFiles
+    }))
   }
 }

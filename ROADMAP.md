@@ -364,6 +364,9 @@ past their first run.
     body in the run; or an opt-in, where the step decides what is worth
     recording. The second is almost certainly right, and it is the same
     mechanism a UI panel needs to show an exchange.
+    - *Taken up in M9*, where it is the first item and the one everything
+      else there stands on. Left unchecked here, so the ledger does not
+      claim a milestone contained something it did not.
 - [x] **The untested plugins have tests**
   - *Done when:* `plugin-cli`, `plugin-junit` and `plugin-playwright` are
     covered. The CLI is the reference every plugin author copies.
@@ -379,22 +382,223 @@ past their first run.
     `workspace.test.ts` now checks the part that stays: a package this
     repository publishes has a row, and a row marked written has a package.
 
-## M8 — A surface a machine can read — any time
+## M8 — A surface a machine can read — any time — **done**
 
 The bet that a declarative suite is the right artefact in an AI-assisted
 workflow rests on one property: a generated test can be checked *before it
-runs*. That property is real and currently unreachable from outside the process.
+runs*. That property was real and unreachable from outside the process.
 
-- [ ] **`host.capabilities()`**
-  - *Done when:* a caller can enumerate the loaded step types, assertions and
-    value providers with their `InputSchema`.
-  - *Why:* the schemas exist in the registry and never leave it, so an editor,
-    a UI palette and a generated system prompt all have to hardcode a grammar
-    that goes stale the moment a plugin is installed. One additive method
-    serves all three.
-- [ ] **`--json` on `validate`, `list` and `run`, and a `code` on `Diagnostic`**
-  - *Done when:* a repair loop can tell "unknown step type" from "broken
-    template" without matching substrings in coloured stderr.
+- [x] **`host.capabilities()`**
+  - *Done:* one additive method on `Host`, and `speq capabilities [--json]` in
+    front of it. Every step type, assertion, value provider, reporter and
+    loader the loaded plugins define, with the `InputSchema` each declared,
+    ordered by name so two runs of one project produce the same document.
+  - *Why:* the schemas existed in the registry and never left it, so an editor,
+    a UI palette and a generated system prompt all had to hardcode a grammar
+    that goes stale the moment a plugin is installed — and goes stale
+    *silently*, because a suite written against the wrong vocabulary looks
+    exactly like a suite with a typo in it.
+  - *What is deliberately not in it:* resources. A resource name is something a
+    *plugin* asks for and never a word anybody writes in a suite, and this
+    document answers "what may I write". `speq plugins` is the other half of
+    the question — who is loaded, grouped by owner — and stays what it is.
+  - *A command and not a bootstrap command:* the question is about the loaded
+    plugins, so it cannot be asked before they are loaded. Same reason `run` is
+    a plugin command.
+- [x] **`--json` on `validate`, `list` and `run`, and a `code` on `Diagnostic`**
+  - *Done:* the code is required on `Diagnostic` and optional on
+    `ValidationProblem`, which is the plugin's side. The kernel's sixteen codes
+    are bare words; anything a plugin's `validate` found is prefixed with that
+    plugin's short name — `http/unknown-topic`, and `http/invalid` when the
+    plugin named nothing — so the two sets cannot collide and a plugin that
+    starts naming its problems next year cannot take a word the kernel wants.
+  - *The rule that makes it worth anything:* the message is written for a
+    person and may be reworded in any release; the code is written for a
+    program and may not. `kernel.test.ts` pins the whole vocabulary in one
+    assertion, which is where a rename gets noticed.
+  - *Two decisions in the CLI.* The document goes to **stdout even when the
+    news is bad**, including from `run` — stderr keeps what went wrong with the
+    *command*, such as a malformed `--shard`, which is a bug in the caller
+    rather than a result to read. And `--json` replaces the **default**
+    reporter and not a chosen one, so `--json --reporter junit` still writes
+    the XML: a document on stdout and a file on disk answer different callers.
+  - *What `run --json` carries per test:* the identity, and `failures` —
+    present and empty on a green test, so a row's shape does not depend on how
+    it came out. `expected` and `actual` are in there; everything else is the
+    report, which is already on disk under the `runDir` the document names.
+
+## M9 — What to run, and whose fault it is — any time, after M8
+
+M8 made the framework legible to a machine: a grammar it can read, a document
+it can parse, a code it can branch on. This milestone is about the workflow a
+machine is put to work *inside* — a ticket, a branch, a suite that is red until
+somebody makes it green — and about writing down the two ways a team can
+arrange that, because the framework already serves both and says so nowhere.
+
+**The caveat it carries, and the reason it is a milestone of its own:** nothing
+here may be started before M8, and before the one item M7 marked misfiled and
+left behind. That item — a step's result never reaches the event stream — is
+adopted below as the first item here, because everything after it reads a
+stream and prints what it found. A verdict without evidence is an exit code,
+and we have one of those already.
+
+**What is not ours, stated once so it is not re-litigated.** The specification
+is not ours, in any format: a Jira ticket, a Spec-Kit repository, an OpenSpec
+document, a page in somebody's wiki. We do not read it, do not discover
+requirements in it, and do not measure coverage against it. *What* to cover is
+the team's decision. Ours is execution — what to run once the work is done and
+how to run it. The join between a requirement and a test is a tag somebody
+wrote, and there will not be a second one: a YAML test names no source file, so
+selecting tests from a diff of the code is not a feature we are missing, it is
+a thing this design cannot do and should stop being asked for.
+
+**The flow this serves, which already runs today.** Requirements arrive; a
+branch is cut and named for the ticket; tests tagged with the same key are
+written into it; whoever implements the feature works in that branch and runs
+`speq run --tags <KEY>` locally, fixing the code — or saying the test is wrong;
+the PR runs the whole suite in CI. Every step of that is a flag we already
+have and a line of shell. Four things break, and they are the items below: the
+tag nothing checks, the failure that does not say whose it is, the environment
+that was never up being indistinguishable from code that is wrong, and the
+amendment to an acceptance test that lands silently in a diff nobody reads as
+one.
+
+**What it does not need is a change to the spine.** Not one item here moves the
+test model. That is worth stating because the obvious ATDD field — a test
+declared red on purpose — was considered and rejected; see *Not in M9*.
+
+### The items
+
+- [ ] **A step's result reaches the stream** — **blocks 1.0**
+  - *Done when:* a reporter can print the request and the response of a failed
+    step without the test being run again, and a green run's `events.jsonl` is
+    no larger than it is today.
+  - *Where it came from:* M7's last unchecked box, which says of itself that it
+    is misfiled there. It is here because it is the load-bearing half of
+    everything below: an agent told "expected 200, got 500" can write nothing;
+    an agent holding the body can write the fix.
+  - *Opt-in, as M7 guessed:* the result on every `step.finished` makes the log
+    as large as every response body in the run, most of them from steps that
+    passed. The step decides what is worth recording — `plugin-http` records
+    the exchange, `plugin-loop` has nothing to record — and it is the same
+    mechanism the UI panel in M4 needs to show one.
+  - *Land it with whatever else still owes the stream a change*, so reporters
+    break once. It is the only item in this milestone that costs a major after
+    1.0.
+
+- [ ] **The two ways of working are written down**
+  - *Done when:* `docs/` has one page that names both, tells a reader which one
+    they are in, and gives the commands for each from the first test to the
+    green PR.
+  - *Tests first — the ATDD way.* The suite is written from the requirement
+    before the code exists, in a branch named for the ticket and tagged with
+    it; red is the starting state and green is the definition of done. What the
+    page has to say out loud, because every reader asks it: the suite is red on
+    purpose, which is why it lives in the branch and not on main, and why it is
+    not parked with `pending` — a criterion that does not run is not a gate.
+    And that whoever implements the feature may disagree with a test: they
+    change it in the same PR, where the diff is read as an amendment to the
+    criterion rather than as a fix.
+  - *Code first — the ordinary way.* The feature exists and the suite is
+    written against it; tags are labels rather than a ticket key, the local
+    loop is `--test` and `--name` on the file being worked on, and the gate is
+    the whole suite in CI. Nothing about the framework differs. Which of red
+    and green is the starting state is the whole of the difference, and the
+    page should say that in one sentence rather than implying two tools.
+  - *Why one page and not two:* the machinery is identical, two pages drift,
+    and a reader who finds only the ATDD one concludes the framework has an
+    opinion about their process. It does not — it has an opinion about
+    evidence.
+  - *Where:* beside `docs/writing-tests.html`, linked from the README, and from
+    the quick start on the way out of a first green run.
+
+- [ ] **A run says whose fault it is**
+  - *Done when:* a failed run answers, per test, which of three things to go
+    and fix — the code, the test, or the environment — and a run against a
+    service that was never up says so once instead of thirty times.
+  - *What it adds over `run --json`, which M8 already shipped:* that document
+    is the kernel's, carries the failures with their `expected` and `actual`,
+    and stops there — correctly, because the kernel does not know what a work
+    tag is or what "nothing was listening" looks like. This groups by the tag
+    the work is filed under and classifies the failures. `failed` and `error`
+    have meant "the answer was wrong" and "something broke" since the first
+    commit, and nothing has ever told a caller that this is the line between
+    fixing the code and fixing the test.
+  - *Where:* a reporter in `@speqkit/plugin-gate`, writing
+    `reports/<runId>/gate.json` beside the event log.
+
+- [ ] **The work in hand selects itself**
+  - *Done when:* `speq gate plan` prints what would run and why, and
+    `speq gate` runs it and exits on the verdict.
+  - *Honest about the size of it:* turning a branch called `JIRA-123` into
+    `--tags JIRA-123` is a line of shell and does not earn a plugin. What earns
+    it is the second half of that sentence — *and why*: which key was taken,
+    where it was taken from, how many tests it selected, and which tests in the
+    branch it did not. A selection nobody can inspect is how a gate comes to
+    run nothing and pass.
+
+- [ ] **A changed acceptance test is visible where it is reviewed**
+  - *Done when:* `speq gate diff` lists the tests added, changed and removed in
+    this branch against its base, in a form a PR comment can carry.
+  - *Why not a seal and a refusal:* someone who believes an acceptance test is
+    wrong is sometimes right, and a gate that forbids the amendment moves the
+    argument into a chat window where no reviewer will ever find it. Tests here
+    are data, so the amendment is already in the diff; what is missing is that
+    nobody reads a YAML diff as a change to the acceptance criteria. Naming
+    them makes it loud without making it forbidden — which is the same
+    distinction `pending` draws, and for the same reason.
+
+- [ ] **A test no gate would run is reported**
+  - *Done when:* a test that carries no tag the gate selects on is reported by
+    name, before it becomes a thing that only ever runs in the full CI suite
+    with nobody to own it.
+  - *The contract boundary this ran into, which is the reason it is a command
+    and not a validator:* a plugin validates the step types and assertions it
+    owns, and there is nowhere for it to say anything about a test as a whole.
+    `Validator<TestDef>` would be a ninth contribution point, and it would be
+    the worst of them — a plugin with an opinion about the spine. So this runs
+    as a command in CI beside `speq validate`, with a `run:before` hook that
+    warns inside a run. Worth an issue recording the boundary, in the form
+    CONTRIBUTING asks for, rather than a task to remove it.
+
+- [ ] **Decide how blame is routed**
+  - *Done when:* either the classification is a heuristic in the reporter and
+    the page says plainly what it gets wrong, or a transport plugin names the
+    cause and there is a declared place to put it.
+  - *Why it is a decision:* "every step errored with the same message, so the
+    environment is down" is writable today over the existing stream and is
+    wrong exactly when a service is half-up, which is the case that costs a
+    person an afternoon. A cause named by `plugin-http` — connection refused,
+    not a 500 — is honest and costs a field somebody has to design, either on
+    `StepRecord` or inside the opt-in result of the first item. It is cheap to
+    decide while that item is being built and expensive afterwards, which is
+    why it is written down here rather than discovered later.
+
+### Not in M9, and deliberately
+
+- **`expected: fail` on the spine.** The obvious ATDD field, and it is not
+  needed: the branch is already the mechanism. A test that is red on purpose
+  lives where the code is being written and is green by the time it merges, so
+  main is never red by design and there is nothing for the kernel to invert.
+  `pending` is not the answer either, in the other direction — it does not run,
+  and a criterion that does not run is not a gate. The one case the field would
+  serve is an acceptance suite parked on main for a feature nobody has started,
+  which is a process a team may choose and can express with a tag and a second
+  CI job. A field the kernel branches on is not worth the case that survives.
+- **Selecting tests from a diff of the source.** A YAML test names no source
+  file. Test-impact analysis is not on this list because it is not reachable
+  from this design, and saying so is more useful than leaving it open.
+- **Anything that reads a specification.** See the preamble. The tag is the
+  join and the team writes it.
+- **Gherkin as a loader.** Same answer `speq import` gave the Postman
+  collection: a format converted once is your suite, a format converted on
+  every run is a permanent dependency on somebody else's grammar.
+- **A ninth contribution point.** Unchanged, and this milestone is the second
+  time the answer held under pressure.
+
+*One ledger note when `plugin-gate` is written:* `docs/architecture/plugins.html`
+needs a row for it, because `workspace.test.ts` checks that a package this
+repository publishes has one.
 
 ## M4 — The ecosystem — continues
 

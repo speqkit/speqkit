@@ -641,7 +641,9 @@ speq run --suite suites/menu               <span class="c"># one directory</span
 speq run --name <span class="s">'menu.create[jpy]'</span>          <span class="c"># one test, or one case of one</span>
 speq run --env ci --reporter console,junit
 speq report --list                         <span class="c"># runs already recorded</span>
-speq report                                <span class="c"># re-render one, without re-running it</span></code></pre>
+speq report                                <span class="c"># re-render one, without re-running it</span>
+speq capabilities                          <span class="c"># every step type and assertion you may write</span>
+speq validate --json                       <span class="c"># the same check, for a program to read</span></code></pre>
 
   <p>
     <code>--env ci</code> layers an <code>environments/ci.yaml</code> of
