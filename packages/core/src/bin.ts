@@ -24,7 +24,7 @@ const BOOTSTRAP_COMMANDS = new Set([
  * and wrong at the next release. It stays a literal rather than a read of
  * package.json: inside the standalone binary there is no package.json to read.
  */
-const VERSION = '0.2.0'
+const VERSION = '0.3.0'
 
 const EXIT_OK = 0
 const EXIT_CONFIG = 2

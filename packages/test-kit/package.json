@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/test-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Test a speq plugin against the real kernel, without a project.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

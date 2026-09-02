@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-json",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The run as one JSON file — the shape a workflow reads with jq.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
