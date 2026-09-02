@@ -1,7 +1,7 @@
 import {
   definePlugin,
   type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type ReporterDef,
-  type RunEvent
+  type RunEvent, type TestDef
 } from '@speqkit/plugin-api'
 
 const EXIT_OK = 0
@@ -50,7 +50,7 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N]',
+      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n]',
       async run(argv) {
         const workers = readWorkers(argv)
         if (typeof workers === 'string') {
@@ -58,9 +58,15 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        const tests = await ctx.host.discover(query(argv))
+        const shard = readShard(argv)
+        if (typeof shard === 'string') {
+          process.stderr.write(`${shard}\n`)
+          return EXIT_CONFIG
+        }
+
+        const tests = shardOf(await ctx.host.discover(query(argv)), shard)
         if (tests.length === 0) {
-          process.stderr.write('no tests matched\n')
+          process.stderr.write(shard ? 'no tests in this shard\n' : 'no tests matched\n')
           return EXIT_CONFIG
         }
 
@@ -144,9 +150,18 @@ export default definePlugin({
 
     cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b]',
+      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--shard i/n]',
       async run(argv) {
-        const tests = await ctx.host.discover(query(argv))
+        // `--shard` is here and not only on `run` because the property worth
+        // checking — four shards between them run each test exactly once — is
+        // checkable without running anything, and this is where you check it.
+        const shard = readShard(argv)
+        if (typeof shard === 'string') {
+          process.stderr.write(`${shard}\n`)
+          return EXIT_CONFIG
+        }
+
+        const tests = shardOf(await ctx.host.discover(query(argv)), shard)
         for (const test of tests) {
           const tags = test.tags?.length ? `  [${test.tags.join(', ')}]` : ''
           process.stdout.write(`${test.source ?? '?'}  ${test.name}${tags}\n`)
@@ -402,6 +417,73 @@ function readWorkers(argv: string[]): number | string {
       'and only you know what it will take.'
   }
   return workers
+}
+
+interface Shard {
+  /** 1-based, the way it is written on the command line. */
+  index: number
+  of: number
+}
+
+/**
+ * `--shard i/n`: this machine takes the i-th of n slices.
+ *
+ * A shard is not a fifth selection flag. The other four say which tests you
+ * care about; this one says you care about all of them and there are n
+ * machines. So it is applied to what discovery returned rather than asked of
+ * discovery, and it is the last thing applied — sharding a selection is a
+ * sensible thing to want, selecting from a shard is not.
+ *
+ * Refused rather than guessed at, for the same reason as `--workers`: a run
+ * that silently took the whole suite after being asked for a quarter of it is
+ * a machine doing four times the work it was told to, and nothing says so.
+ */
+function readShard(argv: string[]): Shard | undefined | string {
+  const raw = flag(argv, '--shard')
+  if (raw === undefined) return undefined
+
+  const wrong = `--shard takes i/n — the i-th of n slices, both whole numbers, 1 <= i <= n — and got '${raw}'.`
+  const parts = raw.split('/')
+  if (parts.length !== 2) return wrong
+
+  const index = Number(parts[0])
+  const of = Number(parts[1])
+  if (!Number.isInteger(index) || !Number.isInteger(of)) return wrong
+  if (of < 1 || index < 1 || index > of) return wrong
+
+  return { index, of }
+}
+
+/**
+ * The i-th of n contiguous slices of the discovered order.
+ *
+ * Sliced by **test** rather than by file, which is the fork this had to pick.
+ * Slicing by file keeps a file whole but leaves a thousand tests in one file
+ * as one shard — and with a `cases` table a thousand tests in one file is now
+ * a single test, so that is the case shards exist to answer and it would go
+ * unanswered. What slicing by test costs is that a file on a boundary is split,
+ * and its `suite`-scoped resources are then set up in both shards. That cost
+ * is already paid one level up: a shard is a separate process, so every
+ * *directory* suite's setup already runs once per shard whatever the unit is.
+ * Slicing by test makes the rule one sentence rather than two — a shard is an
+ * independent run, and every suite that has work in it opens in it.
+ *
+ * Contiguous slices rather than round-robin, because they cost the least of
+ * that: `i % n` splits every multi-test file across every shard, while a
+ * contiguous cut splits at most n-1 files in the whole run. Both balance by
+ * count; only one of them also keeps files together by accident.
+ *
+ * The remainder goes to the low shards one test each, so no two shards differ
+ * by more than one test, every test lands in exactly one shard, and the n
+ * slices put back together are the discovered order unchanged.
+ */
+function shardOf(tests: TestDef[], shard: Shard | undefined): TestDef[] {
+  if (!shard) return tests
+  const size = Math.floor(tests.length / shard.of)
+  const extra = tests.length % shard.of
+  const before = shard.index - 1
+  const start = before * size + Math.min(before, extra)
+  return tests.slice(start, start + size + (before < extra ? 1 : 0))
 }
 
 /** The four flags that decide which tests a command is talking about. */

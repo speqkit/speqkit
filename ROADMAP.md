@@ -177,20 +177,41 @@ test-level concurrency — which is the point of deciding it this way.
     no tenant crossing a suite, each hook counting its own two tests, and every
     suite set up before any was torn down. The JUnit file is read off disk.
 
-- [ ] **Shards** — *any time, does not block 1.0; the only item left here*
+- [x] **Shards**
   - *Done when:* `speq run --shard 2/4` runs a quarter of the tests, and four
     shards between them run each test exactly once.
-  - *Why it is here:* it is the answer thesis (5) points at, and it is the only
-    item in this milestone that touches neither the kernel nor the contract.
-    Discovery is already sorted, so a shard is a slice. Each shard is an
-    ordinary sequential run with its own `events.jsonl` and its own JUnit XML,
-    and CI merges XML the way it merges everything else.
-  - *The fork to decide when it is taken:* slicing by suite keeps a suite whole
-    but leaves a thousand tests in one file as one shard — which is the case
-    that asked for this. Slicing by test fixes that and splits a suite across
-    shards, so a `suite`-scoped resource is set up in each. That second
-    behaviour is pytest's session-fixture-per-worker, the most common surprise
-    in the category, and it is survivable if the flag's help says so.
+  - *Done:* `--shard i/n` on `run` and on `list`, entirely in `plugin-cli` —
+    it touched neither the kernel nor the contract, which is what the item
+    claimed and is now true rather than expected. Discovery is already sorted,
+    so a shard is a slice of what discovery returned, applied after the four
+    selection flags: sharding a selection is a sensible thing to want,
+    selecting out of a shard is not. `--shard 2`, `0/4`, `5/4` and `a/b` are
+    refused before discovery, on the `--workers` precedent — a machine that
+    quietly ran everything after being asked for a quarter is four times the
+    work with nothing saying so.
+  - *The fork, taken by test:* slicing by file keeps a file whole and leaves a
+    thousand tests in one file as one shard — and since M6 a thousand tests in
+    one file is a single test with a `cases` table, so that is the case shards
+    exist for and it would be the one case they could not split. Slicing by
+    test splits a file on a boundary, and its `suite`-scoped resources are then
+    set up in both shards.
+  - *What made the fork narrower than it looked when it was written:* a
+    `suite`-scoped resource binds at the **file**, not at the directory —
+    `resources.ts` walks up to the nearest frame of the matching scope, and the
+    leaf node opens one. A shard is a separate process, so every *directory*
+    suite's setup already runs once per shard whatever the slice is cut by.
+    Slicing by file would have bought a rule with two halves; slicing by test
+    makes it one sentence — a shard is an independent run, and every suite that
+    has work in it opens in it. The pytest surprise is real and is in the
+    flag's own documentation.
+  - *Contiguous rather than `i % n`*, which is the cheap half of the cost:
+    round-robin splits every file with more than one test in it across every
+    shard, a contiguous cut splits at most n-1 files in the whole run. Both
+    balance by count; the remainder goes to the low shards one test each.
+  - *Note:* `reports/<runId>/` is per run and never collides, but `junit.xml`
+    is a stable path on purpose — four shards in one working directory
+    overwrite one file. Documented rather than worked around: the flag is for
+    n machines, and CI is where it is used.
 
 ### Not in M5, and deliberately
 
