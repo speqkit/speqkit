@@ -137,6 +137,117 @@ describe('asking for concurrency', () => {
   })
 })
 
+/**
+ * Nine tests over three files, one of which is a `cases` table.
+ *
+ * The table is the point: with `cases`, a thousand tests in one file is a
+ * single test in a single file, which is exactly the shape slicing by file
+ * cannot split and the shape shards exist to answer.
+ */
+async function withNineTests(): Promise<CommandHost> {
+  kit = await harness(cli, { with: [yaml, noop] })
+  kit.file('suites/a.yaml', 'name: a\nsteps:\n  - type: noop\n')
+  kit.file('suites/b.yaml', 'name: b\nsteps:\n  - type: noop\n')
+  kit.file('suites/big.yaml', [
+    'name: big',
+    'cases:',
+    ...['one', 'two', 'three', 'four', 'five', 'six', 'seven'].map((id) => `  - id: ${id}`),
+    'steps:',
+    '  - type: noop',
+    ''
+  ].join('\n'))
+  return kit.registry.service('cli') as CommandHost
+}
+
+/** The test names one `speq list` printed, in the order it printed them. */
+function listed(out: string): string[] {
+  return out.split('\n').filter((l) => l.includes('  ')).map((l) => l.split('  ')[1]!).filter(Boolean)
+}
+
+describe('slicing a run into shards', () => {
+  it('refuses a --shard that is not the i-th of n', async () => {
+    const commands = await withNineTests()
+    // '2' has no n; '0/4' and '5/4' are not slices that exist; 'a/b' and
+    // '1.5/3' are not whole numbers. Each is refused before discovery, so a
+    // machine never quietly runs the whole suite after being asked for a
+    // quarter of it.
+    for (const bad of ['2', '0/4', '5/4', 'a/b', '1.5/3', '1/0', '1/2/3']) {
+      const { code, err } = await invoke(commands, 'run', ['--shard', bad])
+      expect(code, `--shard ${bad}`).toBe(2)
+      expect(err).toContain(`got '${bad}'`)
+    }
+  })
+
+  it('gives each test to exactly one shard, and puts the run back in order', async () => {
+    const commands = await withNineTests()
+    const whole = listed((await invoke(commands, 'list')).out)
+    expect(whole).toHaveLength(9)
+
+    const shards = []
+    for (let i = 1; i <= 4; i++) {
+      shards.push(listed((await invoke(commands, 'list', ['--shard', `${i}/4`])).out))
+    }
+
+    // The property the flag exists for, stated the way the roadmap states it:
+    // four shards between them run each test exactly once.
+    expect(shards.flat()).toEqual(whole)
+    // And no shard carries a test another one also carries.
+    expect(new Set(shards.flat()).size).toBe(9)
+  })
+
+  it('balances to within one test, so no shard is the long pole by construction', async () => {
+    const commands = await withNineTests()
+    for (const of of [1, 2, 3, 4, 5, 9, 12]) {
+      const sizes = []
+      for (let i = 1; i <= of; i++) {
+        sizes.push(listed((await invoke(commands, 'list', ['--shard', `${i}/${of}`])).out).length)
+      }
+      expect(sizes.reduce((a, b) => a + b, 0), `n=${of}`).toBe(9)
+      expect(Math.max(...sizes) - Math.min(...sizes), `n=${of}`).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('splits a cases table across shards, which is the case it exists for', async () => {
+    const commands = await withNineTests()
+    // Slicing by file would leave all seven rows of big.yaml in one shard.
+    const first = listed((await invoke(commands, 'list', ['--shard', '1/4'])).out)
+    const last = listed((await invoke(commands, 'list', ['--shard', '4/4'])).out)
+    expect(first.some((n) => n.startsWith('big['))).toBe(true)
+    expect(last.some((n) => n.startsWith('big['))).toBe(true)
+  })
+
+  it('runs its own tests and nobody else\'s', async () => {
+    const commands = await withNineTests()
+    const { code } = await invoke(commands, 'run', ['--shard', '2/3', '--reporter', ''])
+    expect(code).toBe(0)
+
+    const ran = kit.eventsOf('test.started').map((e) => e.test)
+    expect(ran).toHaveLength(3)
+    const started = kit.eventsOf('run.started')[0]!
+    expect(started.tests).toBe(3)
+  })
+
+  it('slices what the other flags selected, rather than being selected from', async () => {
+    const commands = await withNineTests()
+    // --test picks the seven rows of one file; --shard then halves them. The
+    // other order — shard the project, then filter — would give a shard of
+    // whatever happened to land in it, which is not what either flag means.
+    const half = listed((await invoke(commands, 'list', ['--test', 'suites/big.yaml', '--shard', '1/2'])).out)
+    expect(half).toHaveLength(4)
+    expect(half.every((n) => n.startsWith('big['))).toBe(true)
+  })
+
+  it('says a shard is empty rather than that nothing matched', async () => {
+    const commands = await withNineTests()
+    // Twelve machines for nine tests is a reasonable thing for CI to do, and
+    // three of them have nothing to run. 'no tests matched' would send whoever
+    // reads that log looking for a selection mistake that is not there.
+    const { code, err } = await invoke(commands, 'run', ['--shard', '12/12', '--reporter', ''])
+    expect(code).toBe(2)
+    expect(err).toBe('no tests in this shard\n')
+  })
+})
+
 describe('the console reporter', () => {
   it('prints a failed assertion under the test it belongs to', async () => {
     kit = await harness(cli)

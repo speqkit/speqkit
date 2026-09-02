@@ -9,10 +9,10 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N]
+speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate
-speq list
+speq list [--shard i/n]
 ```
 
 ## Four flags choose the tests
@@ -89,6 +89,47 @@ frees its slot rather than stopping the run.
 `--workers 0`, `--workers auto` and `--workers 2.5` are refused before anything
 is discovered, rather than quietly falling back to one — a twenty-minute suite
 that pretends to obey is worse than one that says no.
+
+## `--shard i/n` gives this machine its slice
+
+`--workers` is one machine doing more at once. `--shard` is n machines each
+doing part of it — an independent run apiece, with its own `events.jsonl` and
+its own JUnit XML, merged by CI the way it merges everything else. They
+compose: `speq run --shard 2/4 --workers 3` is the second quarter, three suites
+at a time.
+
+It is not a fifth selection flag. The other four say which tests you care
+about; this one says you care about all of them and there are n machines. So it
+applies to what discovery returned, and it applies last — sharding a selection
+is a sensible thing to want, selecting out of a shard is not:
+
+```bash
+speq list --test suites/orders/matrix.yaml --shard 1/2   # half of that file
+```
+
+**The slice is by test, not by file**, and the slices are contiguous. Slicing
+by file would keep a file whole, but a table of a thousand `cases` is one test
+in one file — so the case shards exist for would be the one case they could not
+split. What that costs is a file on a boundary, whose `suite`-scoped resources
+are then set up in both shards; a contiguous cut pays it for at most n-1 files
+in the whole run, where `i % n` would pay it for every file with more than one
+test in it. And the cost is already there one level up: a shard is a separate
+process, so a directory suite's setup already runs once per shard however the
+slice is cut. One sentence covers both — **a shard is an independent run, and
+every suite that has work in it opens in it.**
+
+`speq list --shard i/n` takes the flag too, because the property worth checking
+— n shards between them run each test exactly once — is checkable without
+running anything.
+
+`--shard 2`, `--shard 0/4`, `--shard 5/4` and `--shard a/b` are refused before
+discovery. A machine that quietly ran the whole suite after being asked for a
+quarter of it is four times the work with nothing saying so.
+
+One thing to know when the shards are on **one** machine: `reports/<runId>/` is
+per run and never collides, but `junit.xml` is a stable path on purpose, so four
+shards in one working directory overwrite one file. Give each a different
+`junit.output`, or do what CI does and put them on four machines.
 
 ## It does not import the kernel
 

@@ -210,6 +210,14 @@ stream produced a file with one of two tests in it — and neither needed a
 contract change to fix, which is the tell that they were wrong before anything
 ran at once.
 
+`speq run --shard 2/4` is the other half of the same answer: `--workers` is one
+machine doing more at once, `--shard` is four machines each doing a quarter,
+and they compose. The slice is by test and contiguous — by file would keep a
+file whole, but a table of a thousand `cases` is one test in one file, so the
+case shards exist for would be the one they could not split. A shard is an
+independent run: it has its own `events.jsonl` and its own JUnit XML, and every
+suite that has work in it opens in it.
+
 A suite is now a thing rather than a file path. A directory holding a
 `suite.yaml` is a suite: it has a title, a parent, annotations and tags every
 test below it inherits outside-in, a `pending` that parks the lot with one

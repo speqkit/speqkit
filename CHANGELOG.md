@@ -16,7 +16,38 @@ on `0.x` pins the minor for exactly that reason.
 
 ## [Unreleased]
 
-Nothing yet.
+Nothing in the kernel, so no release names this yet. `@speqkit/plugin-cli`
+**0.4.0** goes out on its own — a plugin's version moves independently, and
+`speq` loads plugins at run time rather than baking them into the executable,
+so a standalone binary picks this up without being rebuilt.
+
+### Added
+
+- **`speq run --shard i/n`** — n machines each taking a slice, where
+  `--workers` is one machine doing more at once. They compose. Entirely in
+  `plugin-cli`: it touches neither the kernel nor the contract, because
+  discovery is already sorted and a shard is a slice of what it returned,
+  applied after the four selection flags. `speq list --shard i/n` takes the
+  flag too, since the property worth checking — n shards between them run each
+  test exactly once — is checkable without running anything. `--shard 2`,
+  `0/4`, `5/4` and `a/b` are refused before discovery: a machine that quietly
+  ran the whole suite after being asked for a quarter is four times the work
+  with nothing saying so.
+  - **The slice is by test, contiguous.** By file would keep a file whole and
+    leave a thousand tests in one file as one shard — and since `cases` a
+    thousand tests in one file is a *single test*, so that is the case shards
+    exist for and it would be the one they could not split. What it costs is a
+    file on a boundary, whose `suite`-scoped resources are then set up in both
+    shards. That cost is already there one level up: a shard is a separate
+    process, so a directory suite's setup already runs once per shard however
+    the slice is cut. One sentence covers both — a shard is an independent run,
+    and every suite that has work in it opens in it. Contiguous rather than
+    `i % n` because round-robin splits *every* multi-test file across every
+    shard, while a contiguous cut splits at most n-1 files in the whole run.
+  - `reports/<runId>/` is per run and never collides, but `junit.xml` is a
+    stable path on purpose, so shards sharing one working directory overwrite
+    one file. The flag is for n machines; on one, give each a different
+    `junit.output`.
 
 ## [0.3.0] — 2026-09-02
 

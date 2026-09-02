@@ -763,7 +763,11 @@ this kernel speaks v1. Upgrade the plugin, or pin an older speq.</code></pre>
 <pre><code>speq list                          <span class="c"># what is visible at all</span>
 speq run --test suites/health.yaml <span class="c"># one file</span>
 speq run --suite suites/smoke      <span class="c"># one directory</span>
-speq run --tags smoke,critical     <span class="c"># by tag</span></code></pre>
+speq run --tags smoke,critical     <span class="c"># by tag</span>
+speq run --name 'menu.create[jpy]' <span class="c"># one test, cases included</span>
+speq run --shard 2/4               <span class="c"># this machine's quarter</span></code></pre>
+
+  <p>The first four say <em>which tests you care about</em> and reach the loaders as a <code>DiscoverQuery</code>. <code>--shard</code> says the opposite — you care about all of them and there are four machines — so it is not a query at all: it is a contiguous slice of what discovery returned, applied last. The slice is by <strong>test</strong> rather than by file, because since <code>cases</code> a thousand tests in one file is a single test, and that is precisely the shape shards exist to split. Each shard is an independent run with its own <code>events.jsonl</code> and its own JUnit XML, and every suite that has work in it opens in it.</p>
 
   <div class="note">
     <span class="tag">Why the format is a plugin</span>
