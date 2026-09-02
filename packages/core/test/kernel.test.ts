@@ -572,6 +572,99 @@ describe('validation uses the grammar the plugins defined', () => {
   })
 })
 
+/**
+ * A message is written for a person and may be reworded in any release; a code
+ * is written for a program and may not. Without the second one the only way to
+ * tell a step type that does not exist from one whose input is malformed was
+ * to match substrings of coloured stderr — which is to say that a suite a
+ * model generated could not be repaired without a human reading the output.
+ *
+ * The list below is the kernel's whole vocabulary. Adding a diagnostic without
+ * a code, or renaming one of these, breaks a caller that cannot be seen from
+ * here; this test is where that gets noticed.
+ */
+describe('every diagnostic says what is wrong in a word a program can read', () => {
+  const strict = definePlugin({
+    name: 'speqkit-plugin-strict',
+    setup(ctx) {
+      ctx.defineStepType('send', {
+        schema: { type: 'object', properties: { to: {} }, required: ['to'], additionalProperties: false },
+        execute: () => ({})
+      })
+      ctx.defineStepType('brittle', {
+        validate: () => { throw new Error('I am the bug') },
+        execute: () => ({})
+      })
+    }
+  })
+
+  /** One of everything the kernel knows how to refuse. */
+  const wrong = (): Parameters<typeof validateTests>[1] => {
+    const suite = { name: 'orders', source: 'suites/suite.yaml', pending: true }
+    return [
+      { name: 'a', source: 'a.yaml', steps: [{ type: 'send', to: 'x' }], suites: [suite] },
+      { name: '', source: 'b.yaml', steps: [{ type: 'send', to: 'x' }] },
+      { name: 'a', source: 'c.yaml', steps: [{ type: 'send', to: 'x' }] },
+      { name: 'd', source: 'd.yaml', steps: [] },
+      {
+        name: 'e',
+        source: 'e.yaml',
+        pending: 3,
+        variables: { one: 1 },
+        steps: [
+          { id: 'one', type: 'send', to: 'x' },
+          { id: 'one', type: 'send', to: 'x' },
+          { type: 'nope' },
+          { type: 'send' },
+          { type: 'send', to: 'x', extra: 1 },
+          { type: 'brittle' }
+        ],
+        assert: [{ type: 'nope' }]
+      },
+      { name: 'f', source: 'f.yaml', steps: [{ type: 'send', to: 'x' }], cases: 'no' },
+      { name: 'g', source: 'g.yaml', steps: [{ type: 'send', to: 'x' }], cases: [] },
+      {
+        name: 'h',
+        source: 'h.yaml',
+        steps: [{ type: 'send', to: 'x' }],
+        cases: [1, { id: '' }, { id: 'x' }, { id: 'x' }]
+      }
+    ] as unknown as Parameters<typeof validateTests>[1]
+  }
+
+  it('carries a code on every one of them', async () => {
+    const registry = await registryWith(strict)
+    const diagnostics = validateTests(registry, wrong())
+
+    expect(diagnostics.length).toBeGreaterThan(0)
+    expect(diagnostics.filter((d) => !d.code)).toEqual([])
+  })
+
+  it('spells them the same way every release', async () => {
+    const registry = await registryWith(strict)
+    const diagnostics = validateTests(registry, wrong())
+
+    expect([...new Set(diagnostics.map((d) => d.code))].sort()).toEqual([
+      'case-has-no-id',
+      'case-is-not-a-mapping',
+      'cases-is-empty',
+      'cases-is-not-a-list',
+      'duplicate-case-id',
+      'duplicate-step-id',
+      'duplicate-test-name',
+      'missing-field',
+      'pending-needs-reason',
+      'plugin-check-threw',
+      'test-has-no-name',
+      'test-has-no-steps',
+      'unknown-assertion',
+      'unknown-field',
+      'unknown-step-type',
+      'variable-is-a-step-id'
+    ])
+  })
+})
+
 describe('a plugin checks its own inputs, beyond their shape', () => {
   // A schema settles shape. Whether the input means anything — a file that
   // must exist, two fields that exclude each other — only the plugin knows,
@@ -610,9 +703,14 @@ describe('a plugin checks its own inputs, beyond their shape', () => {
       { name: 't', source: 'a.yaml', steps: [{ type: 'echo' }, { type: 'send', to: 'a', all: true }] }
     ])
 
+    // The code is namespaced by the plugin that found the problem — always,
+    // including when the plugin named none. Whose check refused is readable
+    // without reading the sentence, and a plugin that starts naming its
+    // problems tomorrow cannot collide with a kernel code invented today.
     expect(diagnostics).toContainEqual({
       file: 'a.yaml',
       path: 'steps[1]',
+      code: 'picky/invalid',
       message: "'to' and 'all' exclude each other"
     })
   })
@@ -624,7 +722,13 @@ describe('a plugin checks its own inputs, beyond their shape', () => {
     ])
 
     expect(diagnostics).toEqual([
-      { file: 'a.yaml', path: 'assert[0].within', message: "'within' is required", hint: 'e.g. 5s' }
+      {
+        file: 'a.yaml',
+        path: 'assert[0].within',
+        code: 'picky/invalid',
+        message: "'within' is required",
+        hint: 'e.g. 5s'
+      }
     ])
   })
 

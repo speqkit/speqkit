@@ -2,7 +2,7 @@ import type {
   AssertionDef, Diagnostic, InputSchema, StepDef, SuiteDef, TestDef, ValidateContext,
   ValidationProblem, Validator
 } from '@speqkit/plugin-api'
-import type { Registry, Registered } from './registry.js'
+import { shortName, type Registry, type Registered } from './registry.js'
 
 export type { Diagnostic }
 
@@ -11,6 +11,13 @@ export type { Diagnostic }
  * whole grammar: every step type and assertion the loaded plugins registered,
  * plus the schema each declared for its own inputs. A typo costs milliseconds
  * rather than a half-finished run against a real environment.
+ *
+ * Every diagnostic carries a `code` as well as a message, and the two are for
+ * different readers: the message is a sentence and may be reworded in any
+ * release, the code is a slug and may not. The kernel's are the bare words
+ * below; a problem a plugin's own `validate` returned is prefixed with that
+ * plugin's short name, so no plugin can ever take a code the kernel means to
+ * use later.
  *
  * A schema settles shape and nothing else, so a plugin may also contribute a
  * `validate` of its own — whether the schema file an assertion names exists,
@@ -36,6 +43,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
       diagnostics.push({
         file: where.file,
         path: 'pending',
+        code: 'pending-needs-reason',
         message: 'pending must say why',
         hint: 'it parks every test in the suite — write the gap that records'
       })
@@ -45,7 +53,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
   for (const test of tests) {
     const file = test.source ?? '(unknown)'
     if (!test.name) {
-      diagnostics.push({ file, path: 'name', message: 'test has no name' })
+      diagnostics.push({ file, path: 'name', code: 'test-has-no-name', message: 'test has no name' })
     } else {
       // Every event a run emits is keyed by this name, and nothing checked it
       // was unique. Two tests sharing one made a report where the second
@@ -57,6 +65,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
         diagnostics.push({
           file,
           path: 'name',
+          code: 'duplicate-test-name',
           message: `duplicate test name '${test.name}'`,
           hint: first === file
             ? ' — already used in this file; every event a run emits is keyed by the name'
@@ -67,7 +76,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
       }
     }
     if (!Array.isArray(test.steps) || test.steps.length === 0) {
-      diagnostics.push({ file, path: 'steps', message: 'test has no steps' })
+      diagnostics.push({ file, path: 'steps', code: 'test-has-no-steps', message: 'test has no steps' })
       continue
     }
 
@@ -79,6 +88,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
       diagnostics.push({
         file,
         path: 'pending',
+        code: 'pending-needs-reason',
         message: 'pending must say why',
         hint: 'a test parked without a reason is a test being deleted slowly — write the gap it records'
       })
@@ -109,6 +119,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
         diagnostics.push({
           file,
           path: `variables.${name}`,
+          code: 'variable-is-a-step-id',
           message: `variable '${name}' is also a step id`,
           hint: `the step binds over the variable, so \${${name}} means the given before that step and the result after it`
         })
@@ -143,7 +154,7 @@ function stepVisitor(
   return (step, path) => {
     if (step.id) {
       if (seen.has(step.id)) {
-        diagnostics.push({ file, path, message: `duplicate step id '${step.id}'` })
+        diagnostics.push({ file, path, code: 'duplicate-step-id', message: `duplicate step id '${step.id}'` })
       }
       seen.add(step.id)
     }
@@ -153,6 +164,7 @@ function stepVisitor(
       diagnostics.push({
         file,
         path: `${path}.type`,
+        code: 'unknown-step-type',
         message: `unknown step type '${step.type}'`,
         hint: suggest(step.type, [...registry.stepTypes.keys()])
       })
@@ -160,7 +172,7 @@ function stepVisitor(
     }
     if (entry.def.schema) {
       for (const problem of checkSchema(step, entry.def.schema)) {
-        diagnostics.push({ file, path, message: problem })
+        diagnostics.push({ file, path, ...problem })
       }
     }
     contribute(diagnostics, registry, entry, step, where, path, 'step type')
@@ -193,13 +205,14 @@ function reportBadCases(diagnostics: Diagnostic[], test: TestDef, file: string):
   if (table === undefined) return
 
   if (!Array.isArray(table)) {
-    diagnostics.push({ file, path: 'cases', message: 'cases must be a list' })
+    diagnostics.push({ file, path: 'cases', code: 'cases-is-not-a-list', message: 'cases must be a list' })
     return
   }
   if (table.length === 0) {
     diagnostics.push({
       file,
       path: 'cases',
+      code: 'cases-is-empty',
       message: 'cases is empty, so this test never runs',
       hint: 'delete the table to run the test once, or write the rows'
     })
@@ -210,7 +223,9 @@ function reportBadCases(diagnostics: Diagnostic[], test: TestDef, file: string):
   for (const [index, entry] of table.entries()) {
     const path = `cases[${index}]`
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-      diagnostics.push({ file, path, message: 'a case must be a mapping with an id' })
+      diagnostics.push({
+        file, path, code: 'case-is-not-a-mapping', message: 'a case must be a mapping with an id'
+      })
       continue
     }
     const id = (entry as { id?: unknown }).id
@@ -218,13 +233,16 @@ function reportBadCases(diagnostics: Diagnostic[], test: TestDef, file: string):
       diagnostics.push({
         file,
         path: `${path}.id`,
+        code: 'case-has-no-id',
         message: 'a case needs an id',
         hint: 'the id is the case\'s name — `name[id]` — and a position would move when a row is inserted above it'
       })
       continue
     }
     if (ids.has(id)) {
-      diagnostics.push({ file, path: `${path}.id`, message: `duplicate case id '${id}'` })
+      diagnostics.push({
+        file, path: `${path}.id`, code: 'duplicate-case-id', message: `duplicate case id '${id}'`
+      })
     }
     ids.add(id)
   }
@@ -245,6 +263,7 @@ function checkAssertions(
       diagnostics.push({
         file: where.file,
         path: `${path}.type`,
+        code: 'unknown-assertion',
         message: `unknown assertion '${assertion.type}'`,
         hint: suggest(assertion.type, [...registry.assertions.keys()])
       })
@@ -252,7 +271,7 @@ function checkAssertions(
     }
     if (entry.def.schema) {
       for (const problem of checkSchema(assertion, entry.def.schema)) {
-        diagnostics.push({ file: where.file, path, message: problem })
+        diagnostics.push({ file: where.file, path, ...problem })
       }
     }
     contribute(diagnostics, registry, entry, assertion, where, path, 'assertion')
@@ -292,6 +311,7 @@ function contribute<T extends StepDef | AssertionDef>(
     diagnostics.push({
       file: where.file,
       path,
+      code: 'plugin-check-threw',
       message:
         `checking this ${kind} threw inside plugin '${entry.owner}': ` +
         (err instanceof Error ? err.message : String(err)),
@@ -301,10 +321,18 @@ function contribute<T extends StepDef | AssertionDef>(
   }
 
   for (const problem of problems ?? []) {
-    const { message, hint, path: inner } = typeof problem === 'string' ? { message: problem, hint: undefined, path: undefined } : problem
+    const { message, hint, path: inner, code } =
+      typeof problem === 'string'
+        ? { message: problem, hint: undefined, path: undefined, code: undefined }
+        : problem
     diagnostics.push({
       file: where.file,
       path: inner ? `${path}.${inner}` : path,
+      // Namespaced by the plugin that found it, always — including when the
+      // plugin named nothing. A caller can then tell whose check refused
+      // without reading the sentence, and a plugin that starts naming its
+      // problems tomorrow does not collide with a kernel code invented today.
+      code: `${shortName(entry.owner)}/${code ?? 'invalid'}`,
       message,
       ...(hint ? { hint } : {})
     })
@@ -324,10 +352,15 @@ function walkSteps(steps: StepDef[], path: string, visit: (s: StepDef, p: string
  * the schema closes itself. Full JSON Schema arrives with the installer, once
  * schemas are being generated from plugin builds rather than hand-written.
  */
-function checkSchema(value: Record<string, unknown>, schema: InputSchema): string[] {
-  const problems: string[] = []
+function checkSchema(
+  value: Record<string, unknown>,
+  schema: InputSchema
+): { code: string; message: string }[] {
+  const problems: { code: string; message: string }[] = []
   for (const key of schema.required ?? []) {
-    if (value[key] === undefined) problems.push(`missing required field '${key}'`)
+    if (value[key] === undefined) {
+      problems.push({ code: 'missing-field', message: `missing required field '${key}'` })
+    }
   }
   if (schema.additionalProperties === false && schema.properties) {
     const allowed = new Set([
@@ -335,7 +368,10 @@ function checkSchema(value: Record<string, unknown>, schema: InputSchema): strin
     ])
     for (const key of Object.keys(value)) {
       if (!allowed.has(key)) {
-        problems.push(`unknown field '${key}'${suggest(key, [...allowed]) ?? ''}`)
+        problems.push({
+          code: 'unknown-field',
+          message: `unknown field '${key}'${suggest(key, [...allowed]) ?? ''}`
+        })
       }
     }
   }

@@ -523,6 +523,16 @@ export interface ValidationProblem {
   hint?: string
   /** Where *inside* the step or assertion, e.g. `schema` or `body.items[0]`. */
   path?: string
+  /**
+   * A stable slug for what is wrong, e.g. `unknown-topic`.
+   *
+   * The kernel namespaces it with this plugin's short name — `http/unknown-topic`
+   * — so a plugin may name as many kinds of problem as it likes without ever
+   * colliding with the kernel's or another plugin's. Optional: a plugin that
+   * gives none says `http/invalid`, which is still enough to tell whose check
+   * failed.
+   */
+  code?: string
 }
 
 export interface ValidateContext {
@@ -640,6 +650,22 @@ export interface Diagnostic {
   file: string
   /** Where inside it, e.g. `steps[2].type`. */
   path: string
+  /**
+   * What is wrong, as a slug: `unknown-step-type`, `missing-field`,
+   * `duplicate-test-name`.
+   *
+   * The message beside it is written for a person and may be reworded in any
+   * release; this is written for a program and may not. Without it the only
+   * way to tell a step type that does not exist from one whose input is
+   * malformed was to match substrings of coloured stderr — which is to say
+   * that a suite a model generated could not be repaired without a human
+   * reading the output.
+   *
+   * The kernel's own codes are bare words. Anything a plugin's `validate`
+   * contributed carries that plugin's short name and a slash in front of it,
+   * so the two sets cannot collide.
+   */
+  code: string
   message: string
   hint?: string
 }
@@ -724,6 +750,48 @@ export interface RecordedRun {
   at: number
 }
 
+/** One thing a loaded plugin contributed, named the way a suite names it. */
+export interface Capability {
+  /** The word written in a suite: a step's `type`, an assertion's `type`. */
+  name: string
+  /** The plugin that defined it. */
+  plugin: string
+  /** The shape of its input, when it declared one. */
+  schema?: InputSchema
+}
+
+/**
+ * The whole grammar the loaded plugins understand, as a document.
+ *
+ * Every schema in here has existed in the registry since the plugin that owns
+ * it registered, and none of it could be reached from outside the process. So
+ * an editor offering completion, a palette in a panel and a system prompt
+ * describing the language to a model each had to carry a copy of the
+ * vocabulary — one that goes stale the moment somebody installs a plugin, and
+ * goes stale silently, since a suite written against the wrong vocabulary
+ * looks exactly like a suite with a typo in it.
+ *
+ * The point of asking the session rather than a document is that the answer is
+ * true for *this* project: the same question in a project with one more plugin
+ * has one more answer in it.
+ *
+ * Sorted by name rather than by load order, so two runs of the same project
+ * produce the same document and a diff between two of them means something.
+ */
+export interface Capabilities {
+  /** The contract this kernel speaks — `PLUGIN_API_VERSION`. */
+  apiVersion: number
+  /** Every loaded plugin, and where this session found it. */
+  plugins: { name: string; version?: string; origin?: string }[]
+  stepTypes: Capability[]
+  assertions: Capability[]
+  /** `prefix` is the part written in a template: `${env:HOME}` is the provider whose prefix is `env`. */
+  valueProviders: (Capability & { prefix: string })[]
+  reporters: Capability[]
+  /** `extensions` is what makes a file a test, `suiteFiles` what makes one a suite. */
+  loaders: (Capability & { extensions: string[]; suiteFiles?: string[] })[]
+}
+
 /**
  * The running kernel, handed to every plugin as `ctx.host`.
  *
@@ -754,6 +822,14 @@ export interface Host {
   discover(query?: DiscoverQuery): Promise<TestDef[]>
   /** Check tests against the grammar the loaded plugins define. */
   validate(tests: TestDef[]): Diagnostic[]
+  /**
+   * That grammar itself: every step type, assertion and value provider the
+   * loaded plugins define, with the schema each declared for its input.
+   *
+   * Synchronous, like `validate`, and for the same reason: nothing is computed
+   * and nothing is read from disk — the registry already holds all of it.
+   */
+  capabilities(): Capabilities
   /** Execute tests in this session. */
   run(tests: TestDef[], options?: RunRequest): Promise<RunOutcome>
   /** Runs already recorded under `reportDir`, newest first. */

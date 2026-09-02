@@ -803,7 +803,7 @@ speq run --shard 2/4               <span class="c"># this machine's quarter</spa
     <span class="k">if</span> (over &amp;&amp; times) <span class="k">return</span> [<span class="s">"'over' and 'times' exclude each other"</span>]
     <span class="k">if</span> (!over &amp;&amp; !times) <span class="k">return</span> [<span class="s">"a loop needs 'over' or 'times'"</span>]
     <span class="k">if</span> (times &amp;&amp; step.times &lt;= <span class="s">0</span>) {
-      <span class="k">return</span> [{ path: <span class="s">'times'</span>, message: <span class="s">`'times' has to be positive`</span> }]
+      <span class="k">return</span> [{ path: <span class="s">'times'</span>, code: <span class="s">'not-positive'</span>, message: <span class="s">`'times' has to be positive`</span> }]
     }
     <span class="k">return</span> []
   },
@@ -819,6 +819,28 @@ suites/smoke.yaml  steps[4].times
   'times' has to be positive, got 0
 
 2 problem(s)</code></pre>
+
+  <h3>The same answer, for something that is not a person</h3>
+  <p>A generated suite is worth writing only if it can be checked <em>before it runs</em>, and until <code>--json</code> the only way to read the check was to match substrings of coloured stderr — so a reworded sentence silently changed what the caller concluded.</p>
+
+<pre><code>speq validate --json
+
+{
+  <span class="s">"checked"</span>: 12,
+  <span class="s">"diagnostics"</span>: [
+    {
+      <span class="s">"file"</span>: <span class="s">"suites/smoke.yaml"</span>,
+      <span class="s">"path"</span>: <span class="s">"steps[0].type"</span>,
+      <span class="s">"code"</span>: <span class="s">"unknown-step-type"</span>,
+      <span class="s">"message"</span>: <span class="s">"unknown step type 'htpp'"</span>,
+      <span class="s">"hint"</span>: <span class="s">" — did you mean 'http'?"</span>
+    }
+  ]
+}</code></pre>
+
+  <p><code>code</code> is the field to switch on. The message is written for a person and may be reworded in any release; the code is written for a program and may not. The kernel's own are bare words — <code>unknown-step-type</code>, <code>unknown-assertion</code>, <code>missing-field</code>, <code>unknown-field</code>, <code>duplicate-test-name</code> — and anything a plugin's own <code>validate</code> found carries that plugin's short name in front of it, <code>loop/not-positive</code>, so the two sets can never collide.</p>
+
+  <p><code>run</code> and <code>list</code> take <code>--json</code> too. The document goes to stdout even when the news is bad — <code>run</code> answers <code>{"status": "invalid"}</code> with the diagnostics rather than refusing in prose — and <code>--json</code> replaces the <em>default</em> reporter and not a chosen one, so <code>--json --reporter junit</code> still writes the XML.</p>
 
   <div class="note warn">
     <span class="tag">Two rules of validation</span>
@@ -1034,10 +1056,15 @@ npm install &amp;&amp; npm test</code></pre>
     <li><span class="name">provide / inject</span><span class="what">A service for other plugins, and a contribution to a surface that may not be there</span></li>
   </ul>
 
+  <div class="note">
+    <span class="tag">The grammar is readable from outside</span>
+    <p>Everything registered above — every step type, assertion, value provider, reporter and loader, with the schema each declared — comes back from <code>ctx.host.capabilities()</code>, and from <code>speq capabilities --json</code> for anyone who is not a plugin. It had been in the registry since load and had never left it, so an editor offering completion, a palette in a panel and a system prompt describing speq to a model each carried their own copy of the vocabulary — one that goes stale the moment somebody installs a plugin, and goes stale silently, because a suite written against the wrong vocabulary looks exactly like a suite with a typo in it.</p>
+  </div>
+
   <h4>Plus what <code>ctx</code> gives without being a contribution point</h4>
   <ul class="points">
     <li><span class="name">ctx.config()</span><span class="what">Its own block in <code>speq.yaml</code>, already checked against <code>configSchema</code>. The key is the plugin's short name</span></li>
-    <li><span class="name">ctx.host</span><span class="what">The running session: <code>root</code>, <code>reportDir</code>, <code>env</code>, <code>discover()</code>, <code>validate()</code>, <code>run()</code>, <code>runs()</code>, <code>replay()</code></span></li>
+    <li><span class="name">ctx.host</span><span class="what">The running session: <code>root</code>, <code>reportDir</code>, <code>env</code>, <code>discover()</code>, <code>validate()</code>, <code>run()</code>, <code>runs()</code>, <code>replay()</code>, <code>capabilities()</code></span></li>
     <li><span class="name">ctx.onEvent</span><span class="what">A subscription to the run's event stream</span></li>
   </ul>
 
@@ -1098,6 +1125,7 @@ expect(kit.validate([{ name: <span class="s">'t'</span>, source: <span class="s"
 <pre><code><span class="k">cd</span> ../my-service/.speq
 speq link ../../speqkit-plugin-kafka   <span class="c"># beats the store and node_modules</span>
 speq plugins                           <span class="c"># what is loaded and what it gave</span>
+speq capabilities                      <span class="c"># the grammar, yours included</span>
 speq run --test suites/orders.yaml
 speq unlink speqkit-plugin-kafka</code></pre>
 

@@ -79,9 +79,10 @@ function usage(): number {
       `  speq doctor                            environment, store and compatibility\n` +
       `  speq version\n\n` +
       `Everything else comes from plugins. With '@speqkit/plugin-cli' loaded:\n` +
-      `  speq run [--env <name>] [--reporter a,b]\n` +
+      `  speq run [--env <name>] [--reporter a,b] [--json]\n` +
       `  speq report [--run <id>] [--list]     re-render a finished run\n` +
-      `  speq validate | speq list\n`
+      `  speq validate | speq list             add --json for a document\n` +
+      `  speq capabilities                     what may be written, with schemas\n`
   )
   return EXIT_OK
 }

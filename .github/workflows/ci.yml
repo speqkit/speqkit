@@ -90,6 +90,12 @@ jobs:
       - run: ./node_modules/.bin/speq plugins
       - run: ./node_modules/.bin/speq validate
 
+      # The grammar, out of the real binary. It is the one surface whose
+      # content is entirely somebody else's — every line of it comes from a
+      # plugin — so a schema that stopped being reachable would show up here
+      # and nowhere else in this job.
+      - run: ./node_modules/.bin/speq capabilities
+
       # The example's own broken file, which is there to be caught. A green
       # exit here would mean validation had stopped checking anything.
       - name: the typo is still caught
@@ -98,6 +104,19 @@ jobs:
             echo "broken/typo.yaml validated clean — validation is not checking" >&2
             exit 1
           fi
+
+      # The same refusal, read the way a repair loop reads it. The unit tests
+      # own the shape; what this owns is that the shape survives the build, the
+      # bin shim and a real project — and that the code, not the sentence, is
+      # what a caller matches on.
+      - name: and a program can read that refusal
+        run: |
+          if ./node_modules/.bin/speq validate --suite broken --json > diagnostics.json; then
+            echo "broken/typo.yaml validated clean — validation is not checking" >&2
+            exit 1
+          fi
+          grep -q '"code": "unknown-step-type"' diagnostics.json
+          rm diagnostics.json
 
       - name: the suites run
         run: |

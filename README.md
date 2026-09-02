@@ -239,6 +239,25 @@ of them. The id is written and never counted, because an index moves the day
 somebody inserts a row above it and a report read next quarter is comparing
 against a name.
 
+The bet the whole project rests on — that a declarative suite is the right
+artefact when a model writes the first draft — needs a generated test to be
+checkable *before* it runs. That was true and unreachable from outside the
+process. `speq validate --json` now answers with a document, and every
+diagnostic in it carries a **`code`**: `unknown-step-type` is a different thing
+from `missing-field`, and telling them apart no longer means matching
+substrings of coloured stderr that any release is free to reword. `run` and
+`list` take `--json` as well; `run` prints the counts and, per test, what
+compared badly.
+
+`speq capabilities` is the other half. Every step type, assertion, value
+provider, reporter and loader the loaded plugins define, with the schema each
+declared — all of it in the registry since load, and none of it reachable. So
+an editor offering completion, a palette in a panel and a system prompt
+describing speq to a model each carried a copy of the vocabulary, which went
+stale the moment somebody installed a plugin, and went stale *silently*: a
+suite written against the wrong vocabulary looks exactly like a suite with a
+typo in it.
+
 ## Writing a plugin
 
 ```bash

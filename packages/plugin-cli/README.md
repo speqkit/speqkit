@@ -1,6 +1,6 @@
 # @speqkit/plugin-cli
 
-The terminal surface: `run`, `report`, `validate`, `list`.
+The terminal surface: `run`, `report`, `validate`, `list`, `capabilities`.
 
 ```yaml
 # speq.yaml
@@ -9,10 +9,11 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n]
+speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json]
 speq report [--run <id>] [--list] [--reporter a,b]
-speq validate
-speq list [--shard i/n]
+speq validate [--json]
+speq list [--shard i/n] [--json]
+speq capabilities [--json]
 ```
 
 ## Four flags choose the tests
@@ -130,6 +131,79 @@ One thing to know when the shards are on **one** machine: `reports/<runId>/` is
 per run and never collides, but `junit.xml` is a stable path on purpose, so four
 shards in one working directory overwrite one file. Give each a different
 `junit.output`, or do what CI does and put them on four machines.
+
+## `--json` answers a program
+
+`run`, `validate` and `list` each take `--json` and write one document to
+stdout instead of prose to the terminal.
+
+```bash
+speq validate --json
+```
+
+```json
+{
+  "checked": 12,
+  "diagnostics": [
+    {
+      "file": "suites/orders/create.yaml",
+      "path": "steps[0].type",
+      "code": "unknown-step-type",
+      "message": "unknown step type 'htpp'",
+      "hint": " — did you mean 'http'?"
+    }
+  ]
+}
+```
+
+**`code` is the field to switch on.** The message is a sentence written for a
+person and may be reworded in any release; the code is a slug and may not. It
+is what lets a caller tell a step type that does not exist from one whose input
+is malformed without matching substrings of coloured stderr — which is the
+difference between a generated suite that can be repaired and one that cannot.
+The kernel's codes are bare words (`unknown-step-type`, `unknown-assertion`,
+`missing-field`, `unknown-field`, `duplicate-test-name`, `duplicate-step-id`,
+`test-has-no-steps`, `pending-needs-reason`, `case-has-no-id`, …); anything a
+plugin's own `validate` found is prefixed with that plugin's short name —
+`http/unknown-topic` — so the two sets can never collide.
+
+`run --json` prints one document when the run is over: the counts, and per test
+its identity and its `failures`, present and empty on a green one. What
+compared badly is in there, `expected` and `actual` included; everything else —
+every step, every artifact — is in the report already written under `runDir`.
+It also prints a document when it refuses to start, with `"status": "invalid"`
+and the diagnostics, or `"status": "no-tests"`.
+
+Two rules worth knowing. The document goes to **stdout even when the news is
+bad** — stderr keeps what went wrong with the *command*, such as a malformed
+`--shard`, which is a bug in the caller rather than a result to read. And
+`--json` replaces the **default** reporter, not a chosen one: `--json
+--reporter junit` still writes the XML, because a document on stdout and a file
+on disk answer different callers. Exit codes do not move: 0 passed, 1 something
+failed, 2 nothing ran.
+
+## `speq capabilities` is the grammar itself
+
+```bash
+speq capabilities          # for you
+speq capabilities --json   # for a program
+```
+
+Every step type, assertion, value provider, reporter and loader the loaded
+plugins define, with the `InputSchema` each declared. In the terminal a star
+marks a field the schema requires; the rest of the schema is in `--json`.
+
+The schemas have been in the registry since the plugin that owns them
+registered, and could not be reached from outside the process. So an editor
+offering completion, a palette in a panel and a system prompt describing speq
+to a model each carried a copy of the vocabulary — one that goes stale the
+moment somebody installs a plugin, and goes stale *silently*, because a suite
+written against the wrong vocabulary looks exactly like a suite with a typo in
+it. Asking the session instead means the answer is true for this project.
+
+`speq plugins` is the other half of the same question and stays what it is:
+who is loaded, grouped by owner. This one is grouped by kind and carries the
+schemas — what may be written, rather than who brought it.
 
 ## It does not import the kernel
 

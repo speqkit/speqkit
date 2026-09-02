@@ -73,7 +73,49 @@ build anything you cannot afford to rewrite.
 
 ## Changes
 
-**0.5.0** — `StepTypeDef` and `AssertionTypeDef` gained an optional
+Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`. Everything below
+`0.4.0` was a change to the contract in this repository before anything was
+published from it, and the entry it landed under is kept as written.
+
+**Unreleased** — `Host` gained `capabilities()`, and with it `Capabilities` and
+`Capability`: every step type, assertion, value provider, reporter and loader
+the loaded plugins define, with the `InputSchema` each declared. The schemas
+had been in the registry since the plugin that owns them registered and could
+not be reached from outside the process, so an editor offering completion, a
+palette in a panel and a system prompt describing speq to a model each carried
+a copy of the vocabulary — one that goes stale the moment somebody installs a
+plugin, and goes stale silently, because a suite written against the wrong
+vocabulary looks exactly like a suite with a typo in it.
+
+Also unreleased: `Diagnostic` gained a required `code` and `ValidationProblem`
+an optional one. The message is written for a person and may be reworded in any
+release; the code is written for a program and may not — it is what lets a
+caller tell a step type that does not exist from one whose input is malformed
+without matching substrings of coloured output. The kernel's codes are bare
+words; whatever a plugin's own `validate` returns is prefixed by the kernel
+with that plugin's short name — `http/unknown-topic`, or `http/invalid` when
+the plugin named none — so a plugin can add codes for as long as it likes and
+never collide with one the kernel means to use. Added members on things the
+kernel produces, so every 0.10.0 plugin still satisfies the contract and
+`PLUGIN_API_VERSION` stays at `1`.
+
+**0.10.0** — `SuiteDef` and `CaseDef`; `LoaderDef.suiteFiles` and
+`LoaderDef.loadSuite`, so a loader can declare suites without reimplementing
+the tree, the identity or the inheritance; `TestDef.cases`, `TestDef.group`
+and `TestDef.suites`; `RunRequest.concurrency`; `DiscoverQuery.names`;
+`TestOutcome.group`; `ValidateContext.suite`. `suite.started` gained `parent`,
+`title` and `pending`, and `test.started` gained `group`. No ninth contribution
+point was opened — a suite was tried as a plugin first, and the experiment came
+back no: grouping, identity and inheritance are all settled before any hook
+fires. `PLUGIN_API_VERSION` stays at `1`.
+
+**0.9.0** — `StepDef.assert`, `TestDef.setup` and `TestDef.cleanup`;
+`TestDef.variables`, resolved one at a time in declaration order; `meta`, which
+the kernel carries and never reads; and `pending`, which takes a reason rather
+than a flag. Four gaps in the model, every one of them closed by a field on the
+spine rather than by a new contribution point.
+
+Also in 0.9.0: `StepTypeDef` and `AssertionTypeDef` gained an optional
 `validate`, and with it `Validator`, `ValidateContext` and
 `ValidationProblem`. A schema settles the shape of an input and nothing more,
 so anything a plugin knows *about* an input — that the schema file an assertion
@@ -88,7 +130,7 @@ and the rest of the diagnostics still come back. Optional members on existing
 interfaces, so every 0.4.0 plugin still satisfies the contract and
 `PLUGIN_API_VERSION` stays at `1`.
 
-Also in 0.5.0, with no change to any type: `ValueProviderDef.resolve` has
+And in 0.9.0, with no change to any type: `ValueProviderDef.resolve` has
 always been declared as `unknown | Promise<unknown>`, and the kernel now
 honours it. It used to drop the Promise itself into the request body, silently.
 A provider is asked once per resolution pass and every key a step needs is
