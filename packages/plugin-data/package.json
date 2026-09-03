@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-data",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Where values come from: generated test data, the environment, and project variables.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

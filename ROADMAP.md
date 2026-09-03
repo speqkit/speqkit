@@ -427,7 +427,7 @@ runs*. That property was real and unreachable from outside the process.
     it came out. `expected` and `actual` are in there; everything else is the
     report, which is already on disk under the `runDir` the document names.
 
-## M9 — What to run, and whose fault it is — any time, after M8
+## M9 — What to run, and whose fault it is — any time, after M8 — **done**
 
 M8 made the framework legible to a machine: a grammar it can read, a document
 it can parse, a code it can branch on. This milestone is about the workflow a
@@ -463,13 +463,31 @@ that was never up being indistinguishable from code that is wrong, and the
 amendment to an acceptance test that lands silently in a diff nobody reads as
 one.
 
-**What it does not need is a change to the spine.** Not one item here moves the
-test model. That is worth stating because the obvious ATDD field — a test
-declared red on purpose — was considered and rejected; see *Not in M9*.
+**What it does not need is a change to the spine.** `TestDef`, `StepDef`,
+`SuiteDef` and `AssertionDef` are untouched, and no ninth contribution point is
+opened. That is worth stating because the obvious ATDD field — a test declared
+red on purpose — was considered and rejected; see *Not in M9*.
+
+*What it did move, three times and additively, is the event stream:* a step's
+`detail`, which the first item is about; a test's `tags`, which the third item
+found missing while the plugin was being written; and a test's `suite`, which
+the eighth item found a reporter guessing at. All three are new fields on
+things the kernel produces, all three ride in the same minor — `plugin-api`
+0.11.0 — and a reporter that ignores any of them behaves exactly as it did
+before.
+
+*The second half of the milestone arrived after the first was done*, and it is
+the same question asked of the other reader. Items 1 to 7 are about a machine
+being told **what happened**. Items 9 and 10 are about a person or a machine
+being told **what is available** — which plugins are installed and what one
+line of each looks like, and which blocks and actions this project has already
+built. A generated suite is only as good as the vocabulary the generator knew
+about, and that vocabulary lived in READMEs on a website that no session can
+read, check, or notice going stale.
 
 ### The items
 
-- [ ] **A step's result reaches the stream** — **blocks 1.0**
+- [x] **A step's result reaches the stream** — **blocks 1.0**
   - *Done when:* a reporter can print the request and the response of a failed
     step without the test being run again, and a green run's `events.jsonl` is
     no larger than it is today.
@@ -485,8 +503,27 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
   - *Land it with whatever else still owes the stream a change*, so reporters
     break once. It is the only item in this milestone that costs a major after
     1.0.
+  - *Done:* `ExecContext.record(detail)`, with `detail` on `step.finished` and
+    on `StepRecord`. It is **buffered rather than returned**, and that turned
+    out to be the whole design: the step records the moment the material is in
+    hand, and the kernel keeps the value only if the step ends badly. A
+    callback handed the step's result could not have answered the case that
+    matters most — a request that never comes back has no result to describe it
+    — so `plugin-http` writes the request down *before* it opens the socket,
+    and a refused connection still says what was attempted.
+  - *And what recording it forced:* a run log is a CI artifact, so
+    `authorization`, `cookie` and `x-api-key` keep their names and lose their
+    values — a request that failed for want of a token has to stay
+    distinguishable from one that never carried it — and a recorded body over
+    8 KB is cut with the remainder counted out loud. Both belong to the plugin
+    that knows what it is recording, not to the kernel, which polices the size
+    of an `attach` no more than it polices this.
+  - *Consumers, so the mechanism is not another `defineReporter` that nothing
+    calls:* `speq run --json` carries it on the failing step, and
+    `speq run --verbose` prints it — which is the sentence M7 wrote for this
+    item before it knew what it was blocked on.
 
-- [ ] **The two ways of working are written down**
+- [x] **The two ways of working are written down**
   - *Done when:* `docs/` has one page that names both, tells a reader which one
     they are in, and gives the commands for each from the first test to the
     green PR.
@@ -511,8 +548,21 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     evidence.
   - *Where:* beside `docs/writing-tests.html`, linked from the README, and from
     the quick start on the way out of a first green run.
+  - *Done:* `docs/two-ways.html`, in every page's nav, linked from the README
+    and from the end of the quick start — where the question it answers
+    actually arrives, which is the moment somebody's first run went green and
+    they are deciding when to write the next test.
+  - *One thing the page found, which was not in this item.* Writing the
+    code-first half honestly turns up a cost the tests-first half does not
+    have: **a test written against working code is green from its first run,
+    and a test that has never been red has not been shown to be able to go
+    red.** An assertion on a field that no longer exists passes quietly for
+    years. So that direction carries an instruction the other does not need —
+    break it once on purpose and watch it report the difference — and the
+    contrast is the strongest argument for tests-first that this page makes,
+    precisely because it is not made as an argument.
 
-- [ ] **A run says whose fault it is**
+- [x] **A run says whose fault it is**
   - *Done when:* a failed run answers, per test, which of three things to go
     and fix — the code, the test, or the environment — and a run against a
     service that was never up says so once instead of thirty times.
@@ -526,8 +576,21 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     fixing the code and fixing the test.
   - *Where:* a reporter in `@speqkit/plugin-gate`, writing
     `reports/<runId>/gate.json` beside the event log.
+  - *Done:* `fix` and `why` on every red test, counted into `blame`, beside a
+    `work` roll-up per key and the `unclaimed` tests no key claims. Built out
+    of the stream and nothing else, so `speq report --reporter gate` renders a
+    recorded run into the same document.
+  - *What writing it found, and it needed the contract:* **a test's tags never
+    entered the event stream.** A reporter could group by suite, by file and by
+    `meta`, and not by the label the run was actually selected with — so
+    anything reporting per ticket had to re-discover the project to learn what
+    it had just watched run. `test.started` and `TestOutcome` gained `tags`,
+    additively, in the same 0.11.0 batch as the step's `detail`. This is the
+    fourth time a plugin written against the published contract has found the
+    hole nobody inside the kernel could see, after `attach`, the empty
+    `AssertContext.results` and the dead `defineReporter`.
 
-- [ ] **The work in hand selects itself**
+- [x] **The work in hand selects itself**
   - *Done when:* `speq gate plan` prints what would run and why, and
     `speq gate` runs it and exits on the verdict.
   - *Honest about the size of it:* turning a branch called `JIRA-123` into
@@ -536,8 +599,20 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     where it was taken from, how many tests it selected, and which tests in the
     branch it did not. A selection nobody can inspect is how a gate comes to
     run nothing and pass.
+  - *Done:* `speq gate plan`, `speq gate`, and the key resolved from `--key`,
+    then `gate.key`, then the branch — with `plan` naming which of the three
+    answered. A key that selects nothing exits 2 and says so rather than
+    passing an empty run, which is the failure mode `plan` exists for.
+  - *One thing the temporary directory taught:* the first version worked out
+    where the project sits inside the repository by subtracting
+    `rev-parse --show-toplevel` from `host.root`, and on macOS those two
+    disagree — a temp directory is reached through a symlink — so every path
+    built from the pair landed outside the repository. `rev-parse
+    --show-prefix` answers the same question in git's own terms and cannot
+    disagree with itself. The same fault would have hit any checkout reached
+    through a symlink.
 
-- [ ] **A changed acceptance test is visible where it is reviewed**
+- [x] **A changed acceptance test is visible where it is reviewed**
   - *Done when:* `speq gate diff` lists the tests added, changed and removed in
     this branch against its base, in a form a PR comment can carry.
   - *Why not a seal and a refusal:* someone who believes an acceptance test is
@@ -547,8 +622,12 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     nobody reads a YAML diff as a change to the acceptance criteria. Naming
     them makes it loud without making it forbidden — which is the same
     distinction `pending` draws, and for the same reason.
+  - *Done:* `speq gate diff [--base]`, with `A...B` rather than `A..B` so
+    somebody else's merge does not appear in this branch's diff, and with the
+    tests inside each surviving file named — a reviewer reads names, and a
+    removed file has none left to read.
 
-- [ ] **A test no gate would run is reported**
+- [x] **A test no gate would run is reported**
   - *Done when:* a test that carries no tag the gate selects on is reported by
     name, before it becomes a thing that only ever runs in the full CI suite
     with nobody to own it.
@@ -557,11 +636,21 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     owns, and there is nowhere for it to say anything about a test as a whole.
     `Validator<TestDef>` would be a ninth contribution point, and it would be
     the worst of them — a plugin with an opinion about the spine. So this runs
-    as a command in CI beside `speq validate`, with a `run:before` hook that
-    warns inside a run. Worth an issue recording the boundary, in the form
-    CONTRIBUTING asks for, rather than a task to remove it.
+    as a command in CI beside `speq validate`. Worth an issue recording the
+    boundary, in the form CONTRIBUTING asks for, rather than a task to remove
+    it.
+  - *Done:* `speq gate plan` names them, and `--strict` turns them into exit 2
+    for a team that has decided every test answers for something. News by
+    default, because a regression suite written the ordinary way has nothing
+    but untagged tests and is not wrong to.
+  - *The `run:before` hook this item asked for was not written, and should not
+    be.* It was written down before the plugin was. `HookPayload` on
+    `run:before` names no tests, so the hook would have to re-discover the
+    whole project on every run to find out what it was about to warn on — and
+    it would then warn about tests the caller had deliberately excluded with
+    `--test` or `--tags`. The command knows the selection; the hook does not.
 
-- [ ] **Decide how blame is routed**
+- [x] **Decide how blame is routed**
   - *Done when:* either the classification is a heuristic in the reporter and
     the page says plainly what it gets wrong, or a transport plugin names the
     cause and there is a declared place to put it.
@@ -573,6 +662,96 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
     `StepRecord` or inside the opt-in result of the first item. It is cheap to
     decide while that item is being built and expensive afterwards, which is
     why it is written down here rather than discovered later.
+  - *Decided: the heuristic, in the reporter, and it does not read the
+    message.* The fork as written assumed the heuristic had to be "every step
+    errored with the same message, so the environment is down" — a reading of
+    the run as a whole, which is exactly the thing that is wrong when a service
+    is half-up. It does not have to be that. The rule shipped is per pair of
+    tests: **two tests that broke identically did not both break for their own
+    reasons**, because a cause more than one test shares is by definition
+    inside none of them. Half-up is then not a special case at all — the tests
+    that got through pass, the ones that hit the wall share a cause, and both
+    are reported correctly.
+  - *What it costs, written into the plugin's README rather than left in the
+    source:* a run of one test cannot have a shared anything, so a lone test
+    brought down by a service that was never up is reported as `test`. And two
+    tests carrying the same bug are reported as `environment`. Both are the
+    price of never parsing a message — the approach that would rot the first
+    time somebody reworded one.
+  - *And the declared field is not needed, which is the better outcome.* No
+    `cause` on `StepRecord`, no vocabulary of error kinds for every transport
+    plugin to implement and keep in step. `plugin-http` stayed a plugin that
+    knows about HTTP, and the routing stayed a plugin that knows about runs.
+
+- [x] **A test names its own suite**
+  - *Done when:* no reporter has to keep a "current suite", and a summary built
+    at `--workers 4` says the same thing as one built at `--workers 1`.
+  - *Where it came from:* found while writing `plugin-gate`, which sidestepped
+    it. `plugin-json` took a test's suite from the last `suite.started` it had
+    seen, and its `#current` slot took a test's messages from whichever test
+    started most recently. Under one worker both are right by accident. Under
+    two, tests are filed under the wrong suite and a failure's message lands on
+    somebody else's row.
+  - *Why it survived:* it is **exactly** the fault M5 fixed in `plugin-junit`,
+    and the comment in `plugin-json` asserted the opposite — "the recorded log
+    preserves the order, so this holds on replay too", which is true only while
+    one suite runs at a time. A reporter is wrong only on the inside: the exit
+    code is the runner's and stayed right, so nothing pointed at the report.
+  - *Done:* `suite` on `test.started`, and `plugin-json` rebuilt on a map keyed
+    by test name. The alternative was dropping `suite` from `summary.json`,
+    whose shape is somebody else's contract — so the field stayed and the
+    stream learned to answer for it. `plugin-junit` now reads the same field;
+    it had been using the file, which was the same answer by accident.
+
+- [x] **A plugin says what it is for, and the session can be asked**
+  - *Done when:* somebody who has just run `speq add <plugin>` can find out
+    what it does and paste a working line of it without leaving the terminal,
+    and the same answer is available as a document to something that is not a
+    person.
+  - *Why the kernel and not a website:* M8 made the grammar askable — every
+    step type and assertion with its schema. What it could not answer is what
+    any of it is **for**, or what one working line looks like. That half lived
+    in a README on a website: a document a session cannot ask, cannot check,
+    and which goes wrong silently the moment somebody renames a step type. The
+    generator writing the suite is the reader who suffers most from that, and
+    it is the reader least able to go and look.
+  - *Done:* `PluginDocs` on `definePlugin` — a summary, a readme link and
+    examples, each naming with `for` the capabilities it demonstrates — plus
+    `summary` on every contribution def, carried through `host.capabilities()`.
+    `speq docs [<name>] [--json]` is a bootstrap command beside `plugins` and
+    `doctor`, because it is asked *about* the installation. Every plugin this
+    repository publishes declares one, and both gates say so: the workspace
+    test for ours, `check-plugin-package.mjs` for a stranger's.
+  - *And `speq docs --check`, which is the part that keeps it true.* An example
+    naming a step type that no longer exists is an error — that is precisely
+    what a rename leaves behind, and precisely what a README on a website
+    cannot notice. A capability no example demonstrates is reported and changes
+    no exit code: some genuinely need none, and failing on it would buy an
+    example per entry rather than an example worth reading.
+  - *Optional on the type, required by the gates.* A fixture plugin declared
+    inside a test has no documentation and should not have to say so. The
+    obligation belongs to a package on its way to a registry, so that is where
+    it is enforced — and the scaffold ships the declaration, the README section
+    and the test that checks it.
+
+- [x] **The project's own library is discoverable**
+  - *Done when:* somebody can ask what blocks, actions and fixtures this
+    project already has, and what each has to be called with, without grepping
+    for them.
+  - *Why it is the other half:* `speq docs` answers what the plugins offer, and
+    that answer is identical in every project that installed them. The
+    expensive question is the one that differs per project and is written down
+    nowhere — a module action is a file somebody wrote last quarter. A
+    newcomer and a generator both answer it the same way, by reaching for
+    `http` and rebuilding a login that already existed.
+  - *Done:* `speq modules [--json]`, contributed by `plugin-use` through
+    `ctx.inject(['cli'])`. It lists every action with the properties it
+    declares, every block with what it publishes, every fixture with the keys
+    it builds, and a `use` step for each, ready to paste.
+  - *In the plugin and not the kernel, deliberately.* The kernel does not know
+    what a module is, and this needed it not to start: `use` owns the three
+    forms, so `use` owns the catalogue. No ninth contribution point, and no
+    kernel command that reads a directory a plugin defined.
 
 ### Not in M9, and deliberately
 
@@ -596,9 +775,14 @@ declared red on purpose — was considered and rejected; see *Not in M9*.
 - **A ninth contribution point.** Unchanged, and this milestone is the second
   time the answer held under pressure.
 
+- **A registry of plugins nobody has installed.** `speq docs` answers out of
+  the session, which is what makes its answer true for *this* project. A
+  catalogue of plugins that are not loaded is a different thing — a search, and
+  a document somebody has to keep — and the npm keyword already carries it.
+
 *One ledger note when `plugin-gate` is written:* `docs/architecture/plugins.html`
 needs a row for it, because `workspace.test.ts` checks that a package this
-repository publishes has one.
+repository publishes has one. *Done.*
 
 ## M4 — The ecosystem — continues
 
@@ -636,6 +820,24 @@ repository publishes has one.
   - *Why it is a decision and not a task:* "stability without a codebase" holds
     exactly as long as the hatch stays shut. Silence reads as an unfinished
     feature either way.
+- [ ] **Freeze `@speqkit/plugin-api` at 1.0**
+  - *Done when:* the Stability section of `packages/plugin-api/README.md` says
+    the freeze is in effect, and the twelve month window on the previous
+    contract starts counting from that sentence.
+  - *Why it is last, and why no milestone blocks it any more.* Nothing on this
+    roadmap is marked **blocks 1.0** and still open — M5 and M6 closed the two
+    that were. What is missing is not a feature but evidence. Every hole found
+    in the contract so far was found by writing a plugin against it: `attach`,
+    the empty `AssertContext.results`, the dead `defineReporter`, and then
+    `tags`, from `plugin-gate`. Four for four. A fifth is not a risk somebody
+    imagined, it is the base rate.
+  - *So the condition is use, not a date:* **the framework carries a real
+    project's suite for long enough that the contract stops moving.** 0.11.0
+    moved `RunEvent` three times in one milestone, and the last of the three
+    existed because a reporter in this repository was reading adjacency that
+    G4 had taken away a milestone earlier. Until a stretch of real use goes by
+    without that happening, `0.x` is the honest label and a minor is where a
+    break is allowed to live.
 
 ## Not doing
 

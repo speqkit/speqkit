@@ -523,6 +523,7 @@ table.ledger td:first-child{font-family:"IBM Plex Mono",ui-monospace,monospace;f
       <thead><tr><th>Plugin</th><th>Why it is ours</th><th>Status</th></tr></thead>
       <tbody>
         <tr><td>plugin-playwright</td><td>The only honest consumer of resources and binary artifacts</td><td><span class="chip fixed">written</span></td></tr>
+        <tr><td>plugin-gate</td><td>The process layer: which tests answer for the work in hand, and whose fault it is when they are red. No step type, no assertion &mdash; it reads the stream and the tags, and nothing else</td><td><span class="chip fixed">written</span></td></tr>
         <tr><td>plugin-postgres</td><td>The only honest proof that the <code>test</code> scope is real: a transaction per test, rolled back after</td><td><span class="chip open">to write</span></td></tr>
         <tr><td>plugin-openapi</td><td>Coverage against the spec — the reason a gate is put next to the unit tests at all. The v1 manifest already has the field, switched off</td><td><span class="chip open">to write</span></td></tr>
         <tr><td>plugin-allure</td><td>A promise made to v1 users: without it, migrating off the current speq means losing the reports</td><td><span class="chip open">to write</span></td></tr>

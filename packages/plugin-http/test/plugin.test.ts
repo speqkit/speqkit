@@ -267,3 +267,71 @@ describe('a request that never arrives', () => {
     expect(step.message).toContain('failed after 2 attempts')
   })
 })
+
+/**
+ * A step that failed used to leave a status code and a sentence behind it. The
+ * request it sent was in nobody's hands: not in the result — a response has no
+ * room for it — and not in the event stream, which carried neither.
+ */
+describe('the exchange, when the exchange is what is in question', () => {
+  const failing = { type: 'status', expected: 418 }
+
+  it('records the request beside the response when the step did not pass', async () => {
+    const kit = await withHttp()
+    const step = await kit.step({
+      type: 'http', method: 'POST', url: '/orders', body: { sku: 'a1' }, assert: [failing]
+    })
+
+    expect(step.status).toBe('failed')
+    const detail = step.detail as { request: Record<string, unknown>; response: Record<string, unknown> }
+    expect(detail.request).toMatchObject({ method: 'POST', url: `${base}/orders`, body: '{"sku":"a1"}' })
+    expect(detail.response).toMatchObject({ status: 200, body: '{"ok":true}', attempts: 1 })
+  })
+
+  it('keeps none of it when the step passed', async () => {
+    const kit = await withHttp()
+    const step = await kit.step({ type: 'http', url: '/orders', assert: [{ type: 'status', expected: 200 }] })
+
+    expect(step.status).toBe('passed')
+    expect(step.detail).toBeUndefined()
+  })
+
+  /**
+   * `events.jsonl` is uploaded by CI and read by people who had no part in the
+   * run. A recorded `authorization` is a credential handed to all of them —
+   * and the header's *name* is kept, because a request that failed for want of
+   * a token looks identical to one that never carried it.
+   */
+  it('writes down the header names and not the secrets in them', async () => {
+    const kit = await withHttp({ headers: { authorization: 'Bearer sk-live-42' } })
+    const step = await kit.step({
+      type: 'http', url: '/orders', headers: { 'x-api-key': 'k-99' }, assert: [failing]
+    })
+
+    const detail = step.detail as { request: { headers: Record<string, string> } }
+    expect(detail.request.headers).toMatchObject({
+      authorization: '(redacted)',
+      'x-api-key': '(redacted)'
+    })
+    expect(JSON.stringify(step.detail)).not.toContain('sk-live-42')
+    expect(JSON.stringify(step.detail)).not.toContain('k-99')
+  })
+
+  it('records what it was trying to do when nothing came back at all', async () => {
+    const spare = createServer()
+    await new Promise<void>((r) => spare.listen(0, '127.0.0.1', r))
+    const address = spare.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    await new Promise<void>((r) => spare.close(() => r()))
+
+    const kit = await withHttp({ baseUrl: `http://127.0.0.1:${port}` })
+    const step = await kit.step({ type: 'http', method: 'PUT', url: '/health', body: { ping: 1 } })
+
+    // There is no response to describe and the request is the whole of what
+    // can be said. Recorded before the socket was opened, for exactly this.
+    expect(step.status).toBe('error')
+    const detail = step.detail as { request: Record<string, unknown>; response?: unknown }
+    expect(detail.request).toMatchObject({ method: 'PUT', url: `http://127.0.0.1:${port}/health` })
+    expect(detail.response).toBeUndefined()
+  })
+})

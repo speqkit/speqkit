@@ -73,11 +73,11 @@ build anything you cannot afford to rewrite.
 
 ## Changes
 
-Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`. Everything below
+Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`. Everything below
 `0.4.0` was a change to the contract in this repository before anything was
 published from it, and the entry it landed under is kept as written.
 
-**Unreleased** — `Host` gained `capabilities()`, and with it `Capabilities` and
+**0.11.0** — `Host` gained `capabilities()`, and with it `Capabilities` and
 `Capability`: every step type, assertion, value provider, reporter and loader
 the loaded plugins define, with the `InputSchema` each declared. The schemas
 had been in the registry since the plugin that owns them registered and could
@@ -87,7 +87,46 @@ a copy of the vocabulary — one that goes stale the moment somebody installs a
 plugin, and goes stale silently, because a suite written against the wrong
 vocabulary looks exactly like a suite with a typo in it.
 
-Also unreleased: `Diagnostic` gained a required `code` and `ValidationProblem`
+Also in 0.11.0: `PluginSpec` gained `docs`, and every contribution def gained
+`summary`. A plugin could declare its whole grammar and not one word about what
+any of it is for — so what it is for lived in a README on a website, which is a
+document a session cannot ask, cannot check, and which is wrong the moment
+somebody renames a step type. `speq docs` answers out of what is declared here,
+and `speq docs --check` fails on an example naming a capability that no longer
+exists. It is optional on the type on purpose: a fixture plugin declared inside
+a test has no documentation and should not have to say so. The obligation lands
+where a package meets a registry, in `check-plugin-package.mjs`.
+
+Also in 0.11.0: `test.started` gained `suite`. A test's suite was said only by
+the bracketing — the last `suite.started` before it — and the bracketing is
+adjacency, which G4 takes away the moment two suites run at once. Two reporters
+in the box were reading it that way, one of them after the same fault had
+already been fixed in the other. A test now carries its own answer, and G6 says
+so.
+
+Also in 0.11.0: `test.started` and `TestOutcome` gained `tags`. A reporter
+could group by suite, by file and by `meta`, and not by the label the run was
+actually selected with, so anything reporting per ticket or per component had
+to re-discover the project to learn what it had just watched run. It is the
+effective set, suites and cases included — the one `--tags` filters on. Found
+by writing `@speqkit/plugin-gate` against the published contract, which is the
+fourth hole a plugin has found that nobody inside the kernel could see.
+
+Also in 0.11.0: `ExecContext` gained `record(detail)`, `StepRecord` gained
+`detail`, and `step.finished` carries it. A step's result never entered the
+event stream, so no reporter could print the request and the response of a step
+that failed, whatever flag it was given — the only way to see an exchange was
+to run the test again with a proxy in front of it. The whole result on every
+`step.finished` was the other way to close that, and it makes the run log as
+large as every response body in the run, nearly all of them from steps that
+passed. So the step decides what is worth recording and the kernel decides
+whether it is worth keeping: dropped when the step passed, carried when it did
+not. Recording before the work rather than after it is deliberate and is what a
+callback over the result could not do — a request that never comes back has no
+result to describe it, and the step said what it was attempting before it went
+quiet.
+
+Also in 0.11.0: `Diagnostic` gained a required `code` and `ValidationProblem`
 an optional one. The message is written for a person and may be reworded in any
 release; the code is written for a program and may not — it is what lets a
 caller tell a step type that does not exist from one whose input is malformed

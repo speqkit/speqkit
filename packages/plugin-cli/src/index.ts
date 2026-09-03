@@ -28,6 +28,43 @@ const DEFAULT_REPORTERS = ['console']
  */
 export default definePlugin({
   name: '@speqkit/plugin-cli',
+  docs: {
+    summary: 'the command surface: run, report, validate, list, capabilities — and the console reporter',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-cli#readme',
+    examples: [
+      {
+        title: 'the run somebody actually types',
+        summary: 'A tag is the only join between a requirement and the tests that answer for it.',
+        for: ['console'],
+        code: [
+          'speq run --tags PAY-114 --verbose',
+          'speq run --env staging --workers 4 --reporter console,junit',
+          'speq run --shard 1/4          # in CI, four jobs'
+        ].join('\n')
+      },
+      {
+        title: 'asking before running',
+        summary:
+          'Validation is offline: it checks every step type, field and reference ' +
+          'against the loaded plugins without opening a socket.',
+        for: ['console'],
+        code: [
+          'speq validate --tags PAY-114',
+          'speq list --suite suites/payments',
+          'speq capabilities --json      # the whole grammar, with schemas'
+        ].join('\n')
+      },
+      {
+        title: 'rendering a run that already happened',
+        summary: 'Reporters are functions of the event stream, so a recorded run re-renders into any of them.',
+        for: ['console'],
+        code: [
+          'speq report --list',
+          'speq report --run 0f1c --reporter junit'
+        ].join('\n')
+      }
+    ]
+  },
 
   setup(ctx) {
     const commands = new Map<string, CommandDef>()
@@ -48,16 +85,29 @@ export default definePlugin({
      * a user actually runs. Making the common case use the extension point is
      * the only way to know the extension point works.
      */
-    ctx.defineReporter('console', consoleReporter())
+    /**
+     * `--verbose` belongs to `run` and the exchange it prints belongs to the
+     * reporter, and the two meet here because a reporter is registered long
+     * before an argv exists. The command sets it; the reporter asks. Nothing
+     * outside this plugin can see either half, which is the reason it is a
+     * closure and not a field on `RunRequest`: what a reporter prints is
+     * between a surface and its own output, not something the kernel arbitrates.
+     */
+    let verbose = false
+    ctx.defineReporter('console', {
+      summary: 'prints each test as a block when it finishes; --verbose adds what a failed step was doing',
+      ...consoleReporter(() => verbose)
+    })
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json]',
+      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--verbose] [--json]',
       async run(argv) {
         // A malformed flag stays plain text on stderr even here: there is no
         // run to describe, and a caller that wrote `--shard 5/4` has a bug in
         // itself rather than a result to read.
         const asJson = wantsJson(argv)
+        verbose = argv.includes('--verbose')
         const workers = readWorkers(argv)
         if (typeof workers === 'string') {
           process.stderr.write(`${workers}\n`)
@@ -251,7 +301,7 @@ interface Line {
  * the grouping a reader actually needs. Adjacency is what this milestone takes
  * away; a reporter must not put it back.
  */
-function consoleReporter(): ReporterDef {
+function consoleReporter(verbose: () => boolean): ReporterDef {
   /** Lines held for a test that has not finished yet, by test name. */
   let held = new Map<string, Line[]>()
 
@@ -268,7 +318,7 @@ function consoleReporter(): ReporterDef {
     },
 
     on(event) {
-      const lines = linesFor(event)
+      const lines = linesFor(event, verbose())
       const owner = testOf(event)
       const buffer = owner === undefined ? undefined : held.get(owner)
 
@@ -291,6 +341,21 @@ function consoleReporter(): ReporterDef {
   }
 }
 
+/**
+ * A recorded detail, as lines a terminal can hold.
+ *
+ * JSON rather than anything cleverer: the shape belongs to whichever step type
+ * wrote it, and a printer that assumed a request and a response would print
+ * nothing useful for the database step somebody publishes next month.
+ */
+function describe(detail: unknown): string[] {
+  try {
+    return JSON.stringify(detail, null, 2).split('\n')
+  } catch {
+    return [String(detail)]
+  }
+}
+
 function testOf(event: RunEvent): string | undefined {
   if ('test' in event) return event.test
   // A diagnostic names what it is about: usually the test, sometimes the suite.
@@ -298,7 +363,7 @@ function testOf(event: RunEvent): string | undefined {
   return undefined
 }
 
-function linesFor(event: RunEvent): Line[] {
+function linesFor(event: RunEvent, verbose = false): Line[] {
   switch (event.type) {
     case 'test.started': {
       // The title when there is one, because `menu.items-create.creates-item`
@@ -324,6 +389,14 @@ function linesFor(event: RunEvent): Line[] {
         { text: `  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}${where}\n` }
       ]
       if (event.message) lines.push({ text: `  ${indent}  ${red(event.message)}\n` })
+      // What the step recorded about itself — the request and the response,
+      // for an HTTP step. It rides only on a step that did not pass, so this
+      // prints nothing on a green run however loud the flag is.
+      if (verbose && event.detail !== undefined) {
+        for (const line of describe(event.detail)) {
+          lines.push({ text: `  ${indent}  ${dim(line)}\n` })
+        }
+      }
       return lines
     }
     case 'test.skipped':
@@ -502,6 +575,8 @@ interface Failure {
   message?: string
   expected?: unknown
   actual?: unknown
+  /** What the step recorded about itself — see `ExecContext.record`. */
+  detail?: unknown
 }
 
 /**
@@ -566,7 +641,11 @@ function failuresOf(test: TestOutcome): Failure[] {
           step: record.id,
           type: record.type,
           status: record.status,
-          message: record.message
+          message: record.message,
+          // The half a repair loop could not get anywhere else: a caller
+          // reading this document has the exchange without opening the log,
+          // and without running the test a second time to watch it happen.
+          detail: record.detail
         })
       }
       assertions(record.assertions, record.id)

@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-loop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Control flow as a plugin: loop, repeat, retry. Nothing of this lives in the kernel.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

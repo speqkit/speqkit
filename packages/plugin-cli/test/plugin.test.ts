@@ -34,7 +34,15 @@ const noop = definePlugin({
     })
     // A step that errors and an assertion that can fail, so the machine-
     // readable side of `run` has something other than green to describe.
-    ctx.defineStepType('boom', { async execute() { throw new Error('the fixture exploded') } })
+    ctx.defineStepType('boom', {
+      async execute(exec) {
+        // Recorded before the throw, the way a request is recorded before the
+        // socket is opened: what the step was doing is the only thing left to
+        // say when there is no result.
+        exec.record({ tried: 'the fixture', attempt: 1 })
+        throw new Error('the fixture exploded')
+      }
+    })
     ctx.defineAssertion('is-ok', {
       schema: { type: 'object', properties: { expected: { type: 'boolean' } }, required: ['expected'] },
       evaluate(assert, input) {
@@ -629,7 +637,14 @@ describe('speq capabilities', () => {
         required: ['expected']
       }
     }])
-    expect(document.reporters).toEqual([{ name: 'console', plugin: '@speqkit/plugin-cli' }])
+    // The sentence rides beside the schema: a shape with no meaning attached
+    // is what this document used to be, and what a model reading it had to
+    // guess its way through.
+    expect(document.reporters).toMatchObject([{
+      name: 'console',
+      plugin: '@speqkit/plugin-cli',
+      summary: expect.stringContaining('prints each test')
+    }])
     expect(document.loaders).toMatchObject([{ name: 'yaml', extensions: ['.yaml', '.yml'] }])
   })
 
@@ -643,5 +658,56 @@ describe('speq capabilities', () => {
     // The star is the whole of the schema a terminal is the right place for:
     // that `expected` exists and has to be written.
     expect(answer.out).toMatch(/is-ok[\s\S]*expected\*/)
+  })
+})
+
+/**
+ * The half of a failure a repair loop could not reach.
+ *
+ * `expected` and `actual` say what was compared; neither says what the step
+ * was doing when it fell over. A person without that reruns the test with a
+ * proxy in front of it; an agent without it guesses.
+ */
+describe('what the step was doing', () => {
+  async function withRedRun(): Promise<CommandHost> {
+    const commands = await withProject()
+    kit.file('suites/boom.yaml', 'name: a step that explodes\nsteps:\n  - id: one\n    type: boom\n')
+    return commands
+  }
+
+  it('rides into the run document, on the step that did not pass', async () => {
+    const commands = await withRedRun()
+
+    const answer = await invoke(commands, 'run', ['--json', '--test', 'suites/boom.yaml'])
+    expect(answer.code).toBe(1)
+
+    const document = JSON.parse(answer.out) as {
+      tests: { failures: { kind: string; status?: string; detail?: unknown }[] }[]
+    }
+    expect(document.tests[0]!.failures[0]).toMatchObject({
+      kind: 'step',
+      status: 'error',
+      detail: { tried: 'the fixture', attempt: 1 }
+    })
+  })
+
+  it('is on screen when it is asked for, and only then', async () => {
+    const commands = await withRedRun()
+
+    const quiet = await invoke(commands, 'run', ['--test', 'suites/boom.yaml'])
+    expect(quiet.out).toContain('the fixture exploded')
+    expect(quiet.out).not.toContain('tried')
+
+    const loud = await invoke(commands, 'run', ['--test', 'suites/boom.yaml', '--verbose'])
+    expect(loud.out).toContain('the fixture exploded')
+    expect(loud.out).toContain('"tried": "the fixture"')
+  })
+
+  it('says nothing extra about a run where everything passed', async () => {
+    const commands = await withRedRun()
+
+    const answer = await invoke(commands, 'run', ['--test', 'suites/health.yaml', '--verbose'])
+    expect(answer.code).toBe(0)
+    expect(answer.out).not.toContain('tried')
   })
 })

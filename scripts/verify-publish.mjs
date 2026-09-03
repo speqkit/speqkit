@@ -43,7 +43,7 @@ const binary = binaryFlag >= 0 ? resolve(repo, process.argv[binaryFlag + 1]) : u
 // plugin a new project loads first was the one this never checked.
 const PACKAGES = [
   'plugin-api', 'installer', 'core',
-  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-use', 'plugin-data', 'plugin-assert', 'plugin-json', 'plugin-junit', 'plugin-http', 'plugin-playwright',
+  'plugin-yaml', 'plugin-cli', 'plugin-loop', 'plugin-use', 'plugin-data', 'plugin-assert', 'plugin-json', 'plugin-junit', 'plugin-http', 'plugin-playwright', 'plugin-gate',
   // Not plugins and never installed into a project — packed because the bug
   // this whole script exists for is a wrong `exports` or a missing `files`,
   // and these two are published the same way as the rest.

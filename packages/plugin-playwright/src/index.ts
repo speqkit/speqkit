@@ -27,6 +27,64 @@ interface PlaywrightConfig {
  */
 export default definePlugin({
   name: '@speqkit/plugin-playwright',
+  docs: {
+    summary: 'drives a real browser through Playwright, in the same suite as everything else',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-playwright#readme',
+    examples: [
+      {
+        title: 'a page, filled in and submitted',
+        summary:
+          'The browser is a resource: one page per test, closed whatever happened to it. ' +
+          'A selector is whatever Playwright accepts.',
+        for: ['browser.open', 'browser.fill', 'browser.click', 'browser.press', 'visible'],
+        code: [
+          'steps:',
+          '  - type: browser.open',
+          '    url: ${base}/login',
+          '  - type: browser.fill',
+          '    selector: "#email"',
+          '    value: ${buyer}',
+          '  - type: browser.fill',
+          '    selector: "#password"',
+          '    value: ${env:TEST_PASSWORD}',
+          '  - type: browser.click',
+          '    selector: "button[type=submit]"',
+          '    assert:',
+          '      - type: visible',
+          '        selector: "[data-test=dashboard]"'
+        ].join('\n')
+      },
+      {
+        title: 'waiting, reading, and checking where you ended up',
+        for: ['browser.wait_for', 'browser.text', 'text_contains', 'title_is', 'url_contains'],
+        code: [
+          'steps:',
+          '  - type: browser.wait_for',
+          '    selector: "[data-test=total]"',
+          '    state: visible',
+          '  - id: total',
+          '    type: browser.text',
+          '    selector: "[data-test=total]"',
+          '    assert:',
+          '      - type: equals',
+          '        path: text',
+          '        expected: "€6.00"',
+          '      - type: url_contains',
+          '        expected: /checkout/confirmed'
+        ].join('\n')
+      },
+      {
+        title: 'a picture of what went wrong',
+        summary: 'Attached to the run, so the report links it and CI keeps it.',
+        for: ['browser.screenshot'],
+        code: [
+          'cleanup:',
+          '  - type: browser.screenshot',
+          '    name: checkout'
+        ].join('\n')
+      }
+    ]
+  },
   configSchema: {
     type: 'object',
     properties: {
@@ -96,6 +154,7 @@ export default definePlugin({
     }
 
     ctx.defineStepType('browser.open', {
+      summary: 'opens a page at `url`, in the browser this project configured',
       schema: {
         type: 'object',
         properties: { url: { type: 'string' }, waitUntil: { type: 'string' } },
@@ -112,6 +171,7 @@ export default definePlugin({
     })
 
     ctx.defineStepType('browser.click', {
+      summary: 'clicks the element the selector names',
       schema: selectorSchema,
       async execute(exec, input) {
         const page = await exec.resource<Page>('page')
@@ -121,6 +181,7 @@ export default definePlugin({
     })
 
     ctx.defineStepType('browser.fill', {
+      summary: 'types `value` into the field the selector names',
       schema: {
         type: 'object',
         properties: { selector: { type: 'string' }, value: {}, timeout: { type: 'number' } },
@@ -135,6 +196,7 @@ export default definePlugin({
     })
 
     ctx.defineStepType('browser.press', {
+      summary: 'presses a key, e.g. Enter or Escape',
       schema: {
         type: 'object',
         properties: { selector: { type: 'string' }, key: { type: 'string' }, timeout: { type: 'number' } },
@@ -149,6 +211,7 @@ export default definePlugin({
     })
 
     ctx.defineStepType('browser.wait_for', {
+      summary: 'waits until the element the selector names reaches a state',
       schema: {
         type: 'object',
         properties: { selector: { type: 'string' }, state: { type: 'string' }, timeout: { type: 'number' } },
@@ -168,6 +231,7 @@ export default definePlugin({
     // Reads the page into the variable namespace, so `${title.text}` is
     // available to every later step exactly like an HTTP body would be.
     ctx.defineStepType('browser.text', {
+      summary: 'reads the text of the element the selector names, for the checks below it',
       schema: selectorSchema,
       async execute(exec, input) {
         const page = await exec.resource<Page>('page')
@@ -180,6 +244,7 @@ export default definePlugin({
     // responsible for them from there. This plugin never learns where they
     // are written, and no reporter has to be taught about screenshots.
     ctx.defineStepType('browser.screenshot', {
+      summary: 'attaches a screenshot to the run, which every report links',
       schema: {
         type: 'object',
         properties: { name: { type: 'string' }, selector: { type: 'string' }, fullPage: { type: 'boolean' } },
@@ -201,6 +266,7 @@ export default definePlugin({
     // An assertion may reach for a resource too, so `visible` does not need
     // a step in front of it just to have something to look at.
     ctx.defineAssertion('visible', {
+      summary: 'the element the selector names is on the page and visible',
       schema: {
         type: 'object',
         properties: { selector: { type: 'string' } },
@@ -216,6 +282,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('text_contains', {
+      summary: 'the element the selector names contains this text',
       schema: {
         type: 'object',
         properties: { expected: { type: 'string' } },
@@ -236,6 +303,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('title_is', {
+      summary: 'the page\'s title is exactly this',
       schema: {
         type: 'object',
         properties: { expected: { type: 'string' } },
@@ -256,6 +324,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('url_contains', {
+      summary: 'the address the browser is on contains this',
       schema: {
         type: 'object',
         properties: { expected: { type: 'string' } },

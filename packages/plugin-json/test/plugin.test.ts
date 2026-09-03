@@ -153,6 +153,46 @@ describe('the stream is enough on its own', () => {
     expect(builder.result()).toEqual(written)
   })
 
+  it('files a test under its own suite when two suites interleave', () => {
+    const builder = new SummaryBuilder()
+    // Exactly what G4 permits and what `--workers 2` produces: two suites
+    // open, and their tests' events arrive alternately. Read as adjacency,
+    // 'slow' lands in suites/quick.yaml and takes the other test's message
+    // with it.
+    for (const event of [
+      { type: 'run.started', runId: 'r', tests: 2, at: 0 },
+      { type: 'suite.started', suite: 'suites/slow.yaml' },
+      { type: 'test.started', test: 'slow', suite: 'suites/slow.yaml', source: 'suites/slow.yaml' },
+      { type: 'suite.started', suite: 'suites/quick.yaml' },
+      { type: 'test.started', test: 'quick', suite: 'suites/quick.yaml', source: 'suites/quick.yaml' },
+      { type: 'assertion.evaluated', test: 'slow', assertionType: 'is', passed: false, message: 'expected 1, got 2' },
+      { type: 'test.finished', test: 'quick', status: 'passed', durationMs: 1 },
+      { type: 'test.finished', test: 'slow', status: 'failed', durationMs: 9 },
+      { type: 'run.finished', runId: 'r', status: 'failed', durationMs: 9, passed: 1, failed: 1, errored: 0, skipped: 0 }
+    ] as Parameters<SummaryBuilder['on']>[0][]) builder.on(event)
+
+    const bySuite = Object.fromEntries(builder.result().tests.map((t) => [t.id, t.suite]))
+    expect(bySuite).toEqual({ quick: 'suites/quick.yaml', slow: 'suites/slow.yaml' })
+    expect(builder.result().tests.find((t) => t.id === 'quick')?.messages).toEqual([])
+    expect(builder.result().tests.find((t) => t.id === 'slow')?.message).toBe('expected 1, got 2')
+  })
+
+  it('still names a suite for a stream recorded before the event carried one', () => {
+    const builder = new SummaryBuilder()
+    // `speq report` replays run logs written by an older kernel. The file is
+    // the leaf suite's name, which is what this used to arrive at the long way
+    // round, so an old log renders as it always did.
+    for (const event of [
+      { type: 'run.started', runId: 'r', tests: 1, at: 0 },
+      { type: 'suite.started', suite: 'suites/orders.yaml' },
+      { type: 'test.started', test: 'a', source: 'suites/orders.yaml' },
+      { type: 'test.finished', test: 'a', status: 'passed', durationMs: 1 },
+      { type: 'run.finished', runId: 'r', status: 'passed', durationMs: 1, passed: 1, failed: 0, errored: 0, skipped: 0 }
+    ] as Parameters<SummaryBuilder['on']>[0][]) builder.on(event)
+
+    expect(builder.result().tests[0]?.suite).toBe('suites/orders.yaml')
+  })
+
   it('does not carry one run into the next', async () => {
     const builder = new SummaryBuilder()
     for (const event of [

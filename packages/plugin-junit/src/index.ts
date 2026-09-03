@@ -21,6 +21,31 @@ interface JUnitConfig {
  */
 export default definePlugin({
   name: '@speqkit/plugin-junit',
+  docs: {
+    summary: 'writes JUnit XML, which is what CI already knows how to render',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-junit#readme',
+    examples: [
+      {
+        title: 'a run CI can show inline',
+        summary: 'Name one fixed path in `upload-artifact`: the file does not move between runs.',
+        for: ['junit'],
+        code: [
+          'speq run --reporter console,junit',
+          '# reports/results/junit.xml'
+        ].join('\n')
+      },
+      {
+        title: 'pointing it somewhere else',
+        for: ['junit'],
+        code: [
+          '# speq.yaml',
+          'junit:',
+          '  output: reports/junit.xml',
+          '  suiteName: acceptance'
+        ].join('\n')
+      }
+    ]
+  },
 
   configSchema: {
     type: 'object',
@@ -36,6 +61,7 @@ export default definePlugin({
     let target: string | undefined
 
     ctx.defineReporter('junit', {
+      summary: 'one junit.xml, a testcase per test and a testsuite per file',
       init(run: ReporterContext) {
         builder.reset()
         target = targetFile(ctx.config<JUnitConfig>(), run)

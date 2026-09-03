@@ -19,6 +19,7 @@
       "@speqkit/plugin-cli": ["packages/plugin-cli/src/index.ts"],
       "@speqkit/plugin-data": ["packages/plugin-data/src/index.ts"],
       "@speqkit/plugin-http": ["packages/plugin-http/src/index.ts"],
+      "@speqkit/plugin-gate": ["packages/plugin-gate/src/index.ts"],
       "@speqkit/plugin-json": ["packages/plugin-json/src/index.ts"],
       "@speqkit/plugin-junit": ["packages/plugin-junit/src/index.ts"],
       "@speqkit/plugin-loop": ["packages/plugin-loop/src/index.ts"],

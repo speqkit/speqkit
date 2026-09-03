@@ -16,8 +16,10 @@ it and publishes it; nothing needs to be agreed with us first.
 > project; neither is us.
 
 Documentation: **<https://speqkit.github.io/speqkit/>** — quick start, the
-kernel, [writing declarative tests](https://speqkit.github.io/speqkit/writing-tests.html)
-and [how anything gets released](https://speqkit.github.io/speqkit/releasing.html).
+kernel, [writing declarative tests](https://speqkit.github.io/speqkit/writing-tests.html),
+[the two ways teams work with it](https://speqkit.github.io/speqkit/two-ways.html)
+— tests before the code or after it — and
+[how anything gets released](https://speqkit.github.io/speqkit/releasing.html).
 
 ## Status
 
@@ -258,6 +260,24 @@ stale the moment somebody installed a plugin, and went stale *silently*: a
 suite written against the wrong vocabulary looks exactly like a suite with a
 typo in it.
 
+What that document could not say is what any of it is **for**. `speq docs`
+does:
+
+```bash
+speq docs                # every plugin: what it is for, what it brought
+speq docs http           # one entry, with examples to paste
+speq docs --check        # every plugin here says what it is for
+speq modules             # the blocks and actions this project already has
+```
+
+Both readers of that are worth naming. Somebody who has just run `speq add`
+gets an example instead of a website. And a model writing the suite gets the
+vocabulary and a working line of each in one call — which matters most, because
+it is the reader least able to go and look, and the one whose wrong guess looks
+exactly like a typo. `speq docs --check` fails on an example naming a step type
+that no longer exists, which is precisely what a rename leaves behind and
+precisely what a README on a website cannot notice.
+
 ## Writing a plugin
 
 ```bash
@@ -267,7 +287,9 @@ cd speqkit-plugin-kafka && npm install && npm test
 
 The scaffold makes the decisions that are easy to get wrong: the contract is a
 peer, nothing depends on the kernel, the step type and the assertion carry
-schemas, and the `speqkit-plugin` keyword is there so the package can be found.
+schemas, the `speqkit-plugin` keyword is there so the package can be found, and
+a `docs` block is declared so `speq docs kafka` has something to say the moment
+somebody installs it.
 Its tests use `@speqkit/test-kit`, which assembles the real `Registry`,
 `Executor` and runner — there are no fakes to drift, and green means it works
 in a project.

@@ -24,6 +24,30 @@ interface JsonConfig {
  */
 export default definePlugin({
   name: '@speqkit/plugin-json',
+  docs: {
+    summary: 'writes the run as one JSON document, for a workflow that reads results rather than watches them',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-json#readme',
+    examples: [
+      {
+        title: 'asking for it on a run',
+        summary: 'Rebuilt from the event stream, so `speq report` regenerates it without rerunning anything.',
+        for: ['json'],
+        code: 'speq run --reporter console,json'
+      },
+      {
+        title: 'where it lands, and what a workflow reads out of it',
+        for: ['json'],
+        code: [
+          '# speq.yaml',
+          'json:',
+          '  output: reports/results/summary.json   # the default',
+          '',
+          '# in CI',
+          "jq '.totals.failed' reports/results/summary.json"
+        ].join('\n')
+      }
+    ]
+  },
 
   configSchema: {
     type: 'object',
@@ -39,6 +63,7 @@ export default definePlugin({
     let target: string | undefined
 
     ctx.defineReporter('json', {
+      summary: 'one summary.json: totals, and a row per test with its messages',
       init(run: ReporterContext) {
         builder.reset()
         target = targetFile(ctx.config<JsonConfig>(), run)

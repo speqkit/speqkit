@@ -262,6 +262,17 @@ export interface StepRecord {
   durationMs: number
   /** Outcomes of this step's own `assert` block, in the order written. */
   assertions?: (AssertOutcome & { type: string })[]
+  /**
+   * What the step recorded about itself, kept only when it did not pass.
+   *
+   * `result` is what the step returned and what `${id.…}` addresses. This is
+   * whatever the step type judged a reader would need in order to understand a
+   * failure — for an HTTP step, the request beside the response, since the
+   * request is no part of what the step returns. Written with
+   * `ExecContext.record`; dropped by the kernel when the step passed, because
+   * evidence is a thing you read about a failure.
+   */
+  detail?: unknown
   /** `setup` or `cleanup` when the step ran outside the body. */
   phase?: TestPhase
   /** Nested records, when the step ran children through `runSteps`. */
@@ -309,6 +320,31 @@ export interface ExecContext {
 
   /** Attach a file or blob to the report. */
   attach(name: string, body: string | Uint8Array, contentType?: string): void
+
+  /**
+   * Keep what this step would need in order to explain itself, if it turns out
+   * badly.
+   *
+   * A step's result never entered the event stream, so no reporter could print
+   * the request and the response of a step that failed — whatever flag it was
+   * given — and the only way to see an exchange was to run the test again with
+   * a proxy in front of it. Putting the whole result on every `step.finished`
+   * was the other way to close that, and it makes `events.jsonl` as large as
+   * every response body in the run, nearly all of them from steps that passed.
+   *
+   * So the step decides what is worth recording and the kernel decides whether
+   * it is worth keeping: the value is dropped when the step passes, and rides
+   * on `step.finished` when it does not. Call it the moment the material is in
+   * hand rather than at the end — a call made before a request that never
+   * comes back is exactly the one worth having, and a step that throws has no
+   * other way left to say what it was doing.
+   *
+   * Called twice, the last value wins. What goes in has to survive
+   * `JSON.stringify`, because it is written to the run log. Redact secrets
+   * here — a recorded `authorization` header is a credential in a CI artifact
+   * — and keep it small enough that somebody will read it.
+   */
+  record(detail: unknown): void
 
   /** Aborted when the step's timeout budget is spent. */
   readonly signal: AbortSignal
@@ -383,8 +419,8 @@ export interface ResourceContext {
  * - **G5** — Within a test, step events are ordered. Nesting is expressed by
  *   `parentId` and `depth`, never by adjacency.
  * - **G6** — Every event belonging to a test names it; a test names its file
- *   once, as `source` on `test.started`; a name identifies a test for the whole
- *   run. Work that belongs to no test — a suite's own setup and cleanup —
+ *   and its suite once, as `source` and `suite` on `test.started`; a name
+ *   identifies a test for the whole run. Work that belongs to no test — a suite's own setup and cleanup —
  *   names its suite instead. On `step.started`, `step.finished`,
  *   `assertion.evaluated` and `artifact.attached`, exactly one of `test` and
  *   `suite` is set, and a reporter that only knows about tests can skip the
@@ -399,10 +435,40 @@ export interface ResourceContext {
 export type RunEvent =
   | { type: 'run.started'; runId: string; tests: number; at: number }
   | { type: 'suite.started'; suite: string; parent?: string; title?: string; pending?: string }
-  | { type: 'test.started'; test: string; source?: string; group?: string; title?: string; meta?: Record<string, unknown> }
+  /**
+   * `suite` is the suite this test belongs to, said by the test itself.
+   *
+   * It used to be said only by the bracketing: the last `suite.started` named
+   * the suite the next `test.started` was in. That is adjacency, G4 takes it
+   * away, and two reporters in this repository were reading it — one of them
+   * after the same fault had already been fixed in the other. A test now
+   * carries its own answer, and no reporter has to hold a "current suite"
+   * again.
+   *
+   * `tags` is what `--tags` selects on, and it was the one thing about a test
+   * that the stream never said.
+   *
+   * A reporter could group by suite, by file and by `meta`, and not by the
+   * label the run was actually chosen with — so anything reporting per ticket,
+   * per component or per swimlane had to re-discover the project to find out
+   * what it had just watched run. Absent when the test carries none, on the
+   * same terms as `meta`.
+   */
+  | { type: 'test.started'; test: string; suite?: string; source?: string; group?: string; title?: string; tags?: string[]; meta?: Record<string, unknown> }
   | { type: 'test.skipped'; test: string; reason: string }
   | { type: 'step.started'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; phase?: TestPhase; meta?: Record<string, unknown> }
-  | { type: 'step.finished'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; phase?: TestPhase; meta?: Record<string, unknown> }
+  /**
+   * `detail` is what the step recorded about itself, and rides only when the
+   * step did not pass — on the same terms, and for the same reason, as
+   * `expected` and `actual` below.
+   *
+   * It is the one thing the stream never carried: a status, a duration and a
+   * sentence say that a step failed and never what it did. A reporter can now
+   * print the exchange, and a repair loop reading `events.jsonl` has the body
+   * it needs to write the fix rather than a sentence about it. Its shape
+   * belongs to the step type that wrote it — see `ExecContext.record`.
+   */
+  | { type: 'step.finished'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; detail?: unknown; phase?: TestPhase; meta?: Record<string, unknown> }
   /**
    * `expected` and `actual` are carried only when the assertion failed.
    *
@@ -428,6 +494,8 @@ export type EventListener = (event: RunEvent) => void
 /* ------------------------------------------------------------------ */
 
 export interface LoaderDef {
+  /** One sentence: what it reads a test out of. See `StepTypeDef.summary`. */
+  summary?: string
   /** Glob-ish suffixes this loader claims, e.g. ['.yaml', '.yml']. */
   extensions: string[]
   load(file: string, content: string): TestDef[] | Promise<TestDef[]>
@@ -570,6 +638,14 @@ export type Validator<T> = (subject: T, ctx: ValidateContext) => (string | Valid
 /* ------------------------------------------------------------------ */
 
 export interface StepTypeDef {
+  /**
+   * One sentence: what writing this step does.
+   *
+   * It rides on `speq capabilities`, where the schema has always been and the
+   * sentence never was — so a reader, or a model being told what this project
+   * can write, had a shape with no meaning attached to it. See `PluginDocs`.
+   */
+  summary?: string
   schema?: InputSchema
   /** Per-step timeout override, in milliseconds. */
   timeoutMs?: number
@@ -579,6 +655,8 @@ export interface StepTypeDef {
 }
 
 export interface AssertionTypeDef {
+  /** One sentence: what this assertion claims. See `StepTypeDef.summary`. */
+  summary?: string
   schema?: InputSchema
   /** Checks this assertion means something, beyond having the right shape. */
   validate?: Validator<AssertionDef>
@@ -600,6 +678,8 @@ export interface ReporterContext {
 }
 
 export interface ReporterDef {
+  /** One sentence: what it produces, and where. See `StepTypeDef.summary`. */
+  summary?: string
   /**
    * Called once before the first event, with where this run may write.
    *
@@ -615,6 +695,8 @@ export interface ReporterDef {
 }
 
 export interface ValueProviderDef {
+  /** One sentence: what it answers with. See `StepTypeDef.summary`. */
+  summary?: string
   /**
    * The prefix this provider claims, e.g. `env` for `${env:HOME}`.
    *
@@ -685,6 +767,11 @@ export interface ArtifactRecord {
 export interface TestOutcome {
   name: string
   title?: string
+  /**
+   * What the test was labelled with, suites included — the same set `--tags`
+   * selects on, and the same set `test.started` carries.
+   */
+  tags?: string[]
   /** The `cases` table this row came from, when it came from one. */
   group?: string
   /** Set when the test did not run, carrying the reason it says. */
@@ -756,6 +843,8 @@ export interface Capability {
   name: string
   /** The plugin that defined it. */
   plugin: string
+  /** One sentence, from the plugin that defined it. */
+  summary?: string
   /** The shape of its input, when it declared one. */
   schema?: InputSchema
 }
@@ -781,8 +870,12 @@ export interface Capability {
 export interface Capabilities {
   /** The contract this kernel speaks — `PLUGIN_API_VERSION`. */
   apiVersion: number
-  /** Every loaded plugin, and where this session found it. */
-  plugins: { name: string; version?: string; origin?: string }[]
+  /**
+   * Every loaded plugin, where this session found it, and what it says about
+   * itself — see `PluginDocs`. `docs` is absent for a plugin that declares
+   * none, which is the state `speq docs --check` refuses.
+   */
+  plugins: { name: string; version?: string; origin?: string; docs?: PluginDocs }[]
   stepTypes: Capability[]
   assertions: Capability[]
   /** `prefix` is the part written in a template: `${env:HOME}` is the provider whose prefix is `env`. */
@@ -879,12 +972,76 @@ export interface PluginContext {
   readonly schema: { steps: typeof STEPS_SCHEMA }
 }
 
+/**
+ * Something somebody can paste, and the sentence saying when they would.
+ *
+ * `code` is lines in whatever format the project's loaders read — YAML, for
+ * every loader published so far. It is a string rather than a `TestDef`
+ * because what a reader needs is the thing they will actually type, and a
+ * structure printed back out is never quite that.
+ */
+export interface Example {
+  title: string
+  code: string
+  /** What it does, when the title does not already say it. */
+  summary?: string
+  /**
+   * The capabilities it demonstrates: step types, assertions, provider
+   * prefixes, reporter or loader names.
+   *
+   * This is what makes an example findable — `speq docs status` answers
+   * because an example says it is about `status` — and what makes it
+   * checkable: `speq docs --check` fails on a name no loaded plugin defines,
+   * which is what a renamed step type leaves behind.
+   */
+  for?: string[]
+}
+
+/**
+ * What a plugin says about itself, for the two readers who cannot read its
+ * source: somebody who has just installed it, and a model being asked to write
+ * a suite with it.
+ *
+ * `speq capabilities` has always answered *what may be written* — every step
+ * type, every assertion, with schemas. What it could not answer is what any of
+ * it is **for**, or what a working line looks like. That half lived in a README
+ * on a website, which is a document a session cannot ask, cannot check, and
+ * which is wrong the moment a step type is renamed.
+ *
+ * It is optional on the type because a fixture plugin declared inside a test
+ * has no documentation and should not have to say so. It is required by
+ * `check-plugin-package.mjs`, which is the gate a plugin passes on its way to
+ * being published — so the obligation lands on plugins people install, and not
+ * on the twenty throwaway plugins in this repository's own tests.
+ */
+export interface PluginDocs {
+  /** One sentence: what this plugin is for. */
+  summary: string
+  /**
+   * Where the prose is: a URL, or a path inside the published package.
+   *
+   * A link rather than the prose itself, because a README is long and this
+   * document is answered on every `speq docs`.
+   */
+  readme?: string
+  /**
+   * At least one, and the reason this field is not optional.
+   *
+   * A capability listed with a schema and no example is a capability somebody
+   * has to guess their way into. One line they can paste is worth more than
+   * three paragraphs, and it is the form a model can act on directly.
+   */
+  examples: Example[]
+}
+
 export interface PluginSpec {
   name: string
   /** Major of @speqkit/plugin-api this plugin is written against. */
   apiVersion?: number
   /** Schema for this plugin's block in speq.yaml. */
   configSchema?: InputSchema
+  /** What this plugin is for, and what using it looks like — see `PluginDocs`. */
+  docs?: PluginDocs
   setup(ctx: PluginContext): void | Promise<void>
 }
 

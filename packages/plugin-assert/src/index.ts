@@ -40,6 +40,8 @@ interface Subject {
 
 /** One entry of the vocabulary. */
 interface Check {
+  /** One sentence, carried through to `speq capabilities` and `speq docs`. */
+  summary: string
   /** Completes "expected <subject> …" in a failure message. */
   phrase(input: Record<string, unknown>): string
   holds(subject: Subject, input: Record<string, unknown>): boolean
@@ -53,6 +55,91 @@ interface Check {
 
 export default definePlugin({
   name: '@speqkit/plugin-assert',
+  docs: {
+    summary: 'the checking vocabulary — one set of words that reads a response, a database row or a file alike',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-assert#readme',
+    examples: [
+      {
+        title: 'reading into a step result with `path`',
+        summary:
+          '`path` reads the whole result, not the payload — so an HTTP body is `body.…`. ' +
+          'That extra word is what lets the same words check a SQL row.',
+        for: ['equals', 'at_least', 'contains', 'matches', 'is_type'],
+        code: [
+          'assert:',
+          '  - type: equals',
+          '    path: body.status',
+          '    expected: refunded',
+          '  - type: at_least',
+          '    path: body.total',
+          '    expected: 600',
+          '  - type: contains',
+          '    path: body.items',
+          '    expected: { sku: ABC-1 }',
+          '  - type: matches',
+          '    path: body.reference',
+          "    expected: '^REF-[0-9]+$'",
+          '  - type: is_type',
+          '    path: body.createdAt',
+          '    expected: string'
+        ].join('\n')
+      },
+      {
+        title: 'presence, size and membership',
+        for: ['exists', 'missing', 'empty', 'not_empty', 'length', 'one_of', 'not_one_of'],
+        code: [
+          'assert:',
+          '  - type: exists',
+          '    path: body.id',
+          '  - type: missing',
+          '    path: body.deletedAt',
+          '  - type: not_empty',
+          '    path: body.items',
+          '  - type: length',
+          '    path: body.items',
+          '    at_least: 1',
+          '    at_most: 20',
+          '  - type: one_of',
+          '    path: body.status',
+          '    expected: [pending, refunded]'
+        ].join('\n')
+      },
+      {
+        title: 'a shape checked against a JSON Schema file',
+        summary: 'Files live under `schemasDir`, `schemas/` unless speq.yaml says otherwise.',
+        for: ['schema'],
+        code: [
+          'assert:',
+          '  - type: schema',
+          '    path: body',
+          '    schemaRef: order.json'
+        ].join('\n')
+      },
+      {
+        title: 'the words that are not `equals`',
+        summary: 'Order, text and negation, each reading the same selector.',
+        for: [
+          'not_equals', 'greater_than', 'less_than', 'at_most',
+          'not_contains', 'starts_with', 'ends_with'
+        ],
+        code: [
+          'assert:',
+          '  - type: greater_than',
+          '    path: body.balance',
+          '    expected: 0',
+          '  - type: at_most',
+          '    path: body.attempts',
+          '    expected: 3',
+          '  - type: starts_with',
+          '    path: headers.content-type',
+          '    expected: application/json',
+          '  - type: not_contains',
+          '    path: text',
+          '    expected: stacktrace'
+        ].join('\n')
+      }
+    ]
+  },
   configSchema: {
     type: 'object',
     properties: { schemasDir: { type: 'string' } },
@@ -131,10 +218,12 @@ const VOCABULARY: Record<string, Check> = {
   /* Equality — structural, so two objects that say the same thing are equal
      however their keys happen to be ordered. */
   equals: {
+    summary: 'the value at `path` equals `expected`, compared structurally',
     phrase: (i) => `to equal ${show(i.expected)}`,
     holds: (s, i) => deepEqual(s.value, i.expected)
   },
   not_equals: {
+    summary: 'the value at `path` is anything but `expected`',
     phrase: (i) => `not to equal ${show(i.expected)}`,
     holds: (s, i) => !deepEqual(s.value, i.expected)
   },
@@ -143,18 +232,22 @@ const VOCABULARY: Record<string, Check> = {
      language does, which is what makes ISO dates and version-less strings
      work without a second vocabulary for them. */
   greater_than: {
+    summary: 'the value at `path` is greater than `expected`',
     phrase: (i) => `to be greater than ${show(i.expected)}`,
     holds: (s, i) => ordered(s.value, i.expected, (a, b) => a > b)
   },
   at_least: {
+    summary: 'the value at `path` is `expected` or more',
     phrase: (i) => `to be at least ${show(i.expected)}`,
     holds: (s, i) => ordered(s.value, i.expected, (a, b) => a >= b)
   },
   less_than: {
+    summary: 'the value at `path` is less than `expected`',
     phrase: (i) => `to be less than ${show(i.expected)}`,
     holds: (s, i) => ordered(s.value, i.expected, (a, b) => a < b)
   },
   at_most: {
+    summary: 'the value at `path` is `expected` or less',
     phrase: (i) => `to be at most ${show(i.expected)}`,
     holds: (s, i) => ordered(s.value, i.expected, (a, b) => a <= b)
   },
@@ -163,19 +256,23 @@ const VOCABULARY: Record<string, Check> = {
      direction is obvious at the call site; written down in YAML it is not, so
      it is two words here. */
   contains: {
+    summary: 'the value at `path` contains `expected` — a substring, an element, or a subset of keys',
     phrase: (i) => `to contain ${show(i.expected)}`,
     holds: (s, i) => within(i.expected, s.value)
   },
   not_contains: {
+    summary: 'the value at `path` does not contain `expected`',
     phrase: (i) => `not to contain ${show(i.expected)}`,
     holds: (s, i) => !within(i.expected, s.value)
   },
   one_of: {
+    summary: 'the value at `path` is one of the listed `expected`',
     phrase: (i) => `to be one of ${show(i.expected)}`,
     holds: (s, i) => Array.isArray(i.expected) && i.expected.some((c) => deepEqual(s.value, c)),
     takes: { expected: { type: 'array' } }
   },
   not_one_of: {
+    summary: 'the value at `path` is none of the listed `expected`',
     phrase: (i) => `not to be one of ${show(i.expected)}`,
     holds: (s, i) => Array.isArray(i.expected) && !i.expected.some((c) => deepEqual(s.value, c)),
     takes: { expected: { type: 'array' } }
@@ -183,16 +280,19 @@ const VOCABULARY: Record<string, Check> = {
 
   /* Text. */
   matches: {
+    summary: 'the string at `path` matches the regular expression in `expected`',
     phrase: (i) => `to match /${String(i.expected)}/${String(i.flags ?? '')}`,
     holds: (s, i) => typeof s.value === 'string' && new RegExp(String(i.expected), String(i.flags ?? '')).test(s.value),
     takes: { expected: { type: 'string' }, flags: { type: 'string' } }
   },
   starts_with: {
+    summary: 'the string at `path` begins with `expected`',
     phrase: (i) => `to start with ${show(i.expected)}`,
     holds: (s, i) => typeof s.value === 'string' && s.value.startsWith(String(i.expected)),
     takes: { expected: { type: 'string' } }
   },
   ends_with: {
+    summary: 'the string at `path` ends with `expected`',
     phrase: (i) => `to end with ${show(i.expected)}`,
     holds: (s, i) => typeof s.value === 'string' && s.value.endsWith(String(i.expected)),
     takes: { expected: { type: 'string' } }
@@ -201,24 +301,28 @@ const VOCABULARY: Record<string, Check> = {
   /* Presence. These are the checks that must be allowed to look at a path
      that resolved to nothing — that is the whole question they ask. */
   exists: {
+    summary: 'something is at `path`, and it is not null',
     phrase: () => 'to exist',
     holds: (s) => s.value !== undefined && s.value !== null,
     needs: [],
     tolerantOfMissing: true
   },
   missing: {
+    summary: 'nothing is at `path`',
     phrase: () => 'not to be there',
     holds: (s) => s.value === undefined || s.value === null,
     needs: [],
     tolerantOfMissing: true
   },
   empty: {
+    summary: 'the string, list or object at `path` holds nothing',
     phrase: () => 'to be empty',
     holds: (s) => sizeOf(s.value) === 0,
     needs: [],
     tolerantOfMissing: true
   },
   not_empty: {
+    summary: 'the string, list or object at `path` holds something',
     phrase: () => 'not to be empty',
     holds: (s) => (sizeOf(s.value) ?? 0) > 0,
     needs: [],
@@ -234,6 +338,7 @@ const VOCABULARY: Record<string, Check> = {
    * second selector nobody would find.
    */
   length: {
+    summary: 'how many things are at `path`: exactly `expected`, or within `at_least` and `at_most`',
     phrase: (i) =>
       i.expected !== undefined
         ? `to have length ${String(i.expected)}`
@@ -255,6 +360,7 @@ const VOCABULARY: Record<string, Check> = {
 
   /* Shape, for the cases a schema file would be too much ceremony for. */
   is_type: {
+    summary: 'the value at `path` is a string, number, boolean, array, object or null',
     phrase: (i) => `to be a ${String(i.expected)}`,
     holds: (s, i) => typeName(s.value) === String(i.expected) ||
       (String(i.expected) === 'number' && typeName(s.value) === 'integer'),
@@ -270,6 +376,7 @@ const VOCABULARY: Record<string, Check> = {
 function define(ctx: PluginContext, name: string, check: Check): void {
   const needs = check.needs ?? ['expected']
   ctx.defineAssertion(name, {
+    summary: check.summary,
     schema: {
       type: 'object',
       properties: { ...SELECTOR, expected: {}, ...(check.takes ?? {}) },
@@ -361,6 +468,7 @@ function defineSchemaCheck(ctx: PluginContext): void {
   }
 
   ctx.defineAssertion('schema', {
+    summary: 'the value at `path` validates against a JSON Schema file, named by `schemaRef`',
     schema: {
       type: 'object',
       properties: { ...SELECTOR, ref: { type: 'string' } },
@@ -416,6 +524,7 @@ function explain(validate: ValidateFunction): string {
 function defineBridges(ctx: PluginContext): void {
   const deprecated = (name: string, instead: string, of: (last: unknown, input: Record<string, unknown>) => unknown) => {
     ctx.defineAssertion(name, {
+      summary: `deprecated — write ${instead}`,
       schema: {
         type: 'object',
         properties: { path: { type: 'string' }, expected: {} },

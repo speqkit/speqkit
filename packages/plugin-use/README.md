@@ -114,6 +114,51 @@ fixture:
     description: "${gen:string}"
 ```
 
+## `speq modules`
+
+What this project has already built, and how to call it.
+
+```
+modules/  3 action(s)
+  menu.createCategory                  accessToken, name
+    - type: use
+      action: menu.createCategory
+      properties:
+        accessToken: ...
+        name: ...
+
+shared/  1 block(s)
+  register-tenant                      → tenant, → restaurants
+    - type: use
+      ref: register-tenant
+
+fixtures/  1 fixture(s)
+  menu-item                            name, price
+```
+
+`speq docs` answers what the *plugins* offer, and that answer is the same in
+every project that installed them. This answers the half that differs in every
+project and is written down nowhere: a module action is a file somebody wrote
+last quarter, and learning it took a `grep` or a colleague. **A newcomer and a
+model answer that question the same way** — by reaching for `http` and building
+a login that already exists twice over.
+
+An action lists the properties it declares, so its interface is the line beside
+its name. A block lists what it publishes — its `returns`, or its steps by id —
+because that is what a caller is actually addressing. A fixture lists the keys
+it builds, which are the ones `overrides` may name.
+
+`--json` gives the same as a document, which is the form a generator wants: the
+call, the file, what it takes, and a `use` step ready to paste.
+
+A file that does not parse is skipped rather than fatal. Which file is broken
+and why is `speq validate`'s answer; a catalogue that refuses to print because
+one file is bad helps nobody.
+
+The command needs `@speqkit/plugin-cli` (or another surface publishing the
+`cli` service) to be loaded. Without one the plugin works exactly as before and
+the command simply is not there — which is what `ctx.inject` is for.
+
 ## Where files are looked up
 
 Paths are relative to the **project root**, or bare inside the directory for

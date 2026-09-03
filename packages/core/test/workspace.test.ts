@@ -126,3 +126,35 @@ describe('a release says what changed', () => {
     ).toBe(true)
   })
 })
+
+describe('every plugin this repository publishes says what it is for', () => {
+  /**
+   * The obligation, made real where it can be.
+   *
+   * `PluginSpec.docs` is optional on the type on purpose — a fixture plugin
+   * declared inside a test has no documentation and should not have to say so.
+   * That leaves the obligation to the two places a published plugin actually
+   * passes through: `check-plugin-package.mjs`, which a stranger's plugin runs
+   * on its way to a registry, and this, which is ours.
+   */
+  it('declares docs with a summary, a readme and examples that name what they show', async () => {
+    const plugins = workspacePackages().filter((p) => p.dir.startsWith('plugin-') && p.dir !== 'plugin-api')
+    const missing: string[] = []
+
+    for (const { dir, name } of plugins) {
+      const module = (await import(join(repo, 'packages', dir, 'src/index.ts'))) as {
+        default?: { docs?: { summary?: string; readme?: string; examples?: { code?: string; for?: string[] }[] } }
+      }
+      const docs = module.default?.docs
+      if (!docs?.summary) missing.push(`${name}: no docs.summary`)
+      else if (!docs.readme) missing.push(`${name}: no docs.readme`)
+      else if (!docs.examples?.length) missing.push(`${name}: no docs.examples`)
+      else if (!docs.examples.every((example) => example.code?.trim())) missing.push(`${name}: an empty example`)
+      else if (!docs.examples.some((example) => example.for?.length)) {
+        missing.push(`${name}: no example says what it demonstrates`)
+      }
+    }
+
+    expect(missing, 'add a docs block to definePlugin — see `speq docs --check`').toEqual([])
+  })
+})

@@ -10,9 +10,9 @@ import { dirname, join, resolve } from 'node:path'
  * package versions, so the list cannot quietly go stale.
  */
 export const VERSIONS = {
-  'speqkit': '^0.3.0',
-  '@speqkit/plugin-api': '^0.10.0',
-  '@speqkit/test-kit': '^0.2.0',
+  'speqkit': '^0.4.0',
+  '@speqkit/plugin-api': '^0.11.0',
+  '@speqkit/test-kit': '^0.3.0',
   'typescript': '^5.7.2',
   'vitest': '^2.1.8',
   '@types/node': '^22.10.2'
@@ -71,7 +71,7 @@ export function scaffold(options: ScaffoldOptions): ScaffoldResult {
     'tsconfig.json': tsconfig(),
     'vitest.config.ts': vitestConfig(),
     '.gitignore': 'node_modules/\ndist/\n*.tsbuildinfo\n',
-    'src/index.ts': source(options.name, packageName),
+    'src/index.ts': source(options.name, packageName, description),
     'test/plugin.test.ts': tests(options.name),
     'README.md': readme(options.name, packageName, description),
     // Delivery, scaffolded with everything else. A plugin whose release is a
@@ -169,7 +169,7 @@ export default defineConfig({
 `
 }
 
-function source(name: string, packageName: string): string {
+function source(name: string, packageName: string, description: string): string {
   const type = `${name}.ping`
   return `import { definePlugin } from '@speqkit/plugin-api'
 
@@ -183,6 +183,47 @@ function source(name: string, packageName: string): string {
 export default definePlugin({
   name: '${packageName}',
 
+  /**
+   * What this plugin is for, and what one line of it looks like.
+   *
+   * Two readers cannot read this file: somebody who has just run
+   * \`speq add ${packageName}\`, and a model being asked to write a suite with
+   * it. Both of them can run \`speq docs ${name}\`, which answers out of what is
+   * declared here — so keep the examples true and they cannot go stale
+   * quietly. \`speq docs --check\` fails on an example naming a capability that
+   * no longer exists, which is exactly what a rename leaves behind.
+   */
+  docs: {
+    summary: '${description}',
+    readme: './README.md',
+    examples: [
+      {
+        title: 'a greeting, checked',
+        for: ['${type}', 'pong'],
+        code: [
+          '- id: greeting',
+          '  type: ${type}',
+          '  to: world',
+          '  assert:',
+          '    - type: pong',
+          '      contains: hello'
+        ].join('\\n')
+      },
+      {
+        title: 'reading the result in a later step',
+        summary: 'Anything a step returns is addressable as \`\${id.field}\`.',
+        for: ['${type}'],
+        code: [
+          '- id: first',
+          '  type: ${type}',
+          '  to: world',
+          '- type: ${type}',
+          '  to: \${first.message}'
+        ].join('\\n')
+      }
+    ]
+  },
+
   /** This plugin's block in speq.yaml, under the key \`${name}\`. */
   configSchema: {
     type: 'object',
@@ -194,6 +235,10 @@ export default definePlugin({
 
   setup(ctx) {
     ctx.defineStepType('${type}', {
+      // One sentence, carried to \`speq capabilities\` and \`speq docs\`. The
+      // schema has always said the shape; this says what the shape is for.
+      summary: 'says hello to whoever \`to\` names',
+
       // Declared so the kernel can reject a bad test before a single call
       // goes out, and name the file and the path when it does.
       schema: {
@@ -232,6 +277,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('pong', {
+      summary: "the message the step built contains this text",
       schema: {
         type: 'object',
         properties: { contains: { type: 'string' } },
@@ -269,8 +315,28 @@ import plugin from '../src/index.js'
  * test here means the plugin works in a project.
  */
 
-let kit: Harness
-afterEach(async () => { await kit.close() })
+let kit: Harness | undefined
+// Optional because not every test here needs a kernel — the first one does
+// not — and a test that fails before building one should report its own
+// failure rather than a TypeError from the teardown.
+afterEach(async () => { await kit?.close() })
+
+describe('the plugin says what it is for', () => {
+  /**
+   * The obligation, shipped with the template rather than left to a reviewer.
+   *
+   * \`speq docs\` answers out of what this plugin declares, so a rename that
+   * misses the examples turns a document somebody trusts into a wrong one.
+   * Here that is a red test, in the repository that can fix it.
+   */
+  it('says what it is for, and shows what using it looks like', () => {
+    expect(plugin.docs?.summary).toBeTruthy()
+    expect(plugin.docs?.examples.length).toBeGreaterThan(0)
+    for (const example of plugin.docs?.examples ?? []) {
+      expect(example.code.trim()).not.toBe('')
+    }
+  })
+})
 
 describe('${type}', () => {
   it('returns the message it built', async () => {
@@ -393,6 +459,18 @@ assert:
   - type: pong
     contains: \${greeting.message}
 \`\`\`
+
+Once it is installed, the session can answer for itself — no README needed:
+
+\`\`\`bash
+speq docs ${name}       # what it is for, its capabilities, examples to paste
+speq docs --json        # the same, for a model writing the suite
+speq docs --check       # every plugin here says what it is for
+\`\`\`
+
+That answer comes out of the \`docs\` block in \`src/index.ts\`. Keeping it true
+is the whole job: \`speq docs --check\` fails on an example naming a step type
+that no longer exists, which is what a rename leaves behind.
 
 ## Develop
 

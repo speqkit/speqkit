@@ -1,7 +1,7 @@
 {
-  "name": "@speqkit/test-kit",
-  "version": "0.3.0",
-  "description": "Test a speq plugin against the real kernel, without a project.",
+  "name": "@speqkit/plugin-gate",
+  "version": "0.1.0",
+  "description": "Which tests answer for the work in hand, and whose fault it is when they are red.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
   "homepage": "https://github.com/speqkit/speqkit#readme",
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/speqkit/speqkit.git",
-    "directory": "packages/test-kit"
+    "directory": "packages/plugin-gate"
   },
   "type": "module",
   "exports": {
@@ -19,16 +19,13 @@
     }
   },
   "keywords": [
-    "speqkit",
-    "testing"
+    "speqkit-plugin"
   ],
   "peerDependencies": {
-    "@speqkit/plugin-api": "workspace:^",
-    "speqkit": "workspace:^"
+    "@speqkit/plugin-api": "workspace:^"
   },
   "devDependencies": {
-    "@speqkit/plugin-api": "workspace:*",
-    "speqkit": "workspace:*"
+    "@speqkit/plugin-api": "workspace:*"
   },
   "files": [
     "dist",

@@ -7,7 +7,7 @@ import type { ResourceFrame } from './resources.js'
 import {
   resolveDeep, resolveDeepAsync, resolveString, type ResolveScope, type ValueProviderFn
 } from './interpolate.js'
-import { comparison } from './events.js'
+import { comparison, recorded } from './events.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -223,13 +223,18 @@ export class Executor {
     const previousParent = this.#parentId
     this.#parentId = step.id ?? previousParent
 
+    // Held per step rather than on the executor: a step that nests others
+    // is still running while its children record theirs, and one field would
+    // hand the parent whatever its last child wrote.
+    const detail: { value: unknown } = { value: undefined }
+
     let record: StepRecord
     try {
       // Under the same timeout as the step itself: a value provider that
       // answers over the network can hang, and a hang before the step is
       // still the step taking too long.
       const input = await withTimeout(this.#prepareInput(step), controller.signal)
-      const ctx = this.#execContext(controller.signal, entry.owner, step.type)
+      const ctx = this.#execContext(controller.signal, entry.owner, step.type, detail)
       const result = await withTimeout(entry.def.execute(ctx, input), controller.signal)
       const bound = (result ?? {}) as StepResult
 
@@ -246,6 +251,7 @@ export class Executor {
         result: bound,
         ...(failure ? { message: failure.message } : {}),
         ...(assertions.length ? { assertions } : {}),
+        ...recorded(failure ? 'failed' : 'passed', detail.value),
         ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
       }
@@ -254,7 +260,8 @@ export class Executor {
         ...base,
         status: record.status,
         durationMs: record.durationMs,
-        ...(failure ? { message: failure.message } : {})
+        ...(failure ? { message: failure.message } : {}),
+        ...recorded(record.status, detail.value)
       })
     } catch (err) {
       // A crash inside a plugin is `error`, not `failed`: the test did not
@@ -266,11 +273,17 @@ export class Executor {
         status: 'error',
         result: {},
         message,
+        // Whatever the step managed to record before it threw. This is the
+        // case the buffered design exists for: a request that never came back
+        // has no result to describe it, and the step said what it was doing
+        // before it went quiet.
+        ...recorded('error', detail.value),
         ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
       }
       this.#registry.events.emit({
-        type: 'step.finished', ...base, status: 'error', durationMs: record.durationMs, message
+        type: 'step.finished', ...base, status: 'error', durationMs: record.durationMs, message,
+        ...recorded('error', detail.value)
       })
     } finally {
       clearTimeout(timer)
@@ -381,7 +394,12 @@ export class Executor {
     return input
   }
 
-  #execContext(signal: AbortSignal, owner: string, stepType: string): ExecContext {
+  #execContext(
+    signal: AbortSignal,
+    owner: string,
+    stepType: string,
+    detail: { value: unknown }
+  ): ExecContext {
     const self = this
     // The depth this step is executing at. A nested `runSteps` returns here
     // before the next one may start, and that is the whole of the check.
@@ -398,6 +416,7 @@ export class Executor {
       config: <T>() => self.#registry.configFor(owner) as T,
       attach: (name, body, contentType = 'application/octet-stream') =>
         self.#attach(name, body, contentType),
+      record: (value) => { detail.value = value },
       signal,
       get vars() {
         return Object.freeze({ ...self.#frames[0] })

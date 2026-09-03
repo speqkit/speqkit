@@ -132,6 +132,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/plugin-gate:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+
   packages/plugin-http:
     devDependencies:
       '@speqkit/plugin-api':

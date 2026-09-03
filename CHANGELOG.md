@@ -14,14 +14,33 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
-## [Unreleased]
+## [0.4.0] — 2026-09-03
 
-The contract moves again, additively: `Host` gains `capabilities()` and
-`Diagnostic` gains a required `code`. Nothing published is broken by either —
-both are new fields on things the kernel produces — but a caret range on `0.x`
-pins the minor, so the release that carries this moves
-`@speqkit/plugin-api` and every in-box plugin's peer range with it, in one
-commit. A plugin left behind makes an install pull two copies of the contract.
+The release where a run answers a caller that is not a person. `--json` on the
+three commands that had none, a code on every diagnostic, the exchange behind a
+failed step, the vocabulary as a document that can be asked for rather than
+copied, and a plugin that says what it is *for*. They are five shapes of one
+question, and the answer to it is what an agent needs in order to write a fix
+rather than describe a screenshot of one.
+
+The contract moves again, additively: `Host` gains `capabilities()`,
+`Diagnostic` gains a required `code`, a step can put what it was doing into the
+event stream, a test carries its tags and its suite there, and a plugin can say
+what it is for. Nothing published is broken by any of them — every one is a new
+member on something the kernel already produces — but a caret range on `0.x`
+pins the minor, so this release moves `@speqkit/plugin-api` and every in-box
+plugin's peer range with it, in one commit. A plugin left behind makes an
+install pull two copies of the contract.
+
+**This is not 1.0, and `PLUGIN_API_VERSION` stays `1`.** The two numbers do
+different jobs and neither one is a freeze. The freeze is the sentence in
+`@speqkit/plugin-api`'s README, and it is not written here: `RunEvent` moved
+three times in this release alone — `detail`, `tags`, `suite` — and the last of
+those exists because two reporters were reading adjacency that G4 had taken
+away. A spine that moved three times in one milestone has no business promising
+twelve months of anything. `PLUGIN_API_VERSION` is the loadability handshake and
+is checked for equality, so moving it would refuse every published plugin at
+once and buy nothing, since every change here is an addition.
 
 `@speqkit/plugin-cli` **0.4.0** went out on its own before this, carrying
 `--shard`: a plugin's version moves independently, and `speq` loads plugins at
@@ -30,6 +49,104 @@ picked it up without being rebuilt.
 
 ### Added
 
+- **`speq docs [<name>] [--json] [--check]`** — what a plugin is *for*, and
+  what one line of it looks like. `speq plugins` says who is loaded and
+  `speq capabilities` says what may be written with the schemas; neither
+  answered the question somebody has a minute after `speq add`. That answer
+  lived in a README on a website — a document a session cannot ask, cannot
+  check, and which is wrong the moment somebody renames a step type. It is a
+  bootstrap command beside `plugins` and `doctor`, because it is asked *about*
+  the installation.
+  - **`PluginDocs` on `definePlugin`** — a summary, a readme link, and examples
+    that each name with `for` the capabilities they demonstrate. Plus `summary`
+    on every contribution def, so `speq capabilities` now carries a sentence
+    beside each schema rather than a shape with no meaning attached. Every
+    plugin in the box declares one.
+  - **`speq docs --check` is what keeps it true.** An example naming a step
+    type that no longer exists is an error, because that is exactly what a
+    rename leaves behind. A capability no example demonstrates is reported and
+    changes no exit code — some genuinely need none, and failing on it would
+    buy an example per entry rather than an example worth reading.
+  - **Optional on the type, required by the gates.** A fixture plugin declared
+    inside a test has no documentation and should not have to say so, so the
+    obligation lands where a package meets a registry:
+    `check-plugin-package.mjs` fails a plugin that declares none, and
+    `create-speqkit-plugin` scaffolds the block, the README section and the
+    test that checks it.
+- **`speq modules [--json]`, from `@speqkit/plugin-use`** — the blocks, actions
+  and fixtures *this project* has, with what each has to be called with and a
+  `use` step ready to paste. `speq docs` answers what the plugins offer, which
+  is the same in every project that installed them; this answers the half that
+  differs per project and is written down nowhere. A module action is a file
+  somebody wrote last quarter, and a newcomer and a generator answer that the
+  same way — by reaching for `http` and rebuilding a login that already
+  existed. In the plugin rather than the kernel: `use` owns the three forms, so
+  `use` owns the catalogue.
+- **A test names its own suite** — `suite` on `test.started`. It used to be
+  said only by the bracketing, and the bracketing is adjacency, which G4 takes
+  away the moment two suites run at once.
+  - **This was a live defect in `@speqkit/plugin-json`.** It took a test's
+    suite from the last `suite.started` and a test's messages from a single
+    `#current` slot, so at `--workers 2` tests were filed under the wrong suite
+    and a failure's message landed on somebody else's row. It is exactly the
+    fault M5 fixed in `plugin-junit`; it survived here because a reporter is
+    only ever wrong on the inside — the run's exit code is the runner's, and it
+    stayed right. `summary.json` keeps its `suite` field, whose shape is
+    somebody else's contract; the stream learned to answer for it instead.
+- **`@speqkit/plugin-gate` 0.1.0** — which tests answer for the work in hand,
+  and whose fault it is when they are red. `speq gate plan` prints the
+  selection *and why it is that one*; `speq gate` runs it and exits on the
+  verdict; `speq gate diff` names what this branch did to the acceptance tests.
+  The key comes from `--key`, then `gate.key`, then the branch it is checked
+  out on. It defines no step type and no assertion: what a test does belongs to
+  the transport plugins, and this is the layer above a run.
+  - **It reads no specification, in any format.** A requirement and a test are
+    joined by a tag somebody wrote and by nothing else. What to cover is a
+    team's decision, and a plugin that read a tracker would be wrong about it
+    monthly.
+  - **`reports/<runId>/gate.json` routes every red test to `code`, `test` or
+    `environment`.** Half of that is not a guess: `failed` and `error` have
+    meant "the answer was wrong" and "the question was never asked" since the
+    kernel's first commit, and nothing had ever told a caller that this is the
+    line between fixing the code and fixing the test. The other half is one
+    heuristic, and it does not read the message — two tests that broke
+    identically did not both break for their own reasons, because a cause more
+    than one test shares is inside none of them. What that gets wrong is in the
+    plugin's README rather than in its source.
+  - **Written entirely against the published contract**, through a reporter,
+    the `cli` service and `ctx.host` — no kernel change, and it found one hole
+    in the contract while being written, below.
+- **A test's tags reach the stream** — `tags` on `test.started` and on
+  `TestOutcome`. A reporter could group by suite, by file and by `meta`, and
+  not by the label the run was actually selected with, so anything reporting
+  per ticket, per component or per swimlane had to re-discover the project to
+  learn what it had just watched run. The set is the effective one, suites and
+  cases included, exactly as `--tags` sees it.
+- **A failed step says what it was doing** — `ExecContext.record(detail)`, and
+  `detail` on `step.finished` and on `StepRecord`. The stream carried a status,
+  a duration and a sentence, and never the exchange, so no reporter could print
+  a request and a response whatever flag it was given, and the only way to see
+  one was to run the test again with a proxy in front of it. A person without
+  that is inconvenienced; an agent without it has nothing to write the fix
+  from. `@speqkit/plugin-http` records the request beside the response,
+  `speq run --json` carries it on the failure, and `speq run --verbose` prints
+  it.
+  - **The step decides what is worth recording; the kernel decides whether it
+    is worth keeping.** The other way to close this was the whole result on
+    every `step.finished`, which makes `events.jsonl` as large as every
+    response body in the run, nearly all of them from steps that passed. A
+    recorded value is dropped when the step passes, so a green run writes the
+    log it always wrote.
+  - **Recorded before the work, not after it.** A callback handed the step's
+    result could not answer the case that matters most: a request that never
+    comes back has no result to describe it. `plugin-http` writes the request
+    down before it opens the socket, so a refused connection still says what
+    was attempted.
+  - **Secrets do not travel.** `authorization`, `cookie`, `x-api-key` and their
+    neighbours keep their names and lose their values, because a run log is a
+    CI artifact read by people who had no part in the run — and a request that
+    failed for want of a token has to stay distinguishable from one that never
+    carried it. A body over 8 KB is cut, with the remainder counted out loud.
 - **`speq capabilities [--json]` and `host.capabilities()`** — every step type,
   assertion, value provider, reporter and loader the loaded plugins define,
   with the `InputSchema` each declared. All of it has been in the registry
@@ -94,6 +211,36 @@ picked it up without being rebuilt.
     stable path on purpose, so shards sharing one working directory overwrite
     one file. The flag is for n machines; on one, give each a different
     `junit.output`.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.4.0 |
+| `@speqkit/plugin-api` | 0.11.0 |
+| `@speqkit/plugin-cli` | 0.5.0 |
+| `@speqkit/plugin-yaml` | 0.4.0 |
+| `@speqkit/plugin-http` | 0.4.0 |
+| `@speqkit/plugin-loop` | 0.4.0 |
+| `@speqkit/plugin-junit` | 0.4.0 |
+| `@speqkit/plugin-playwright` | 0.4.0 |
+| `@speqkit/plugin-use` | 0.3.0 |
+| `@speqkit/plugin-data` | 0.3.0 |
+| `@speqkit/plugin-assert` | 0.3.0 |
+| `@speqkit/plugin-json` | 0.3.0 |
+| `@speqkit/plugin-gate` | 0.1.0 |
+| `@speqkit/test-kit` | 0.3.0 |
+| `create-speqkit-plugin` | 0.3.0 |
+
+Every plugin moves, including the four whose own behaviour did not change. A
+caret range on `0.x` pins the minor, so a plugin that stayed behind would keep
+asking npm for `^0.10.0` and a fresh `speq install` would fetch a second copy
+of the contract to satisfy it — correct, loadable, and pointless on disk.
+`scripts/release-plan.mjs` reports that state rather than trusting anyone to
+remember it.
+
+`@speqkit/installer` stays at 0.2.0: nothing in it changed, and it is the one
+package here with no peer range on the contract to keep current.
 
 ## [0.3.0] — 2026-09-02
 
@@ -364,7 +511,8 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/speqkit/speqkit/releases/tag/v0.4.0
 [0.3.0]: https://github.com/speqkit/speqkit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/speqkit/speqkit/releases/tag/v0.2.0
 [0.1.0]: https://www.npmjs.com/package/speqkit/v/0.1.0

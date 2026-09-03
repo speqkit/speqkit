@@ -68,6 +68,26 @@ The step returns `{ status, ok, headers, body, text, url, attempts, durationMs }
 all of it addressable from later steps as `${id.field}` once the step has an
 `id`.
 
+## What a failed request leaves behind
+
+A step that did not pass records the exchange — the request beside the response
+— and the kernel puts it on `step.finished`, into `events.jsonl` and into
+`speq run --json`. `speq run --verbose` prints it. A step that passed records
+nothing, so a green run's log is the size it always was.
+
+The request is worth having because it is in nothing else: the result carries
+the response, and no step returns what it sent. It is written down *before* the
+socket is opened, which is what makes a connection that never answers legible
+— there is no response to describe, and what the step was attempting is the
+whole of what can be said.
+
+Two things are done to it on the way out. `authorization`, `cookie`,
+`x-api-key` and their neighbours keep their names and lose their values: a run
+log is a CI artifact, read by people and programs that had no part in the run,
+and the name is what tells a missing token from a rejected one. And a body over
+8 KB is cut, with the number of characters dropped said out loud, so nobody
+debugs against a payload they think is complete.
+
 ## Sending a file
 
 ```yaml

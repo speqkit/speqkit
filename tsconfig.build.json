@@ -32,6 +32,9 @@
       "path": "packages/plugin-json/tsconfig.build.json"
     },
     {
+      "path": "packages/plugin-gate/tsconfig.build.json"
+    },
+    {
       "path": "packages/plugin-junit/tsconfig.build.json"
     },
     {

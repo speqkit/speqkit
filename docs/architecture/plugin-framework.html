@@ -631,7 +631,8 @@ speq tui                     <span class="c"># if plugin-tui is installed</span>
         <h3>One more plugin turns out to be needed</h3>
 <pre><code>speq add @speqkit/plugin-playwright
 speq add github:acme/speqkit-plugin-legacy   <span class="c"># from git</span>
-speq plugins                              <span class="c"># what is loaded and what it contributes</span></code></pre>
+speq plugins                              <span class="c"># what is loaded and what it contributes</span>
+speq docs                                 <span class="c"># what each of them is for, with examples</span></code></pre>
         <p class="under"><b>Underneath:</b> <code>add</code> edits <code>speq.yaml</code>, recomputes <code>speq.lock</code> and updates the cache. A company's private scope, a git URL and a local path all work the same way — npm resolution handles all of it.</p>
       </div>
     </li>
@@ -790,6 +791,7 @@ http:
       <tr><td><code>speq link &lt;path&gt;</code></td><td>Wire in a local plugin without publishing — development mode</td></tr>
       <tr><td><code>speq unlink &lt;name&gt;</code></td><td>Take it back out</td></tr>
       <tr><td><code>speq plugins</code></td><td>What is loaded, at which versions, and what each contributes</td></tr>
+      <tr><td><code>speq docs</code></td><td>What each of them is <em>for</em>, with examples to paste. <code>--check</code> refuses a plugin that says nothing, or an example naming something that has moved</td></tr>
       <tr><td><code>speq doctor</code></td><td>The environment, the state of the cache, version compatibility</td></tr>
     </tbody>
   </table>
@@ -804,6 +806,7 @@ http:
       <tr><td><code>speq validate</code></td><td>Checks the tests against the grammar the plugins define, with no network</td></tr>
       <tr><td><code>speq list</code></td><td>Which tests are visible and how they are addressed</td></tr>
       <tr><td><code>speq capabilities</code></td><td>The grammar itself: every step type, assertion and provider, with its schema</td></tr>
+      <tr><td><code>speq modules</code></td><td>From <code>@speqkit/plugin-use</code>: the blocks, actions and fixtures <em>this project</em> has, and what each takes</td></tr>
       <tr><td><code>speq report</code></td><td>Rebuild a report from a saved result</td></tr>
     </tbody>
   </table>

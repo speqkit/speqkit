@@ -17,6 +17,7 @@
     <a class="brand" href="./">speq<span>kit</span></a>
     <a class="link" href="./">Overview</a>
     <a class="link" href="writing-tests.html" aria-current="page">Writing tests</a>
+    <a class="link" href="two-ways.html">Two ways</a>
     <a class="link" href="releasing.html">Releasing</a>
     <a class="link" href="pipeline.html">Pipeline</a>
     <span class="spacer"></span>
@@ -643,7 +644,21 @@ speq run --env ci --reporter console,junit
 speq report --list                         <span class="c"># runs already recorded</span>
 speq report                                <span class="c"># re-render one, without re-running it</span>
 speq capabilities                          <span class="c"># every step type and assertion you may write</span>
+speq docs http                             <span class="c"># what it is for, with examples to paste</span>
+speq modules                               <span class="c"># the blocks and actions this project already has</span>
 speq validate --json                       <span class="c"># the same check, for a program to read</span></code></pre>
+
+  <p>
+    The last two are for the question that comes before writing anything:
+    <em>what can I use here.</em> <code>speq capabilities</code> lists the
+    vocabulary with its schemas; <code>speq docs</code> adds what each word is
+    for and a line you can paste; <code>speq modules</code> answers the half
+    that is different in every project — the shared blocks and module actions
+    this team has already built, with what each has to be called with. That
+    last one is the expensive question: a module action is a file somebody
+    wrote last quarter, and both a newcomer and a model answer it the same way
+    by reaching for <code>http</code> and rebuilding a login that exists.
+  </p>
 
   <p>
     <code>--env ci</code> layers an <code>environments/ci.yaml</code> of

@@ -56,8 +56,21 @@ export interface JsonRun {
 
 export class SummaryBuilder {
   #tests: JsonTest[] = []
-  #suite = '(inline)'
-  #current: JsonTest | undefined
+  /**
+   * The tests still running, by name.
+   *
+   * This used to be a single `#current` slot with a `#suite` string beside it,
+   * both of them read from whatever arrived last. That is adjacency, and G4
+   * says events of different suites interleave — so at `--workers 2` a step's
+   * message landed on whichever test happened to start most recently, and
+   * every test was filed under whichever suite opened most recently. The
+   * summary was wrong and nothing about it looked wrong.
+   *
+   * The same fault was fixed in `plugin-junit` a milestone earlier. It
+   * survived here because a reporter is only ever wrong on the inside: the
+   * run's exit code is the runner's, and it stayed right.
+   */
+  #open = new Map<string, JsonTest>()
   #runId: string | undefined
   #startedAt: number | undefined
   #durationMs = 0
@@ -71,44 +84,51 @@ export class SummaryBuilder {
         this.#startedAt = event.at
         break
 
-      // A test does not carry its suite; the bracketing does, and the recorded
-      // log preserves the order, so this holds on replay too.
-      case 'suite.started':
-        this.#suite = event.suite
-        break
-
+      // The test says which suite it is in. The last `suite.started` used to
+      // say it, which is true only while one suite runs at a time. A stream
+      // recorded before the event carried it still replays: the fallback is
+      // the file, which is the leaf suite's name.
       case 'test.started':
-        this.#current = {
+        this.#open.set(event.test, {
           id: event.test,
           ...(event.title ? { title: event.title } : {}),
           status: 'passed',
           durationMs: 0,
           messages: [],
-          suite: this.#suite,
+          suite: event.suite ?? event.source ?? '(inline)',
           ...(event.source ? { file: event.source } : {}),
           ...(event.meta ? { meta: event.meta } : {})
-        }
+        })
         break
 
-      case 'test.skipped':
-        if (this.#current) this.#current.pending = event.reason
+      case 'test.skipped': {
+        const entry = this.#open.get(event.test)
+        if (entry) entry.pending = event.reason
         break
+      }
 
-      case 'step.finished':
-        if (this.#current && event.status !== 'passed' && event.status !== 'skipped') {
+      // A step naming no test belongs to a suite's own setup or cleanup. It is
+      // the reason every test under that suite errored, and each of those says
+      // so itself, so nothing is lost by not filing it against a test.
+      case 'step.finished': {
+        const entry = open(this.#open, event.test)
+        if (entry && event.status !== 'passed' && event.status !== 'skipped') {
           const label = event.stepId ? `${event.stepId} (${event.stepType})` : event.stepType
-          this.#current.messages.push(`${label}: ${event.message ?? event.status}`)
+          entry.messages.push(`${label}: ${event.message ?? event.status}`)
         }
         break
+      }
 
-      case 'assertion.evaluated':
-        if (this.#current && !event.passed) this.#current.messages.push(event.message)
+      case 'assertion.evaluated': {
+        const entry = open(this.#open, event.test)
+        if (entry && !event.passed) entry.messages.push(event.message)
         break
+      }
 
       case 'test.finished': {
-        const entry = this.#current
-        this.#current = undefined
+        const entry = this.#open.get(event.test)
         if (!entry) break
+        this.#open.delete(event.test)
         entry.status = event.status
         entry.durationMs = event.durationMs
         if (entry.messages[0]) entry.message = entry.messages[0]
@@ -126,8 +146,7 @@ export class SummaryBuilder {
   /** One reporter instance may see several runs — a replay, a long-lived host. */
   reset(): void {
     this.#tests = []
-    this.#suite = '(inline)'
-    this.#current = undefined
+    this.#open = new Map()
     this.#runId = undefined
     this.#startedAt = undefined
     this.#durationMs = 0
@@ -153,4 +172,9 @@ export class SummaryBuilder {
       tests: this.#tests
     }
   }
+}
+
+/** A step or assertion belongs to a test only when it names one. */
+function open(tests: Map<string, JsonTest>, test: string | undefined): JsonTest | undefined {
+  return test === undefined ? undefined : tests.get(test)
 }

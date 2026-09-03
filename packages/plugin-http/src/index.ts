@@ -36,6 +36,59 @@ interface HttpConfig {
  */
 export default definePlugin({
   name: '@speqkit/plugin-http',
+  docs: {
+    summary: 'talks to an HTTP service, and records the exchange when it does not go well',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-http#readme',
+    examples: [
+      {
+        title: 'a GET, and two checks on what came back',
+        for: ['http', 'status'],
+        code: [
+          '- id: order',
+          '  type: http',
+          '  method: GET',
+          '  url: ${base}/orders/${orderId}',
+          '  assert:',
+          '    - type: status',
+          '      expected: 200',
+          '    - type: equals',
+          '      path: body.total',
+          '      expected: 600'
+        ].join('\n')
+      },
+      {
+        title: 'a POST with a JSON body, kept for the next step',
+        summary: "A step's `id` is how the steps below it reach its result.",
+        for: ['http'],
+        code: [
+          '- id: created',
+          '  type: http',
+          '  method: POST',
+          '  url: ${base}/refunds',
+          '  headers:',
+          '    authorization: Bearer ${env:API_TOKEN}',
+          '  json:',
+          '    orderId: ${orderId}',
+          '    amount: 600',
+          '  assert:',
+          '    - type: status',
+          '      expected: 201'
+        ].join('\n')
+      },
+      {
+        title: 'a budget on the round trip',
+        for: ['duration_under'],
+        code: [
+          '- type: http',
+          '  method: GET',
+          '  url: ${base}/health',
+          '  assert:',
+          '    - type: duration_under',
+          '      ms: 500'
+        ].join('\n')
+      }
+    ]
+  },
   configSchema: {
     type: 'object',
     properties: {
@@ -49,6 +102,7 @@ export default definePlugin({
     const root = ctx.host.root
 
     ctx.defineStepType('http', {
+      summary: 'sends one request and hands back status, headers, body and how long it took',
       schema: {
         type: 'object',
         properties: {
@@ -126,6 +180,20 @@ export default definePlugin({
           headers['content-type'] ??= 'application/json'
         }
 
+        // Recorded before the request goes out, not after it comes back.
+        // A connection that is refused has no response to describe it, and
+        // this is the step's only chance to say what it was trying to do —
+        // the kernel keeps it if the step ends badly and drops it otherwise.
+        const request = {
+          method,
+          url,
+          headers: redact(headers),
+          ...(payload instanceof FormData
+            ? { multipart: Object.keys(partsOf(input.multipart)) }
+            : payload !== undefined ? { body: clip(payload) } : {})
+        }
+        exec.record({ request })
+
         const policy = retryPolicy(config.retry, input.retry as RetryConfig | undefined)
         const startedAt = Date.now()
         let attempts = 0
@@ -148,6 +216,16 @@ export default definePlugin({
 
         const text = await response.text()
 
+        exec.record({
+          request,
+          response: {
+            status: response.status,
+            headers: redact(Object.fromEntries(response.headers)),
+            body: clip(text),
+            attempts
+          }
+        })
+
         return {
           status: response.status,
           ok: response.ok,
@@ -162,6 +240,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('status', {
+      summary: 'the response code of the request the step just made',
       schema: { type: 'object', properties: { expected: {} }, required: ['expected'] },
       evaluate(assert, input) {
         const actual = assert.last?.status
@@ -176,6 +255,7 @@ export default definePlugin({
     })
 
     ctx.defineAssertion('duration_under', {
+      summary: 'the request came back inside a budget, in milliseconds',
       schema: { type: 'object', properties: { ms: { type: 'number' } }, required: ['ms'] },
       evaluate(assert, input) {
         const actual = Number(assert.last?.durationMs ?? 0)
@@ -221,6 +301,43 @@ const CONTENT_TYPES: Record<string, string> = {
  * four it was. The original is kept as the cause of this one, so nothing is
  * lost for whoever wants the stack.
  */
+/**
+ * Headers written down for a failure are headers written into a CI artifact.
+ *
+ * `events.jsonl` is uploaded, kept and read by people and programs that had no
+ * part in the run, so a recorded `authorization` is a credential handed to all
+ * of them. The names are kept — a request that failed for want of a token
+ * looks identical to one that never carried it — and only the values go.
+ */
+const SECRET_HEADERS = new Set([
+  'authorization', 'proxy-authorization', 'cookie', 'set-cookie',
+  'x-api-key', 'api-key', 'x-auth-token'
+])
+
+function redact(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [name, value] of Object.entries(headers)) {
+    out[name] = SECRET_HEADERS.has(name.toLowerCase()) ? '(redacted)' : value
+  }
+  return out
+}
+
+/**
+ * A body is unbounded and a run log is not.
+ *
+ * Enough of a payload to see what went wrong, and not a 40 MB export in the
+ * event stream of every failed step. What was cut is said out loud, so nobody
+ * debugs against a body they think is complete.
+ */
+const RECORDED_BODY_LIMIT = 8192
+
+function clip(body: string | FormData): string {
+  if (typeof body !== 'string') return '(form data)'
+  return body.length <= RECORDED_BODY_LIMIT
+    ? body
+    : `${body.slice(0, RECORDED_BODY_LIMIT)}… (${body.length - RECORDED_BODY_LIMIT} more characters)`
+}
+
 function requestFailed(err: unknown, method: string, url: string, attempts: number): Error {
   const tried = attempts > 1 ? ` after ${attempts} attempts` : ''
   return new Error(`${method} ${url} failed${tried}: ${reasonOf(err)}`, { cause: err })

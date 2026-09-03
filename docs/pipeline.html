@@ -400,6 +400,7 @@ footer{
     <a class="brand" href="./">speq<span>kit</span></a>
     <a class="link" href="./">Overview</a>
     <a class="link" href="./writing-tests.html">Writing tests</a>
+    <a class="link" href="./two-ways.html">Two ways</a>
     <a class="link" href="./releasing.html">Releasing</a>
     <a class="link" href="./pipeline.html" aria-current="page">Pipeline</a>
     <span class="spacer"></span>
@@ -415,8 +416,8 @@ footer{
   <h1>The speqkit pipeline</h1>
   <p class="lede">What happens between typing <code>speq run</code> and a green dot appearing in the terminal. Every stage, with its place in the code, its input, its output, and a note on who does it: the kernel or a plugin. At the end: how to fit a plugin of your own into that path.</p>
   <div class="meta">
-    <span><b>Kernel</b> &nbsp;speqkit 0.3.0</span>
-    <span><b>Contract</b> &nbsp;@speqkit/plugin-api 0.10.0 · v1</span>
+    <span><b>Kernel</b> &nbsp;speqkit 0.4.0</span>
+    <span><b>Contract</b> &nbsp;@speqkit/plugin-api 0.11.0 · v1</span>
     <span><b>Command</b> &nbsp;speq</span>
     <span><b>Node</b> &nbsp;20 · 22 · 24</span>
   </div>
@@ -1061,6 +1062,12 @@ npm install &amp;&amp; npm test</code></pre>
     <p>Everything registered above — every step type, assertion, value provider, reporter and loader, with the schema each declared — comes back from <code>ctx.host.capabilities()</code>, and from <code>speq capabilities --json</code> for anyone who is not a plugin. It had been in the registry since load and had never left it, so an editor offering completion, a palette in a panel and a system prompt describing speq to a model each carried their own copy of the vocabulary — one that goes stale the moment somebody installs a plugin, and goes stale silently, because a suite written against the wrong vocabulary looks exactly like a suite with a typo in it.</p>
   </div>
 
+  <div class="note">
+    <span class="tag">And what any of it is <em>for</em></span>
+    <p>The grammar says what may be written and never what it means. That half lived in a README on a website — a document a session cannot ask, cannot check, and which is wrong the moment somebody renames a step type. So a plugin declares it: <code>docs</code> on <code>definePlugin</code> carries a summary, a link and examples, each naming with <code>for</code> the capabilities it demonstrates, and every contribution def carries a one-line <code>summary</code>. <code>speq docs kafka</code> answers out of that, and <code>speq docs --json</code> hands a model the vocabulary and a working line of each in one call.</p>
+    <p><code>speq docs --check</code> is the part that keeps it true: an example naming a step type that no longer exists is an error, because that is exactly what a rename leaves behind. It is optional on the type — a fixture plugin declared inside a test has no documentation and should not have to pretend otherwise — and required by <code>check-plugin-package.mjs</code>, which is where a package meets a registry.</p>
+  </div>
+
   <h4>Plus what <code>ctx</code> gives without being a contribution point</h4>
   <ul class="points">
     <li><span class="name">ctx.config()</span><span class="what">Its own block in <code>speq.yaml</code>, already checked against <code>configSchema</code>. The key is the plugin's short name</span></li>
@@ -1126,6 +1133,8 @@ expect(kit.validate([{ name: <span class="s">'t'</span>, source: <span class="s"
 speq link ../../speqkit-plugin-kafka   <span class="c"># beats the store and node_modules</span>
 speq plugins                           <span class="c"># what is loaded and what it gave</span>
 speq capabilities                      <span class="c"># the grammar, yours included</span>
+speq docs kafka                        <span class="c"># what you said it is for, and your examples</span>
+speq docs --check                      <span class="c"># an example naming something that moved</span>
 speq run --test suites/orders.yaml
 speq unlink speqkit-plugin-kafka</code></pre>
 
@@ -1143,5 +1152,5 @@ speq unlink speqkit-plugin-kafka</code></pre>
 </div>
 
 <footer>
-  This document describes speqkit 0.3.0 and the <code>@speqkit/plugin-api</code> 0.10.0 contract (<code>PLUGIN_API_VERSION</code> = 1), as of 2 September 2026. Every stage is named by the file it lives in, so the code can be read alongside. The architectural decisions and their reasons are covered separately, in "The speqkit plugin framework".
+  This document describes speqkit 0.4.0 and the <code>@speqkit/plugin-api</code> 0.11.0 contract (<code>PLUGIN_API_VERSION</code> = 1), as of 3 September 2026. Every stage is named by the file it lives in, so the code can be read alongside. The architectural decisions and their reasons are covered separately, in "The speqkit plugin framework".
 </footer>

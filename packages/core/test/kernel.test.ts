@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { definePlugin, type ResourceScope, type StepDef } from '@speqkit/plugin-api'
+import { definePlugin, type ResourceScope, type RunEvent, type StepDef } from '@speqkit/plugin-api'
 import { Registry, ResourceManager, runTests, validateTests } from 'speqkit'
 
 /**
@@ -893,5 +893,172 @@ describe('a value provider may take its time', () => {
     ])
 
     expect(outcome.tests[0]!.steps[0]!.result.value).toBe('hi!')
+  })
+})
+
+/**
+ * The stream carried a status, a duration and a sentence, and never what the
+ * step had actually done — so no reporter could print a request and a
+ * response, whatever flag it was given, and the only way to see an exchange
+ * was to run the test again with a proxy in front of it.
+ */
+describe('a step says what it was doing, when it did not go well', () => {
+  const recorder = definePlugin({
+    name: 'recorder',
+    setup(ctx) {
+      ctx.defineStepType('recording', {
+        execute(exec, input) {
+          exec.record({ tried: input.tried })
+          if (input.throws) throw new Error('the connection went away')
+          return { value: input.value }
+        }
+      })
+
+      // Records its own before running children that record theirs.
+      ctx.defineStepType('outer', {
+        async execute(exec, input) {
+          exec.record({ tried: 'outer' })
+          const records = await exec.runSteps(input.steps as StepDef[])
+          return { children: records.length }
+        }
+      })
+    }
+  })
+
+  async function run(tests: Parameters<typeof runTests>[1]) {
+    const registry = await registryWith(echo, recorder)
+    const events: RunEvent[] = []
+    registry.events.subscribe((e) => events.push(e))
+    const outcome = await runTests(registry, tests)
+    return { outcome, steps: events.filter((e) => e.type === 'step.finished') }
+  }
+
+  it('keeps nothing when the step passed, so a green run logs what it always did', async () => {
+    const { outcome, steps } = await run([
+      { name: 't', steps: [{ id: 'a', type: 'recording', tried: 'GET /x', value: 'ok' }] }
+    ])
+
+    expect(outcome.status).toBe('passed')
+    // The key is absent rather than undefined: a reporter that asks whether
+    // there is an exchange to show must not be handed an empty one.
+    expect(steps[0]).not.toHaveProperty('detail')
+    expect(outcome.tests[0]!.steps[0]!.detail).toBeUndefined()
+  })
+
+  it('carries it on a step whose answer was wrong', async () => {
+    const { outcome, steps } = await run([
+      {
+        name: 't',
+        steps: [{
+          id: 'a', type: 'recording', tried: 'GET /x', value: 'ok',
+          assert: [{ type: 'equals', expected: 'nope' }]
+        }]
+      }
+    ])
+
+    expect(outcome.status).toBe('failed')
+    expect(steps[0]!.detail).toEqual({ tried: 'GET /x' })
+    expect(outcome.tests[0]!.steps[0]!.detail).toEqual({ tried: 'GET /x' })
+  })
+
+  /**
+   * The case the buffered design exists for. A callback handed the step's
+   * result could not answer here — there is no result — and this is exactly
+   * the failure an agent is worst equipped to guess at: a request that never
+   * came back and a message that names no body.
+   */
+  it('carries what was recorded before the step threw', async () => {
+    const { outcome, steps } = await run([
+      { name: 't', steps: [{ id: 'a', type: 'recording', tried: 'GET /gone', throws: true }] }
+    ])
+
+    expect(outcome.status).toBe('error')
+    expect(steps[0]!.status).toBe('error')
+    expect(steps[0]!.detail).toEqual({ tried: 'GET /gone' })
+  })
+
+  it('does not hand a step whatever its children recorded', async () => {
+    const { steps } = await run([
+      {
+        name: 't',
+        steps: [{
+          id: 'o',
+          type: 'outer',
+          steps: [{ id: 'i', type: 'recording', tried: 'inner', value: 'ok' }],
+          assert: [{ type: 'equals', expected: 'nope' }]
+        }]
+      }
+    ])
+
+    const outer = steps.find((s) => s.stepId === 'o')!
+    const inner = steps.find((s) => s.stepId === 'i')!
+    expect(outer.detail).toEqual({ tried: 'outer' })
+    expect(inner).not.toHaveProperty('detail')
+  })
+})
+
+/**
+ * A test used to be identified in the stream by everything except the two
+ * things reporters group by.
+ *
+ * `tags` is what `--tags` selected the run with, and the stream never said it,
+ * so a report per ticket had to re-discover the project to find out what it
+ * had just watched. `suite` was said only by the bracketing, and the bracketing
+ * is adjacency — which G4 takes away the moment two suites run at once.
+ */
+describe('a test names its suite and its labels itself', () => {
+  async function started(tests: Parameters<typeof runTests>[1]) {
+    const registry = await registryWith(echo)
+    const events: RunEvent[] = []
+    registry.events.subscribe((e) => events.push(e))
+    await runTests(registry, tests)
+    return events.filter((e) => e.type === 'test.started')
+  }
+
+  it('carries the suite it is in, on the event rather than on the one before it', async () => {
+    const events = await started([
+      { name: 'a', source: 'suites/orders.yaml', steps: [{ type: 'echo', value: 1 }] },
+      { name: 'b', source: 'suites/menu.yaml', steps: [{ type: 'echo', value: 1 }] }
+    ])
+
+    expect(events.map((e) => [e.test, e.suite])).toEqual([
+      ['a', 'suites/orders.yaml'],
+      ['b', 'suites/menu.yaml']
+    ])
+  })
+
+  it('carries its labels, and leaves the key off when it has none', async () => {
+    const events = await started([
+      { name: 'a', tags: ['PAY-114', 'smoke'], steps: [{ type: 'echo', value: 1 }] },
+      { name: 'b', steps: [{ type: 'echo', value: 1 }] }
+    ])
+
+    expect(events[0]!.tags).toEqual(['PAY-114', 'smoke'])
+    // Absent rather than empty, on the same terms as `meta`: a reporter asking
+    // whether a test is labelled must not be handed a list that says nothing.
+    expect(events[1]).not.toHaveProperty('tags')
+  })
+
+  it('says both for a test the suite blocked, which never ran at all', async () => {
+    const registry = await registryWith(echo)
+    const events: RunEvent[] = []
+    registry.events.subscribe((e) => events.push(e))
+    await runTests(registry, [{
+      name: 'a',
+      source: 'suites/orders.yaml',
+      tags: ['PAY-114'],
+      suites: [{
+        name: 'suites',
+        setup: [{ type: 'echo', value: 1, assert: [{ type: 'equals', expected: 'nope' }] }]
+      }],
+      steps: [{ type: 'echo', value: 1 }]
+    }])
+
+    expect(events.find((e) => e.type === 'test.finished')!.status).toBe('error')
+    const start = events.find((e) => e.type === 'test.started')!
+    // The row a blocked test gets is the whole of what a report can say about
+    // it, so it is not the row that may be missing its grouping.
+    expect(start.suite).toBe('suites/orders.yaml')
+    expect(start.tags).toEqual(['PAY-114'])
   })
 })

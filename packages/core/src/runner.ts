@@ -378,12 +378,18 @@ function blockedOutcome(
   reason: string
 ): TestOutcome {
   const meta = test.meta && Object.keys(test.meta).length > 0 ? test.meta : undefined
+  // Carried beside `meta` everywhere it goes: a test names its labels once, on
+  // `test.started`, and every surface that groups by them reads it there
+  // rather than discovering the project a second time to find out.
+  const tags = test.tags && test.tags.length > 0 ? test.tags : undefined
   registry.events.emit({
     type: 'test.started',
     test: test.name,
+    suite,
     source: test.source,
     ...(test.group ? { group: test.group } : {}),
     ...(test.title ? { title: test.title } : {}),
+    ...(tags ? { tags } : {}),
     ...(meta ? { meta } : {})
   })
   registry.events.emit({
@@ -398,6 +404,7 @@ function blockedOutcome(
     name: test.name,
     ...(test.title ? { title: test.title } : {}),
     ...(test.group ? { group: test.group } : {}),
+    ...(tags ? { tags } : {}),
     ...(meta ? { meta } : {}),
     source: test.source,
     suite,
@@ -420,6 +427,10 @@ async function runOne(
   const configFor = (plugin: string) => registry.configFor(plugin)
 
   const meta = test.meta && Object.keys(test.meta).length > 0 ? test.meta : undefined
+  // Carried beside `meta` everywhere it goes: a test names its labels once, on
+  // `test.started`, and every surface that groups by them reads it there
+  // rather than discovering the project a second time to find out.
+  const tags = test.tags && test.tags.length > 0 ? test.tags : undefined
 
   // A pending test is announced and not run. It is still discovered, still
   // counted and still validated — what it records is a gap the suite knows
@@ -428,9 +439,11 @@ async function runOne(
     registry.events.emit({
       type: 'test.started',
       test: test.name,
+      suite,
       source: test.source,
       ...(test.group ? { group: test.group } : {}),
       ...(test.title ? { title: test.title } : {}),
+      ...(tags ? { tags } : {}),
       ...(meta ? { meta } : {})
     })
     registry.events.emit({ type: 'test.skipped', test: test.name, reason: test.pending })
@@ -440,6 +453,7 @@ async function runOne(
       ...(test.title ? { title: test.title } : {}),
       ...(test.group ? { group: test.group } : {}),
       pending: test.pending,
+      ...(tags ? { tags } : {}),
       ...(meta ? { meta } : {}),
       source: test.source,
       suite,
@@ -454,9 +468,11 @@ async function runOne(
   registry.events.emit({
     type: 'test.started',
     test: test.name,
+    suite,
     source: test.source,
     ...(test.group ? { group: test.group } : {}),
     ...(test.title ? { title: test.title } : {}),
+    ...(tags ? { tags } : {}),
     ...(meta ? { meta } : {})
   })
   await registry.runHooks('test:before', { test: test.name, suite })
@@ -595,6 +611,7 @@ async function runOne(
     name: test.name,
     ...(test.title ? { title: test.title } : {}),
     ...(test.group ? { group: test.group } : {}),
+    ...(tags ? { tags } : {}),
     ...(meta ? { meta } : {}),
     source: test.source,
     suite,

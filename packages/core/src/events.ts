@@ -1,4 +1,4 @@
-import type { AssertOutcome, RunEvent, EventListener } from '@speqkit/plugin-api'
+import type { AssertOutcome, RunEvent, EventListener, StepStatus } from '@speqkit/plugin-api'
 
 /** The one channel every surface — CLI, TUI, VS Code, reporters — listens on. */
 export class EventBus {
@@ -38,4 +38,17 @@ export function comparison(outcome: AssertOutcome): { expected?: unknown; actual
     ...(outcome.expected !== undefined ? { expected: outcome.expected } : {}),
     ...(outcome.actual !== undefined ? { actual: outcome.actual } : {})
   }
+}
+
+/**
+ * What a step recorded about itself, on its way into the event stream.
+ *
+ * The same rule `comparison` follows, and it is the rule that lets this exist
+ * at all: only when the step did not pass. A run where everything passes
+ * writes exactly the log it wrote before this field existed, so the cost of
+ * carrying an exchange is paid by the runs that have something to explain.
+ */
+export function recorded(status: StepStatus, detail: unknown): { detail?: unknown } {
+  if (status === 'passed' || detail === undefined) return {}
+  return { detail }
 }

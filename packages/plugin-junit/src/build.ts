@@ -69,8 +69,10 @@ export class RunBuilder {
         this.#open.set(event.test, {
           name: event.test,
           // The test says which suite it is in. The last `suite.started` used
-          // to say it, which is true only while one suite runs at a time.
-          suite: event.source ?? '(inline)',
+          // to say it, which is true only while one suite runs at a time. This
+          // read the file instead, which was the same answer by accident and is
+          // now the fallback for a stream recorded before `suite` existed.
+          suite: event.suite ?? event.source ?? '(inline)',
           file: event.source,
           status: 'passed',
           durationMs: 0,

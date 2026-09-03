@@ -1,7 +1,7 @@
 import type {
   PluginSpec, PluginContext, StepTypeDef, AssertionTypeDef, ResourceDef,
   ReporterDef, ValueProviderDef, LoaderDef, HookName, HookPayload,
-  EventListener, InputSchema, Host
+  EventListener, InputSchema, Host, PluginDocs
 } from '@speqkit/plugin-api'
 import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speqkit/plugin-api'
 import { EventBus } from './events.js'
@@ -35,6 +35,12 @@ export class Registry {
   readonly loaders = new Map<string, Registered<LoaderDef>>()
   readonly hooks = new Map<HookName, { owner: string; fn: (p: HookPayload) => unknown }[]>()
   readonly configSchemas = new Map<string, InputSchema>()
+  /**
+   * What each plugin says about itself, for the readers who cannot read its
+   * source: somebody who has just installed it, and a model being asked to
+   * write a suite with it. Absent for a plugin that declares none.
+   */
+  readonly docs = new Map<string, PluginDocs>()
   /** Where each loaded plugin came from: link, store or node_modules. */
   readonly sources = new Map<string, { spec: string; name: string; origin: string; path: string; version?: string }>()
 
@@ -85,6 +91,7 @@ export class Registry {
     if (this.#loaded.includes(spec.name)) return
 
     if (spec.configSchema) this.configSchemas.set(shortName(spec.name), spec.configSchema)
+    if (spec.docs) this.docs.set(spec.name, spec.docs)
     await spec.setup(this.#context(spec.name))
     this.#loaded.push(spec.name)
   }

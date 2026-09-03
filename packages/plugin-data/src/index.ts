@@ -61,6 +61,49 @@ const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
 export default definePlugin({
   name: '@speqkit/plugin-data',
+  docs: {
+    summary: 'values a test needs but does not care about: generated data, environment, project settings',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-data#readme',
+    examples: [
+      {
+        title: 'data a test does not want to invent',
+        summary:
+          'Seeded from the run id, so re-running one test replays the values it ran with. ' +
+          'The seed is printed by every reporter and names the report directory.',
+        for: ['gen'],
+        code: [
+          'variables:',
+          '  orderId: ${gen:uuid}',
+          '  buyer: ${gen:email}',
+          '  # derived: givens resolve in order, so this sees the one above',
+          '  label: order-${orderId}'
+        ].join('\n')
+      },
+      {
+        title: 'the environment, and what to do when it is not set',
+        for: ['env'],
+        code: [
+          'headers:',
+          '  authorization: Bearer ${env:API_TOKEN}',
+          '  x-region: ${env:REGION:-eu-west-1}'
+        ].join('\n')
+      },
+      {
+        title: 'a project value one environment overrides',
+        summary: 'Declared under `data.vars` in speq.yaml and again in `environments/staging.yaml`.',
+        for: ['vars'],
+        code: [
+          '# speq.yaml',
+          'data:',
+          '  vars:',
+          '    currency: EUR',
+          '',
+          '# in a suite',
+          'url: ${base}/prices?currency=${vars:currency}'
+        ].join('\n')
+      }
+    ]
+  },
   configSchema: {
     type: 'object',
     properties: {
@@ -102,6 +145,7 @@ export default definePlugin({
     const counters = new Map<string, number>()
 
     ctx.defineValueProvider('gen', {
+      summary: 'a generated value — uuid, string, int, email, date, or one your speq.yaml names',
       prefix: 'gen',
       resolve(key) {
         const spec = generators[key]
@@ -125,6 +169,7 @@ export default definePlugin({
      * nothing to do with the protocol under test.
      */
     ctx.defineValueProvider('env', {
+      summary: 'a process environment variable, with `:-` for a default when it is unset',
       prefix: 'env',
       resolve(key) {
         const split = key.indexOf(':-')
@@ -139,6 +184,7 @@ export default definePlugin({
     })
 
     ctx.defineValueProvider('vars', {
+      summary: 'a project value from speq.yaml, which an environment layer may override',
       prefix: 'vars',
       resolve(key) {
         if (!(key in vars)) {

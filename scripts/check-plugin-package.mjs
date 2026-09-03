@@ -23,11 +23,14 @@
  *     copy of speqkit in the store and the plugin will faithfully boot it,
  *     and the compatibility check will then compare a contract against itself.
  *   - no `speqkit-plugin` keyword. The plugin works and nobody finds it.
+ *   - no `docs`. The plugin loads, and `speq docs <name>` has nothing to say
+ *     about it, so the first thing anybody who installs it does is read source.
  *
  * Exit codes: 0 all clear, 1 something is wrong, 2 there is nothing to check.
  */
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const argv = process.argv.slice(2)
 const has = (flag) => argv.includes(flag)
@@ -161,6 +164,67 @@ if (!pkg.exports && !pkg.main) {
       continue
     }
     good(`\`${target}\` is built and packed`)
+  }
+}
+
+/* ---- what it says about itself ------------------------------------- */
+
+/**
+ * A plugin's own documentation, read the way the kernel reads it.
+ *
+ * `speq docs <name>` answers out of the `docs` block on `definePlugin`, and a
+ * plugin that declares none is one whose user's first move after installing it
+ * is to open somebody else's source. It is checked here rather than in the
+ * contract's types because a plugin declared inside a test file has no
+ * documentation and should not have to pretend otherwise — the obligation
+ * belongs to a package on its way to a registry.
+ *
+ * The module is imported, not parsed. That is what the kernel does, so a
+ * `docs` block behind a conditional or built by a helper is seen exactly as
+ * the kernel would see it.
+ */
+const entry = pkg.exports?.['.']?.import ?? pkg.exports?.['.']?.default ?? pkg.main
+if (entry && !/\.tsx?$/.test(entry) && existsSync(join(dir, entry.replace(/^\.\//, '')))) {
+  let plugin
+  try {
+    plugin = (await import(pathToFileURL(join(dir, entry.replace(/^\.\//, ''))).href)).default
+  } catch (err) {
+    // An import that throws is about this machine — an uninstalled peer, a
+    // missing build — and not about the plugin. Said out loud, and not counted
+    // against it.
+    warn('docs', `could not import \`${entry}\` to read its docs (${err.message}).`)
+  }
+
+  if (plugin) {
+    const docs = plugin.docs
+    if (!docs?.summary) {
+      fail(
+        'docs',
+        'no `docs.summary` on definePlugin. `speq docs` is how somebody who just ' +
+          'installed this finds out what it is for, and how a model writing a suite ' +
+          'is told what it can use — both of them get nothing.'
+      )
+    } else if (!Array.isArray(docs.examples) || docs.examples.length === 0) {
+      fail(
+        'docs',
+        'a `docs.summary` with no `examples`. One line somebody can paste is worth ' +
+          'more than three paragraphs, and it is the form a model can act on.'
+      )
+    } else if (!docs.examples.every((example) => example?.title && example?.code?.trim())) {
+      fail('docs', 'an example with no title or no code.')
+    } else {
+      good(`says what it is for, with ${docs.examples.length} example(s)`)
+      if (!docs.readme) {
+        warn('docs', 'no `docs.readme`. A link is where a reader goes when the examples are not enough.')
+      }
+      if (!docs.examples.some((example) => example.for?.length)) {
+        warn(
+          'docs',
+          "no example names what it demonstrates with `for`. Without it `speq docs <step type>` " +
+            'finds nothing, and `speq docs --check` cannot notice a rename.'
+        )
+      }
+    }
   }
 }
 

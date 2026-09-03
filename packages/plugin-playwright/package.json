@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-playwright",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Browser steps, scoped browser/context/page resources and screenshot artifacts.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

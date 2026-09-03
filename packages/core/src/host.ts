@@ -112,32 +112,43 @@ export function detachedHost(): Host {
  * a resource is a name a *plugin* asks for and never a word anybody writes in
  * a suite, and this document answers the question "what may I write".
  */
-function capabilitiesOf(registry: Registry): Capabilities {
+export function capabilitiesOf(registry: Registry): Capabilities {
   const named = <T>(map: Map<string, Registered<T>>): [string, Registered<T>][] =>
     [...map].sort(([a], [b]) => a.localeCompare(b))
 
-  const basic = <T extends { schema?: Capability['schema'] }>(
+  const basic = <T extends { schema?: Capability['schema']; summary?: string }>(
     map: Map<string, Registered<T>>
   ): Capability[] =>
-    named(map).map(([name, entry]) => ({ name, plugin: entry.owner, schema: entry.def.schema }))
+    named(map).map(([name, entry]) => ({
+      name,
+      plugin: entry.owner,
+      summary: entry.def.summary,
+      schema: entry.def.schema
+    }))
 
   return {
     apiVersion: PLUGIN_API_VERSION,
     plugins: registry.loadedPlugins().map((name) => {
       const source = registry.sources.get(name)
-      return { name, version: source?.version, origin: source?.origin }
+      return { name, version: source?.version, origin: source?.origin, docs: registry.docs.get(name) }
     }),
     stepTypes: basic(registry.stepTypes),
     assertions: basic(registry.assertions),
     valueProviders: named(registry.valueProviders).map(([name, entry]) => ({
       name,
       plugin: entry.owner,
+      summary: entry.def.summary,
       prefix: entry.def.prefix
     })),
-    reporters: named(registry.reporters).map(([name, entry]) => ({ name, plugin: entry.owner })),
+    reporters: named(registry.reporters).map(([name, entry]) => ({
+      name,
+      plugin: entry.owner,
+      summary: entry.def.summary
+    })),
     loaders: named(registry.loaders).map(([name, entry]) => ({
       name,
       plugin: entry.owner,
+      summary: entry.def.summary,
       extensions: entry.def.extensions,
       suiteFiles: entry.def.suiteFiles
     }))

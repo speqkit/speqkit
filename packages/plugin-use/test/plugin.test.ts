@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { definePlugin } from '@speqkit/plugin-api'
+import { definePlugin, type CommandDef, type CommandHost } from '@speqkit/plugin-api'
 import { harness, type Harness } from '@speqkit/test-kit'
 import use from '@speqkit/plugin-use'
 
@@ -251,5 +251,131 @@ actions:
     expect(diagnostics.map((d) => d.message)).toContainEqual(expect.stringContaining("unknown field 'as'"))
     const migration = diagnostics.find((d) => d.path === 'steps[0].as')!
     expect(migration.hint).toContain("'id'")
+  })
+})
+
+/**
+ * The other half of "what can I use here".
+ *
+ * `speq docs` answers what the *plugins* offer, and that answer is identical in
+ * every project that installed them. This answers the half that is different in
+ * every project and written down nowhere: the blocks, actions and fixtures this
+ * team has already built. It was the expensive half — a module action is a file
+ * somebody wrote last quarter, and learning it took a `grep` or a colleague, so
+ * a newcomer and a model both reached for `http` and rebuilt a login twice.
+ */
+describe('speq modules', () => {
+  /** A command surface, provided the way `@speqkit/plugin-cli` provides it. */
+  function cliStub(): { plugin: ReturnType<typeof definePlugin>; commands: Map<string, CommandDef> } {
+    const commands = new Map<string, CommandDef>()
+    return {
+      commands,
+      plugin: definePlugin({
+        name: 'cli-stub',
+        setup(ctx) {
+          ctx.provide<CommandHost>('cli', { commands, register: (name, def) => commands.set(name, def) })
+        }
+      })
+    }
+  }
+
+  async function modules(argv: string[] = []): Promise<{ code: number; output: string }> {
+    const cli = cliStub()
+    kit = await harness(use, { with: [api, cli.plugin], root })
+    const command = cli.commands.get('modules')
+    if (!command) throw new Error('plugin-use registered no `modules` command')
+
+    const written: string[] = []
+    const original = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((chunk: string) => { written.push(String(chunk)); return true }) as typeof process.stdout.write
+    try {
+      return { code: await command.run(argv), output: written.join('') }
+    } finally {
+      process.stdout.write = original
+    }
+  }
+
+  beforeEach(() => {
+    write('modules/menu.yaml', `
+actions:
+  createCategory:
+    properties: [accessToken, name]
+    steps:
+      - id: created
+        type: call
+        path: /categories
+    returns:
+      id: \${created.body.id}
+  deleteCategory:
+    properties: [accessToken, id]
+    steps:
+      - type: call
+        path: /categories/delete
+`)
+    write('shared/register-tenant.yaml', `
+steps:
+  - id: tenant
+    type: call
+    path: /auth/register
+`)
+    write('fixtures/menu-item.yaml', `
+fixture:
+  build:
+    name: an item
+    price: 500
+`)
+  })
+
+  it('names every action, and what it has to be called with', async () => {
+    const { code, output } = await modules()
+
+    expect(code).toBe(0)
+    expect(output).toContain('menu.createCategory')
+    expect(output).toContain('accessToken, name')
+    expect(output).toContain('menu.deleteCategory')
+  })
+
+  it('hands back a `use` step for each, ready to paste', async () => {
+    const { output } = await modules()
+
+    expect(output).toContain('- type: use')
+    expect(output).toContain('action: menu.createCategory')
+    expect(output).toContain('ref: register-tenant')
+    expect(output).toContain('fixture: menu-item')
+  })
+
+  it('says what a block hands back, which is the part a caller has to know', async () => {
+    const { output } = await modules(['--json'])
+    const library = JSON.parse(output) as {
+      groups: { dir: string; entries: { call: string; takes: string[] }[] }[]
+    }
+
+    const shared = library.groups.find((g) => g.dir === 'shared')!
+    // A block with no `returns` publishes its steps by id, and that is the
+    // interface its caller is actually addressing.
+    expect(shared.entries[0]!.takes).toEqual(['→ tenant'])
+
+    const fixtures = library.groups.find((g) => g.dir === 'fixtures')!
+    expect(fixtures.entries[0]!.takes).toEqual(['name', 'price'])
+  })
+
+  it('is not stopped by one file that does not parse', async () => {
+    write('modules/broken.yaml', 'actions: [this is not a map\n')
+    const { code, output } = await modules()
+
+    // Which file is broken, and why, is `speq validate`'s answer. A catalogue
+    // that refuses to print because one file is bad helps nobody.
+    expect(code).toBe(0)
+    expect(output).toContain('menu.createCategory')
+  })
+
+  it('says so plainly in a project that has built nothing yet', async () => {
+    rmSync(join(root, 'modules'), { recursive: true, force: true })
+    rmSync(join(root, 'shared'), { recursive: true, force: true })
+    rmSync(join(root, 'fixtures'), { recursive: true, force: true })
+    const { code, output } = await modules()
+
+    expect(code).toBe(0)
+    expect(output).toContain('Nothing declared yet')
   })
 })

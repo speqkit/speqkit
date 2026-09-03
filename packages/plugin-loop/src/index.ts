@@ -16,9 +16,53 @@ import { definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api
  */
 export default definePlugin({
   name: '@speqkit/plugin-loop',
+  docs: {
+    summary: 'the two shapes of repetition: once per thing, and again until it works',
+    readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-loop#readme',
+    examples: [
+      {
+        title: 'once per item',
+        summary: '`as` names the current item; without it the binding is `item`.',
+        for: ['loop'],
+        code: [
+          '- type: loop',
+          '  over: ${vars:skus}',
+          '  as: sku',
+          '  steps:',
+          '    - type: http',
+          '      method: GET',
+          '      url: ${base}/products/${sku}',
+          '      assert:',
+          '        - type: status',
+          '          expected: 200'
+        ].join('\n')
+      },
+      {
+        title: 'waiting for something that is not ready yet',
+        summary:
+          'Retry is for a world that has not caught up, not for a flaky check. ' +
+          'A step that only passes on the third attempt is saying the system is eventually consistent.',
+        for: ['retry'],
+        code: [
+          '- type: retry',
+          '  attempts: 5',
+          '  delayMs: 200',
+          '  steps:',
+          '    - type: http',
+          '      method: GET',
+          '      url: ${base}/orders/${orderId}',
+          '      assert:',
+          '        - type: equals',
+          '          path: body.status',
+          '          expected: settled'
+        ].join('\n')
+      }
+    ]
+  },
 
   setup(ctx) {
     ctx.defineStepType('loop', {
+      summary: 'runs its steps once per item of `over`, or `times` times, binding the current one to `as`',
       schema: {
         type: 'object',
         properties: {
@@ -71,6 +115,7 @@ export default definePlugin({
     })
 
     ctx.defineStepType('retry', {
+      summary: 'runs its steps again until they pass, up to `attempts`, waiting `delayMs` between tries',
       schema: {
         type: 'object',
         properties: { attempts: { type: 'number' }, delayMs: { type: 'number' }, steps: { type: 'array' } },

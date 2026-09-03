@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-use",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Composition as a plugin: shared blocks, module actions and fixtures, called from a test with `use`.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

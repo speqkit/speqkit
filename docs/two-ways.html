@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two ways to work — speqkit</title>
+<meta name="description" content="Tests before the code and tests after it: the same machinery, the same commands, and the one thing that actually differs between them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="assets/speqkit.css">
+</head>
+<body>
+
+<nav class="sitenav">
+  <div class="inner">
+    <a class="brand" href="./">speq<span>kit</span></a>
+    <a class="link" href="./">Overview</a>
+    <a class="link" href="writing-tests.html">Writing tests</a>
+    <a class="link" href="two-ways.html" aria-current="page">Two ways</a>
+    <a class="link" href="releasing.html">Releasing</a>
+    <a class="link" href="pipeline.html">Pipeline</a>
+    <span class="spacer"></span>
+    <a class="ext" href="https://github.com/speqkit/speqkit">GitHub</a>
+    <a class="ext" href="https://www.npmjs.com/package/speqkit">npm</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Process · both directions · one machinery</span>
+  <h1>Two ways to work</h1>
+  <p class="lede">
+    speqkit is an instrument of execution. Whether the acceptance criteria
+    exist before the code or arrive after it is your team's decision, and the
+    framework serves both without having an opinion about either. What actually
+    differs between them is one thing: <b>which of red and green is the
+    starting state.</b>
+  </p>
+  <div class="meta">
+    <span><b>Tests first</b> the gate exists before the code does</span>
+    <span><b>Code first</b> the suite follows the feature</span>
+    <span><b>Different</b> the starting colour, and nothing else</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <ol>
+    <li><a href="#which">Which one you are in</a></li>
+    <li><a href="#tests-first">Tests first</a></li>
+    <li><a href="#code-first">Code first</a></li>
+    <li><a href="#same">What does not differ</a></li>
+    <li><a href="#machines">When a model writes the draft</a></li>
+    <li><a href="#ours">What we do not decide</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================== -->
+<section id="which">
+  <span class="sect-label">Orientation</span>
+  <h2>Which one you are in</h2>
+
+  <p>
+    Both are ordinary, and most repositories hold both at once. A feature that
+    arrives with acceptance criteria attached gets its tests before anybody
+    writes an endpoint; the billing code that has been in production for six
+    years gets covered after the fact, because it already works and the point
+    of covering it is to keep it working. The question is never about the
+    project. It is local to the change in hand.
+  </p>
+
+  <ul class="points">
+    <li><span class="name">Tests first</span><span class="what">the criteria are known before the implementation, and the suite is what "done" means</span></li>
+    <li><span class="name">Code first</span><span class="what">the behaviour exists, and the suite is what stops it from quietly changing</span></li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">The join is a tag, and only a tag</span>
+    <p>
+      speq does not read your specification — not a Jira ticket, not a
+      Spec-Kit or OpenSpec repository, not a page in a wiki. It has no idea
+      what a requirement is. The only link between one and a test is a
+      <code>tag</code> somebody wrote, and there will not be a second one.
+      <b>What</b> to cover is your decision; what speq promises is that the
+      answer comes back fast and says enough to act on.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section id="tests-first">
+  <span class="sect-label">Tests first</span>
+  <h2>The gate is built before the thing it guards</h2>
+
+  <p>
+    Sometimes called ATDD, and the name matters less than the shape: the
+    acceptance criteria are turned into runnable tests <em>before</em> the code
+    exists, so that "is it done" stops being a conversation and becomes an exit
+    code. It is also the arrangement that makes generated code safe to accept,
+    because the check was written by somebody who was not trying to pass it.
+  </p>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="body">
+        <h3>The requirement arrives, in whatever form your team uses</h3>
+        <p>
+          Not our business, and deliberately so. What comes out of this step is
+          a key you can write down — a ticket id, a feature name, anything
+          stable — and from here on that key is the only thing speq knows about
+          it.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">2</span>
+      <div class="body">
+        <h3>Branch, then write the tests into it, tagged with the key</h3>
+        <p>
+          The branch is named for the key and so are the tags. That one
+          convention is what makes every command below able to find exactly
+          this piece of work and nothing else.
+        </p>
+<pre><code><span class="c"># .speq/suites/payments/refund-partial.yaml</span>
+<span class="k">id:</span> payments.refund.partial
+<span class="k">title:</span> <span class="s">a partial refund leaves the rest of the order captured</span>
+<span class="k">tags:</span> <span class="p">[</span>PAY-114<span class="p">]</span>
+
+<span class="k">steps:</span>
+  <span class="p">-</span> <span class="k">id:</span> refund
+    <span class="k">type:</span> http
+    <span class="k">method:</span> POST
+    <span class="k">url:</span> <span class="s">"/orders/${order.id}/refunds"</span>
+    <span class="k">body:</span> <span class="p">{</span> <span class="k">amount_cents:</span> <span class="p">400</span> <span class="p">}</span>
+    <span class="k">assert:</span>
+      <span class="p">-</span> <span class="k">type:</span> status
+        <span class="k">expected:</span> <span class="p">201</span>
+
+<span class="k">assert:</span>
+  <span class="p">-</span> <span class="k">type:</span> equals
+    <span class="k">path:</span> refund.body.remaining_cents
+    <span class="k">expected:</span> <span class="p">600</span></code></pre>
+        <p class="under">
+          <b>The first command is not <code>run</code>.</b>
+          <code>speq validate --tags PAY-114</code> checks the whole file
+          against the grammar the loaded plugins define — every step type,
+          every assertion, every closed schema — in milliseconds, with nothing
+          deployed and no service up. A criterion with a typo in it is not a
+          criterion, and this is the cheapest moment in the whole process to
+          find that out.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">3</span>
+      <div class="body">
+        <h3>Run them and watch them fail</h3>
+<pre><code>speq run --tags PAY-114
+<span class="c"># 0 passed, 3 failed — the endpoint answers 404, which is correct: it does not exist</span></code></pre>
+        <p>
+          This is not a broken build. It is the gate reporting that the work is
+          not done, which is the only honest thing it can say. From here the
+          suite has exactly one job: to turn green when — and not before — the
+          feature is real.
+        </p>
+        <div class="note">
+          <span class="tag">Why the branch, and why not <code>pending</code></span>
+          <p>
+            A suite that is red on purpose belongs where the code is being
+            written and nowhere else. Merged to main it makes the default
+            branch permanently red, and a build that is always red is a build
+            nobody reads. The branch already <em>is</em> the mechanism: the
+            tests go green as the code lands, and the two arrive together.
+          </p>
+          <p>
+            The other temptation is to park the new tests with
+            <code>pending:</code> until the feature exists. Do not.
+            <code>pending</code> does not run — it reports
+            <code>skipped</code> and moves on — and <b>a criterion that does
+            not run is not a gate.</b> It is for a gap you have decided to
+            live with, like a 429 path you cannot reach from a stack configured
+            to survive the rest of the run, and the reason it takes a sentence
+            instead of a flag is that somebody has to read that sentence later.
+          </p>
+        </div>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">4</span>
+      <div class="body">
+        <h3>Implement until it goes green</h3>
+        <p>
+          The loop narrows as it goes. Start with the ticket, drop to the one
+          test that is still red, and ask for the exchange when the message is
+          not enough.
+        </p>
+<pre><code>speq run --tags PAY-114              <span class="c"># everything this ticket is answerable for</span>
+speq run --name payments.refund.partial   <span class="c"># the one that is still red</span>
+speq run --name payments.refund.partial --verbose  <span class="c"># with the request and the response</span></code></pre>
+        <div class="note">
+          <span class="tag">There is a plugin for the convention</span>
+          <p>
+            Everything above is <code>--tags</code> and a branch name, and it
+            stays that way. <a href="https://github.com/speqkit/speqkit/tree/main/packages/plugin-gate"><code>@speqkit/plugin-gate</code></a>
+            is the same thing with the key read out of the branch and the
+            answer written down: <code>speq gate plan</code> says what would run
+            <em>and why</em>, <code>speq gate</code> runs it, and
+            <code>gate.json</code> routes every red test to the code, the test
+            or the environment. On demand, like every layer-two plugin —
+            nothing on this page needs it.
+          </p>
+        </div>
+        <p class="under">
+          <b>Re-running one test is not a different test.</b> Generated values
+          come from a seed and the seed is the run id, so a single test
+          re-run alone sees exactly the data it saw inside the whole suite —
+          which is what makes the narrow loop trustworthy rather than a second
+          experiment.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">5</span>
+      <div class="body">
+        <h3>When the test is the thing that is wrong</h3>
+        <p>
+          It happens, and it is not misconduct. A criterion written before the
+          code sometimes asserts on a field that ended up with a better name,
+          or encodes an assumption that turned out to be false. Change it — in
+          the same pull request, next to the code that made you change your
+          mind.
+        </p>
+        <p class="under">
+          <b>Tests here are data, so the amendment is legible.</b> A YAML diff
+          says exactly which assertion moved and to what, which is a thing a
+          reviewer can agree or disagree with. What is worth establishing in
+          your team is only that such a diff gets <em>read as an amendment to
+          the acceptance criteria</em> rather than skimmed as test churn.
+        </p>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">6</span>
+      <div class="body">
+        <h3>The pull request runs everything</h3>
+<pre><code>speq install --frozen     <span class="c"># the plugin set that was reviewed, by commit</span>
+speq run --workers 4 --reporter junit,console</code></pre>
+        <p>
+          The ticket's own tags got you here; the merge is answerable for the
+          whole suite. <code>--frozen</code> installs what
+          <code>speq.lock</code> pins rather than wherever a tag has moved
+          since, so the gate that passes is the gate that was reviewed.
+        </p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section id="code-first">
+  <span class="sect-label">Code first</span>
+  <h2>The suite follows the feature</h2>
+
+  <p>
+    The ordinary way, and the one most suites in the world are written in. The
+    behaviour exists; you are writing down what it does so that it cannot
+    change without somebody saying so. Nothing about the framework is
+    different here — the same files, the same vocabulary, the same commands.
+  </p>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="body">
+        <h3>Organise by the service, not by the tickets</h3>
+        <p>
+          Directories follow the shape of the thing under test, because that is
+          what somebody will be looking for in a year. Tags are labels —
+          <code>smoke</code>, <code>orders</code>, <code>slow</code> — rather
+          than keys, and they exist to answer "what do I run right now".
+        </p>
+<pre><code>.speq/suites/orders/list.yaml
+.speq/suites/orders/refunds.yaml
+.speq/suites/orders/suite.yaml    <span class="c"># what every test below it shares</span></code></pre>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">2</span>
+      <div class="body">
+        <h3>The loop is the file in hand</h3>
+<pre><code>speq validate --test .speq/suites/orders/refunds.yaml
+speq run --test .speq/suites/orders/refunds.yaml
+speq run --name orders.refund.partial --verbose</code></pre>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">3</span>
+      <div class="body">
+        <h3>Make it fail once, on purpose</h3>
+        <div class="note warn">
+          <span class="tag">The one cost of this direction</span>
+          <p>
+            A test written against working code is green from its first run,
+            and <b>a test that has never been red has not been shown to be able
+            to go red.</b> An assertion on a field that no longer exists, a
+            selector that matches nothing, a check on a response that is never
+            reached — each of them passes quietly forever.
+          </p>
+          <p>
+            So break it deliberately once: change the expected value, watch it
+            report the difference, change it back. Ten seconds, and it is the
+            only evidence you will ever get that the test is connected to the
+            thing it is testing. In the other direction this is free — a suite
+            written before the code is born red, and every one of its tests has
+            been observed failing before it was ever trusted.
+          </p>
+        </div>
+      </div>
+    </li>
+
+    <li class="step">
+      <span class="num">4</span>
+      <div class="body">
+        <h3>The gate is the whole suite</h3>
+        <p>
+          There is no ticket to scope to, so CI runs everything and the exit
+          code is the verdict. <code>--shard i/n</code> across machines,
+          <code>--workers</code> within one, and both compose.
+        </p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section id="same">
+  <span class="sect-label">The overlap</span>
+  <h2>What does not differ</h2>
+
+  <p>
+    Nearly everything. This is worth stating plainly, because a page with two
+    halves invites the suspicion that there are two tools in here.
+  </p>
+
+  <ul class="points">
+    <li><span class="name">The file</span><span class="what">the same nine fields, the same YAML, the same loaders</span></li>
+    <li><span class="name">The vocabulary</span><span class="what">the same step types and the same 21 assertions</span></li>
+    <li><span class="name">The check</span><span class="what"><code>speq validate</code> before the network, in both directions</span></li>
+    <li><span class="name">The data</span><span class="what">generated from the run id, so a re-run is a replay and not a new experiment</span></li>
+    <li><span class="name">The report</span><span class="what">one event log, and every reporter built out of it</span></li>
+    <li><span class="name">The verdict</span><span class="what">the exit code, which is the only thing CI reads</span></li>
+  </ul>
+
+  <p class="under">
+    <b>Which of red and green is the starting state is the whole of the
+    difference.</b> Everything else is your team's arrangement of branches,
+    reviews and gates — and speq has no opinion about those, on purpose.
+  </p>
+</section>
+
+<!-- ============================================================== -->
+<section id="machines">
+  <span class="sect-label">Machines</span>
+  <h2>When a model writes the first draft</h2>
+
+  <p>
+    Both directions survive a generated suite, and the tests-first one is where
+    it pays: the acceptance criteria are written by something that is not the
+    thing being graded, and they are checkable before a single request goes
+    out. That last property is not rhetoric — it is why the tests are data.
+    <b>A generated suite can be validated without being executed</b>; a
+    generated test file in a programming language cannot, because finding out
+    whether it is even loadable means running arbitrary code.
+  </p>
+
+  <ul class="points">
+    <li><span class="name">speq capabilities --json</span><span class="what">the grammar as it actually is in this project — every step type, assertion and value provider with its schema, so a prompt is not a copy that goes stale the moment a plugin is installed</span></li>
+    <li><span class="name">speq docs --json</span><span class="what">the same vocabulary with a sentence and a working example beside each word. A schema says what shape is accepted; this says what it is for, which is the half a generator was previously guessing at</span></li>
+    <li><span class="name">speq modules --json</span><span class="what">what this project has already built — the shared blocks and module actions, with the properties each takes. Without it a generator reaches for the transport and rebuilds a login that exists</span></li>
+    <li><span class="name">speq validate --json</span><span class="what">every problem with a <code>code</code> beside the message: an unknown step type is a different thing from a malformed template, and telling them apart decides what to fix</span></li>
+    <li><span class="name">speq run --json</span><span class="what">the counts, and per test the failures — with what was <code>expected</code>, what was <code>actual</code>, and what the step was doing</span></li>
+    <li><span class="name">speq run --verbose</span><span class="what">the same, for a person: the request and the response of a step that did not pass, without running it again behind a proxy</span></li>
+  </ul>
+
+  <div class="note">
+    <span class="tag">Failed and errored are not the same news</span>
+    <p>
+      A step that <code>failed</code> means the system answered and the answer
+      was wrong — go and look at the code. A step that <code>error</code>ed
+      means the question was never properly asked: a template that would not
+      resolve, a plugin that threw, a service that was not listening. The
+      distinction has been in the kernel since the first commit and it is the
+      cheapest routing signal there is, whether the thing reading it is a
+      person or a repair loop.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section id="ours">
+  <span class="sect-label">The line</span>
+  <h2>What we do not decide</h2>
+
+  <p>
+    A test framework that had opinions about branches would be wrong about them
+    for most of the teams using it. These are yours:
+  </p>
+
+  <div class="duo">
+    <div>
+      <h4>Yours</h4>
+      <ul>
+        <li>The specification, in any format</li>
+        <li>What gets covered, and to what depth</li>
+        <li>Branch naming, protection and merge rules</li>
+        <li>Whether a criterion may change, and who agrees to it</li>
+        <li>Which tests block a merge</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Ours</h4>
+      <ul>
+        <li>That a mistake in a test is found before the network</li>
+        <li>That a failure says what was expected, what came back, and what the step was doing</li>
+        <li>That one test can be re-run alone and see what it saw</li>
+        <li>That the verdict is an exit code and a document</li>
+        <li>That anything missing can be added as a plugin</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="under">
+    <b>And one field we decided not to add.</b> The obvious request from
+    tests-first teams is a way to declare a test red on purpose —
+    <code>expected: fail</code>, the way pytest has <code>xfail</code>. There
+    is no such field, because the branch already does that job and does it
+    better: the test is red where the work is happening and green by the time
+    it merges, so the default branch never has to be told to expect bad news.
+    A field the kernel branched on would be control flow that
+    <code>speq validate</code> cannot see.
+  </p>
+</section>
+
+<footer>
+  The language itself is on <a href="writing-tests.html">Writing declarative tests</a>;
+  what the kernel owns and what it does not is on the
+  <a href="./">overview</a>.
+</footer>
+
+</main>
+</div>
+</body>
+</html>
