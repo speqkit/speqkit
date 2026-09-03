@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { StartupError } from './errors.js'
 
 export type LayoutMode = 'in-repo' | 'test-repo' | 'explicit'
 
@@ -31,7 +32,8 @@ export function discoverRoot(explicit?: string, from = process.cwd()): SpeqRoot 
     const testRepo = looksLikeProject(dir)
 
     if (inRepo && testRepo) {
-      throw new Error(
+      throw new StartupError(
+        'ambiguous-root',
         `ambiguous speq layout in ${dir}: both .speq and the directory itself look valid, pass --speq-root`
       )
     }
@@ -45,13 +47,15 @@ export function discoverRoot(explicit?: string, from = process.cwd()): SpeqRoot 
 
   const v1 = looksLikeVersionOne(from) ?? looksLikeVersionOne(join(from, '.speq'))
   if (v1) {
-    throw new Error(
+    throw new StartupError(
+      'v1-project',
       `${v1} is a speq 1.x project: it has manifest.yaml where this build expects speq.yaml. ` +
         `Run 'speq init' beside it and then 'speq migrate --from ${v1}'.`
     )
   }
 
-  throw new Error(
+  throw new StartupError(
+    'no-root',
     `speq root not found in ${from} or any parent directory; run 'speq init' or pass --speq-root`
   )
 }

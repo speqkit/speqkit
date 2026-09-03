@@ -15,3 +15,7 @@ export { EventBus } from './events.js'
 export { resolveDeep, resolveDeepAsync, resolveString, AsyncProviderError, UnresolvedError } from './interpolate.js'
 export { createHost, type HostSession } from './host.js'
 export { bootstrap, type Session, type BootstrapOptions } from './bootstrap.js'
+export {
+  StartupError, startupFailure, STARTUP_CODES,
+  type StartupCode, type StartupFailure
+} from './errors.js'

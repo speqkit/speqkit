@@ -251,6 +251,17 @@ substrings of coloured stderr that any release is free to reword. `run` and
 `list` take `--json` as well; `run` prints the counts and, per test, what
 compared badly.
 
+A refusal to start is a document too. A `speq.yaml` from a later build, a
+plugin that is declared but not installed, a preset that will not resolve —
+these used to be prose on stderr and an empty stdout, so a script parsing
+`speq run --json` fell over somewhere other than where the problem was. They
+now come back as `{"status": "not-started", "error": {"code", "message"}}`,
+with the same nineteen codes whatever command was asked. The exit code is
+unchanged and is still `2`. What stays prose on stderr is a bug in the
+*caller* — a malformed `--shard`, an unknown flag — because that has no result
+to read; the line is whether the thing being reported is true about the
+project.
+
 `speq capabilities` is the other half. Every step type, assertion, value
 provider, reporter and loader the loaded plugins define, with the schema each
 declared — all of it in the registry since load, and none of it reachable. So

@@ -14,6 +14,48 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [Unreleased]
+
+### Added
+
+- **A refusal to start carries a code, and `--json` gets a document.**
+  `bootstrap()` is four steps — find the project, read the config, load the
+  plugins, hand over control — and each of the first three can refuse. Every
+  refusal was a bare `Error` printed as prose, so telling "there is no
+  speq.yaml here" from "this speq.yaml is from a later build" from "that
+  plugin is declared but not installed" meant matching substrings of a
+  sentence written for a person and rewordable in any release. 0.4.0 removed
+  exactly that obligation from validation by putting a `code` on every
+  `Diagnostic`; this is the same removal one layer earlier, on the failures
+  that happen before there is a suite to have diagnostics about.
+  - **`StartupError`, with `STARTUP_CODES` beside it** — nineteen bare words,
+    exported from the kernel so an embedder can branch on one, and pinned by a
+    test in one assertion, which is where a rename gets noticed. It is
+    deliberately not a `Diagnostic`: a diagnostic names a `file` and a `path`
+    inside it because it is about a test somebody wrote, and none of these
+    are. Giving them an empty `file` would make every consumer of diagnostics
+    handle a case that is not one.
+  - **`{"status": "not-started", "error": {"code", "message"}}` on stdout**
+    when the caller asked for `--json`. `speq run --json` used to answer a
+    wrong `speq.yaml` with an empty stdout, so the script parsing it fell over
+    somewhere other than where the problem was. `not-started` rather than
+    `error` or `invalid`, both of which are taken and would be ambiguous:
+    `error` is a run status meaning the question was never asked, and
+    `invalid` carries `diagnostics`, which a caller would look for and find
+    missing.
+  - **The line is who the news is about.** `plugin-cli` already drew it inside
+    a run: a malformed `--shard` stays prose on stderr, because a caller that
+    wrote it has a bug in itself rather than a result to read, while anything
+    true about the *project* is a document. A config from a later build is a
+    fact about the project. A crash is neither, has no code, and gets no
+    document — dressing one up as a result would tell a caller the project is
+    wrong when the kernel is.
+  - Exit codes do not move. A refusal was `2` and stays `2`.
+
+No contract change: `StartupError` is thrown by the kernel and caught by
+whoever started it, so `@speqkit/plugin-api` does not move and no plugin's
+peer range does either.
+
 ## [0.4.0] — 2026-09-03
 
 The release where a run answers a caller that is not a person. `--json` on the

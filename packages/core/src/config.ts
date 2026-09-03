@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { Store, readLock, parseSpec } from '@speqkit/installer'
+import { StartupError } from './errors.js'
 
 export interface SpeqConfig {
   version: number
@@ -41,7 +42,7 @@ const RESERVED = new Set(['version', 'extends', 'plugins'])
 export function loadConfig(root: string, options: LoadOptions = {}): SpeqConfig {
   const file = join(root, 'speq.yaml')
   if (!existsSync(file)) {
-    throw new Error(`no speq.yaml in ${root}; run 'speq init'`)
+    throw new StartupError('no-config', `no speq.yaml in ${root}; run 'speq init'`)
   }
 
   const merged: SpeqConfig = { version: 1, plugins: [], settings: {}, sources: [] }
@@ -52,7 +53,10 @@ export function loadConfig(root: string, options: LoadOptions = {}): SpeqConfig 
   if (env) applyEnvironment(root, env, merged)
 
   if (merged.version !== 1) {
-    throw new Error(`speq.yaml declares version ${merged.version}; this build understands version 1`)
+    throw new StartupError(
+      'unsupported-config-version',
+      `speq.yaml declares version ${merged.version}; this build understands version 1`
+    )
   }
   return merged
 }
@@ -66,7 +70,7 @@ export function loadConfig(root: string, options: LoadOptions = {}): SpeqConfig 
  */
 export function readRawConfig(root: string): { extends: string[]; plugins: string[] } {
   const file = join(root, 'speq.yaml')
-  if (!existsSync(file)) throw new Error(`no speq.yaml in ${root}; run 'speq init'`)
+  if (!existsSync(file)) throw new StartupError('no-config', `no speq.yaml in ${root}; run 'speq init'`)
 
   const raw = readConfigFile(file)
   const presets = raw.extends ? (Array.isArray(raw.extends) ? raw.extends : [raw.extends]) : []
@@ -93,7 +97,8 @@ function applyEnvironment(root: string, name: string, out: SpeqConfig): void {
 
   for (const key of ['plugins', 'extends'] as const) {
     if (raw[key] !== undefined) {
-      throw new Error(
+      throw new StartupError(
+        'environment-sets-reserved',
         `${file}: an environment cannot set '${key}'. ` +
           `The plugin set is pinned by speq.lock and must not depend on which environment runs; ` +
           `move it to speq.yaml.`
@@ -112,9 +117,7 @@ function environmentFile(root: string, name: string): string {
     const file = join(dir, `${name}${ext}`)
     if (existsSync(file)) return file
   }
-  throw new Error(
-    `no environment '${name}' in ${dir}${listEnvironments(dir)}`
-  )
+  throw new StartupError('unknown-environment', `no environment '${name}' in ${dir}${listEnvironments(dir)}`)
 }
 
 function listEnvironments(dir: string): string {
@@ -137,7 +140,7 @@ function listEnvironments(dir: string): string {
 function applyFile(file: string, out: SpeqConfig, seen: Set<string>, root: string): void {
   const key = resolve(file)
   if (seen.has(key)) {
-    throw new Error(`circular 'extends' involving ${file}`)
+    throw new StartupError('circular-extends', `circular 'extends' involving ${file}`)
   }
   seen.add(key)
 
@@ -171,7 +174,10 @@ function readConfigFile(file: string): RawConfig {
   try {
     raw = parseYaml(readFileSync(file, 'utf8')) ?? {}
   } catch (err) {
-    throw new Error(`cannot parse ${file}: ${err instanceof Error ? err.message : String(err)}`)
+    throw new StartupError(
+      'malformed-config',
+      `cannot parse ${file}: ${err instanceof Error ? err.message : String(err)}`
+    )
   }
   return expandEnv(raw, file) as RawConfig
 }
@@ -193,7 +199,8 @@ function expandEnv<T>(value: T, file: string): T {
       const found = process.env[name]
       if (found !== undefined) return found
       if (fallback !== undefined) return fallback
-      throw new Error(
+      throw new StartupError(
+        'missing-env-var',
         `${file}: \${env:${name}} is not set in the environment. ` +
           `Export it, or write \${env:${name}:-default} to make it optional.`
       )
@@ -211,11 +218,11 @@ function expandEnv<T>(value: T, file: string): T {
 function normalisePlugins(value: unknown, file: string): string[] {
   if (value === undefined) return []
   if (!Array.isArray(value)) {
-    throw new Error(`${file}: 'plugins' must be a list`)
+    throw new StartupError('malformed-plugins', `${file}: 'plugins' must be a list`)
   }
   return value.map((entry) => {
     if (typeof entry !== 'string') {
-      throw new Error(`${file}: every entry in 'plugins' must be a string`)
+      throw new StartupError('malformed-plugins', `${file}: every entry in 'plugins' must be a string`)
     }
     return entry
   })
@@ -235,7 +242,8 @@ function resolvePreset(spec: string, from: string, root: string): string {
   try {
     return require.resolve(`${spec}/speq.yaml`)
   } catch {
-    throw new Error(
+    throw new StartupError(
+      'preset-not-found',
       `cannot resolve preset '${spec}' from ${from}. ` +
         `Run 'speq install' — a preset is an ordinary package and has to be fetched like one.`
     )

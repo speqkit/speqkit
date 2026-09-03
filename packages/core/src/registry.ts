@@ -6,6 +6,7 @@ import type {
 import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speqkit/plugin-api'
 import { EventBus } from './events.js'
 import { ResourceManager } from './resources.js'
+import { StartupError } from './errors.js'
 import { detachedHost } from './host.js'
 
 /**
@@ -82,7 +83,8 @@ export class Registry {
   async register(spec: PluginSpec): Promise<void> {
     const declared = spec.apiVersion ?? PLUGIN_API_VERSION
     if (declared !== PLUGIN_API_VERSION) {
-      throw new Error(
+      throw new StartupError(
+        'incompatible-plugin',
         `plugin '${spec.name}' targets @speqkit/plugin-api v${declared}, ` +
           `this kernel speaks v${PLUGIN_API_VERSION}. ` +
           `Upgrade the plugin, or pin an older speq.`
@@ -123,7 +125,8 @@ export class Registry {
     const claim = <T>(map: Map<string, Registered<T>>, kind: string, key: string, def: T) => {
       const existing = map.get(key)
       if (existing) {
-        throw new Error(
+        throw new StartupError(
+          'duplicate-capability',
           `${kind} '${key}' is already provided by plugin '${existing.owner}'; ` +
             `plugin '${pluginName}' cannot redefine it`
         )
@@ -150,7 +153,8 @@ export class Registry {
         // projects and not others, and the difference would only ever show up
         // as a header carrying the wrong owner.
         if (def.prefix === 'meta') {
-          throw new Error(
+          throw new StartupError(
+            'reserved-prefix',
             `value provider prefix 'meta' is reserved by the kernel; '${pluginName}' cannot claim it`
           )
         }
@@ -167,7 +171,10 @@ export class Registry {
       provide: (service, value) => {
         const existing = this.#services.get(service)
         if (existing !== undefined) {
-          throw new Error(`service '${service}' is already provided; '${pluginName}' cannot replace it`)
+          throw new StartupError(
+            'duplicate-service',
+            `service '${service}' is already provided; '${pluginName}' cannot replace it`
+          )
         }
         this.#services.set(service, value)
       },

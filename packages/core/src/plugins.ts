@@ -6,6 +6,7 @@ import type { PluginSpec as PluginModule } from '@speqkit/plugin-api'
 import { Store, parseSpec, candidates, readLinks, readLock } from '@speqkit/installer'
 import { Registry } from './registry.js'
 import { createHost } from './host.js'
+import { StartupError } from './errors.js'
 import type { SpeqConfig } from './config.js'
 
 export type PluginOrigin = 'path' | 'link' | 'store' | 'node_modules'
@@ -44,7 +45,10 @@ export async function loadPlugins(config: SpeqConfig, root: string): Promise<Reg
     const plugin = (mod.default ?? mod) as PluginModule
 
     if (!plugin || typeof plugin.setup !== 'function') {
-      throw new Error(`'${spec}' does not look like a speq plugin: no default export with a setup()`)
+      throw new StartupError(
+        'not-a-plugin',
+        `'${spec}' does not look like a speq plugin: no default export with a setup()`
+      )
     }
     registry.sources.set(plugin.name, { ...source, name: plugin.name })
     await registry.register(plugin)
@@ -101,7 +105,8 @@ export function resolvePlugin(spec: string, root: string): PluginSource {
     }
   }
 
-  throw new Error(
+  throw new StartupError(
+    'plugin-not-found',
     `cannot load plugin '${spec}'. Tried:\n  ${tried.join('\n  ')}\n` +
       `Run 'speq install' if it is declared but not yet fetched.`
   )
@@ -133,7 +138,7 @@ function lockedVersion(root: string, spec: string, name: string): { name: string
  * a linked directory that lives nowhere near a node_modules.
  */
 function entryOf(dir: string): string {
-  if (!existsSync(dir)) throw new Error(`plugin path does not exist: ${dir}`)
+  if (!existsSync(dir)) throw new StartupError('plugin-path-missing', `plugin path does not exist: ${dir}`)
   if (/\.[cm]?[jt]sx?$/.test(dir)) return dir
 
   const manifestPath = join(dir, 'package.json')

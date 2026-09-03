@@ -843,6 +843,8 @@ suites/smoke.yaml  steps[4].times
 
   <p><code>run</code> and <code>list</code> take <code>--json</code> too. The document goes to stdout even when the news is bad — <code>run</code> answers <code>{"status": "invalid"}</code> with the diagnostics rather than refusing in prose — and <code>--json</code> replaces the <em>default</em> reporter and not a chosen one, so <code>--json --reporter junit</code> still writes the XML.</p>
 
+  <p><strong>A refusal to start is a document as well.</strong> The three steps before this one — find the project, read the config, load the plugins — can each refuse, and used to do it as prose on stderr with an empty stdout, so a script parsing <code>speq run --json</code> fell over somewhere other than where the problem was. They now answer <code>{"status": "not-started", "error": {"code", "message"}}</code>, with the same nineteen <code>StartupError</code> codes whatever command was asked — <code>no-config</code>, <code>unsupported-config-version</code>, <code>plugin-not-found</code>. Exit <strong>2</strong>, unchanged. What stays prose is a bug in the <em>caller</em>, a malformed <code>--shard</code> or an unknown flag: the line is whether the news is true about the project.</p>
+
   <div class="note warn">
     <span class="tag">Two rules of validation</span>
     <p><strong>It is synchronous.</strong> Every run waits for it, so it has to cost milliseconds: reading a file is allowed, going to the network is not.</p>

@@ -8,6 +8,7 @@ import { capabilitiesOf } from './host.js'
 import { shortName } from './registry.js'
 import { discoverRoot } from './discovery.js'
 import { loadConfig, readRawConfig } from './config.js'
+import { StartupError, startupFailure } from './errors.js'
 import { addPluginToConfig, removePluginFromConfig } from './edit-config.js'
 
 /**
@@ -670,7 +671,20 @@ function flag(argv: string[], name: string): string | undefined {
 main(process.argv.slice(2))
   .then((code) => process.exit(code))
   .catch((err: unknown) => {
-    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`)
+    // A refusal to start is a fact about the *project*, so under `--json` it
+    // goes to stdout as a document — the same line `plugin-cli` draws inside
+    // a run, where a malformed `--shard` stays prose on stderr because a
+    // caller that wrote it has a bug in itself rather than a result to read.
+    // Without this, `speq run --json` answered a wrong speq.yaml with an
+    // empty stdout, and the script parsing it fell over somewhere else.
+    //
+    // Anything that is not a `StartupError` has no code because it is a crash
+    // rather than a refusal, and a crash has no document to offer.
+    if (err instanceof StartupError && process.argv.includes('--json')) {
+      process.stdout.write(`${JSON.stringify(startupFailure(err), null, 2)}\n`)
+    } else {
+      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`)
+    }
     process.exit(EXIT_CONFIG)
   })
 
