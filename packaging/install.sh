@@ -2,7 +2,7 @@
 # speqkit installer.
 #
 #   curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh
-#   curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh -s -- --version v0.4.0
+#   curl -fsSL https://speqkit.github.io/speqkit/install.sh | sh -s -- --version v0.5.0
 #
 # Downloads one executable, checks its sha256 against the checksum published
 # beside it, and puts it on PATH. Nothing else is installed and nothing is

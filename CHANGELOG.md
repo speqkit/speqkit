@@ -14,7 +14,12 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
-## [Unreleased]
+## [0.5.0] — 2026-09-03
+
+A kernel-only release the day after 0.4.0, and the reason it is one: 0.4.0
+gave every diagnostic a `code` so a program need not read prose, and left the
+failures that happen *before* validation still answering in prose only. Same
+removal, one layer earlier.
 
 ### Added
 
@@ -52,9 +57,23 @@ on `0.x` pins the minor for exactly that reason.
     wrong when the kernel is.
   - Exit codes do not move. A refusal was `2` and stays `2`.
 
-No contract change: `StartupError` is thrown by the kernel and caught by
-whoever started it, so `@speqkit/plugin-api` does not move and no plugin's
-peer range does either.
+`StartupError` is thrown by the kernel and caught by whoever started it, so
+nothing about it is in the plugin contract.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.5.0 |
+| `@speqkit/test-kit` | 0.4.0 |
+| `create-speqkit-plugin` | 0.4.0 |
+
+Three, not fifteen. The contract did not move, so no plugin's peer range on it
+went stale and no plugin had to be republished to keep one current — which is
+the whole point of `PLUGIN_API_VERSION` and the package's semver doing
+different jobs. What did move is `speqkit`, and the two packages that name a
+range on the kernel move with it: `@speqkit/test-kit` peers on it, and
+`create-speqkit-plugin` writes it into every project it scaffolds.
 
 ## [0.4.0] — 2026-09-03
 
@@ -553,7 +572,8 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/speqkit/speqkit/releases/tag/v0.5.0
 [0.4.0]: https://github.com/speqkit/speqkit/releases/tag/v0.4.0
 [0.3.0]: https://github.com/speqkit/speqkit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/speqkit/speqkit/releases/tag/v0.2.0
