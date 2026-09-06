@@ -553,7 +553,8 @@ speq run --env ci --reporter console,junit</code></pre>
   <p>One of the few commands the kernel keeps for itself. The reason is simple: the rest come from the <code>@speqkit/plugin-cli</code> plugin, and there is nothing to install it with yet — <code>speq.yaml</code> does not exist.</p>
 
 <pre><code>speq init                      <span class="c"># the in-repo layout: everything goes into ./.speq/</span>
-speq init --mode test-repo     <span class="c"># a repository that is entirely about tests: everything at the root</span></code></pre>
+speq init --mode test-repo     <span class="c"># a repository that is entirely about tests: everything at the root</span>
+speq init --minimal            <span class="c"># yaml, http, cli, junit and nothing else; the default adds assert and data</span></code></pre>
 
 <pre><code>.speq/
 ├── speq.yaml                  <span class="c"># the plugins and their settings</span>
@@ -574,7 +575,7 @@ speq init --mode test-repo     <span class="c"># a repository that is entirely a
 
   <h4>The test that is created straight away</h4>
 <pre><code><span class="c"># .speq/suites/health.yaml</span>
-<span class="k">name</span>: service is up
+<span class="k">id</span>: service is up
 <span class="k">tags</span>: [smoke]
 
 <span class="k">steps</span>:

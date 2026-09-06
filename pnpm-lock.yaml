@@ -38,6 +38,9 @@ importers:
       '@speqkit/plugin-cli':
         specifier: workspace:*
         version: link:../../packages/plugin-cli
+      '@speqkit/plugin-data':
+        specifier: workspace:*
+        version: link:../../packages/plugin-data
       '@speqkit/plugin-http':
         specifier: workspace:*
         version: link:../../packages/plugin-http

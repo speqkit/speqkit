@@ -7,6 +7,7 @@
     "speqkit": "workspace:*",
     "@speqkit/plugin-assert": "workspace:*",
     "@speqkit/plugin-cli": "workspace:*",
+    "@speqkit/plugin-data": "workspace:*",
     "@speqkit/plugin-http": "workspace:*",
     "@speqkit/plugin-junit": "workspace:*",
     "@speqkit/plugin-loop": "workspace:*",

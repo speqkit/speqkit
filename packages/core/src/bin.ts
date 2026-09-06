@@ -75,7 +75,7 @@ function usage(): number {
   process.stdout.write(
     `speq — a test framework that is mostly plugins\n\n` +
       `Bootstrap commands (always available):\n` +
-      `  speq init [--mode in-repo|test-repo]   scaffold a project\n` +
+      `  speq init [--mode in-repo|test-repo] [--minimal]   scaffold a project\n` +
       `  speq install [--frozen]                fetch the plugins speq.yaml asks for\n` +
       `  speq add <plugin>...                   add to speq.yaml and install\n` +
       `  speq remove <plugin>...                remove from speq.yaml and install\n` +
@@ -100,12 +100,34 @@ function usage(): number {
 /* init                                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The plugin set a new project starts with.
+ *
+ * `yaml`, `http`, `cli` and `junit` were the whole of it, and the first thing
+ * the documentation teaches after `status` is `equals` — which is
+ * `plugin-assert`'s — and the first given it shows is `${gen:uuid}`, which is
+ * `plugin-data`'s. A fresh project got `unknown assertion 'equals'` for its
+ * second test. The vocabulary and the values are not two more plugins, they
+ * are the standard library of the language; a project that knows it wants
+ * less says `--minimal`.
+ */
+const INIT_PLUGINS = [
+  ['yaml', 'the authoring format is itself a plugin'],
+  ['http', 'the request step, and the two checks that are about HTTP'],
+  ['assert', 'the checking vocabulary: equals, contains, matches, schema, …'],
+  ['data', 'where values come from: ${gen:…}, ${env:…}, ${vars:…}'],
+  ['cli', 'the command surface: run, validate, list, report'],
+  ['junit', 'the report CI already knows how to render']
+] as const
+const MINIMAL_PLUGINS = new Set(['yaml', 'http', 'cli', 'junit'])
+
 function commandInit(argv: string[]): number {
   const mode = flag(argv, '--mode') ?? 'in-repo'
   if (mode !== 'in-repo' && mode !== 'test-repo') {
     process.stderr.write(`--mode must be 'in-repo' or 'test-repo'\n`)
     return EXIT_CONFIG
   }
+  const plugins = INIT_PLUGINS.filter(([name]) => !argv.includes('--minimal') || MINIMAL_PLUGINS.has(name))
   const root = mode === 'in-repo' ? join(process.cwd(), '.speq') : process.cwd()
 
   if (existsSync(join(root, 'speq.yaml'))) {
@@ -120,10 +142,11 @@ function commandInit(argv: string[]): number {
   // exists — the v1 tree `speq migrate` is about to rewrite — it is litter.
   const empty = readdirSync(join(root, 'suites')).length === 0
 
+  const width = Math.max(...plugins.map(([name]) => name.length))
   writeFileSync(
     join(root, 'speq.yaml'),
     `version: 1\n\n` +
-      `plugins:\n  - yaml\n  - http\n  - cli\n  - junit\n\n` +
+      `plugins:\n${plugins.map(([name, why]) => `  - ${name.padEnd(width)}   # ${why}\n`).join('')}\n` +
       `http:\n  baseUrl: http://localhost:8080\n`
   )
   if (empty) {
@@ -158,9 +181,10 @@ function commandInit(argv: string[]): number {
 
   process.stdout.write(
     `created ${mode} project at ${root}\n` +
-      `  speq.yaml\n  suites/health.yaml\n` +
+      `  speq.yaml   (${plugins.map(([name]) => name).join(', ')})\n  suites/health.yaml\n` +
       `  environments/local.yaml\n  environments/ci.yaml\n  .gitignore\n\n` +
-      `Next: speq install && speq run --env local\n`
+      `Next: speq install && speq run --env local\n` +
+      `Then: speq docs — what the plugins are for, with a line of each to paste\n`
   )
   return EXIT_OK
 }

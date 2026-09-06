@@ -1,11 +1,18 @@
 id: service answers
 tags: [smoke]
 
+# A given made up by `data`: the same seed replays the same id, and the
+# seed is the run id printed on every report.
+variables:
+  requestId: ${gen:uuid}
+
 steps:
   - id: post
     type: http
     method: GET
     url: /posts/1
+    headers:
+      x-request-id: ${requestId}
 
 assert:
   - type: status
