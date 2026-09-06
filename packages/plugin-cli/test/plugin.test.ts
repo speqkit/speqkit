@@ -124,8 +124,14 @@ describe('the selection flags', () => {
     expect(two.out).toContain('orders can be listed')
     expect(two.out).toContain('2 test(s)')
 
+    // The union of what the two selection flags name, narrowed by `--tags`
+    // afterwards rather than per flag: `suites/orders` and `suites/health.yaml`
+    // are three files between them, and `typo.yaml` carries no tag at all.
     const both = await invoke(commands, 'list', ['--suite', 'suites/orders', '--test', 'suites/health.yaml', '--tags', 'smoke,orders'])
-    expect(both.out).toContain('3 test(s)')
+    expect(both.out).toContain('health answers')
+    expect(both.out).toContain('orders can be listed')
+    expect(both.out).not.toContain('a typo')
+    expect(both.out).toContain('2 test(s)')
   })
 
   it('take a pattern for --test', async () => {

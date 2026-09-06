@@ -136,7 +136,7 @@ describe('a refusal to start', () => {
     expect(code).toBe(2)
     expect(stdout).toBe('')
     expect(stderr).toContain("the 'http' block does not match")
-    expect(stderr).toContain("unknown field 'http.baseUrll' — did you mean 'baseUrl'?")
+    expect(stderr).toContain("http: unknown field 'baseUrll' — did you mean 'baseUrl'?")
     expect(stderr).toContain('http.retry.attempts: retry.attempts is 0, below the minimum of 1')
 
     const document = JSON.parse(speq(

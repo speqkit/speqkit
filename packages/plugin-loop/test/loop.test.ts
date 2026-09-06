@@ -136,8 +136,8 @@ describe('loop', () => {
       {
         name: 't',
         steps: [
-          { id: 'fetched', type: 'body', with: { items: [1] } },
-          { type: 'loop', over: '${fetched.items}', as: 'it', steps: [{ type: 'body', with: '${it}' }] }
+          { id: 'fetched', type: 'echo', value: { items: [1] } },
+          { type: 'loop', over: '${fetched.value.items}', as: 'it', steps: [{ type: 'echo', value: '${it}' }] }
         ],
         source: 'a.yaml'
       }
