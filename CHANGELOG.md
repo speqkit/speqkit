@@ -14,6 +14,146 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.6.0] — 2026-09-06
+
+The bet this project rests on is that a generated test can be checked *before
+it runs*, and the check stopped at the words. A step type and its fields were
+read against the grammar; the joins were not, the schemas were read two
+keywords deep, and the examples the framework hands out were checked for
+naming a capability that exists rather than for being correct. So `${nope}`,
+`method: GETT`, `retry: { attemps: 3 }` and a `json:` key this repository's
+own `speq docs http` told a reader to paste all passed `speq validate` and
+came back as a failed step in the middle of a run. This release is that gap,
+closed in the five places it was open.
+
+### Added
+
+- **A reference is checked before the run, against what the test binds.**
+  `validateTests` reads every `${…}` a test writes against its givens in
+  declaration order, the id of every step above, and the value providers that
+  are loaded. Three codes rather than one, because the three have different
+  answers: `unresolved-reference` for a name nothing binds, with the nearest
+  spelling beside it; `forward-reference` for a name that is a step further
+  down; `unknown-provider` for a prefix nothing claims. A suite's own setup and
+  cleanup are read against the suite's names, and a test reading the suite's
+  binding is told it cannot, by design.
+  - **`StepTypeDef.binds(step)`, on the contract.** What the kernel cannot know
+    is what a nesting step binds for the steps under it — `loop` binds `as`, a
+    step type this repository has never seen binds whatever it likes. A step
+    type that nests and says nothing is taken at its word and nothing is
+    reported under it: strict where the grammar is the kernel's, silent where
+    it is not, and never a diagnostic about a name that would have resolved.
+  - Only the head of a path is checked. `${order.body.total}` names a step the
+    kernel can see and a shape only the run produces.
+- **An example is checked against the grammar it is an example of.** `speq docs
+  --check` read the `for` of each example and never the example. Each one is now
+  parsed as YAML and, where it is a piece of a test, checked with the same walk
+  `speq validate` uses, through a new `validateFragment` in the kernel. Run over
+  the eleven plugins here it found four rotten examples, not one — `json:` in
+  `plugin-http` and again in `plugin-yaml`, `schemaRef:` in `plugin-assert`
+  where the schema has always said `ref`, and a suite example written with a
+  step that project never loads. CI runs the check against the example project,
+  so the fifth does not ship.
+- **A new project starts with the standard library.** `speq init` wrote `yaml`,
+  `http`, `cli` and `junit`, and the first thing the documentation teaches after
+  `status` is `equals`, which is `plugin-assert`'s, and the first given it shows
+  is `${gen:uuid}`, which is `plugin-data`'s — so a fresh project got `unknown
+  assertion 'equals'` on its second test from a binary whose own quick start had
+  just shown the line. The vocabulary and the values are the standard library of
+  the language, not two more plugins; a project that knows it wants less says
+  `--minimal`.
+
+### Changed
+
+- **An input is checked against the whole of its schema.** The kernel read
+  `required` and `additionalProperties: false`. It now reads `type` (one or
+  several, and `integer`), `enum`, `const`, `properties` at every depth,
+  `items`, the bounds, `pattern`, and `anyOf`/`oneOf`/`allOf` — and the contract
+  says which keywords those are, so a plugin knows what is applied and what is
+  merely carried. A value that is still a whole `${…}` template fits any shape,
+  since what it becomes is the run's to know.
+  - **The schemas themselves were the other half of the silence.** `retry`,
+    `multipart`, `query` and `headers` were `{ type: object }` with nothing
+    inside, and not one property in eleven plugins carried a `description` —
+    and the schema is what a reader who is not a person gets. Every property in
+    every in-box plugin says what it is for now, the nested shapes are declared,
+    and `check-plugin-package.mjs` notes a property that says nothing.
+- **A plugin's block in `speq.yaml` is checked against its own
+  `configSchema`.** It had been on the contract since the first commit,
+  `ctx.config()` was documented as "already validated", and nothing had ever
+  read the schema — the fifth dead mechanism of the same kind, after
+  `defineReporter`, `attach`, `AssertContext.results` and `tags`. A `baseUrll:`
+  under `http:` reached the plugin, which read `baseUrl`, found nothing, and
+  sent every request to a relative path. It is a startup refusal —
+  `invalid-plugin-config`, the twentieth code — and not a diagnostic, because it
+  is true about the project and not about any test.
+- **The command line is read strictly, and coloured only for a terminal.** The
+  first reader of argv was `argv.indexOf(name)`: it found the first `--test`,
+  lost the second in silence, could not read `--test=a`, and let `--bogus`
+  through as if it had been typed on purpose, against a README that promised the
+  opposite. One `parse(argv, spec)` per command now — `--flag value` or
+  `--flag=value`, a list flag repeatable and comma-split, an unknown flag
+  refused with the nearest one the command does take. `--test` and `--suite` are
+  joined rather than overwritten, and a `--test` with a `*` in it is a pattern.
+  Colour follows the usual rule: `stdout.isTTY` and no `NO_COLOR`, always with
+  `FORCE_COLOR`, with `--color` / `--no-color` overriding both.
+- **A test-level `path` can name the step it means.** `path: created.body.name`
+  read only the last step's result and reported `created.body.name is not
+  there` — true of the last result and useless, since the value was one step
+  over. The selector reads the last result first and then any step by id, so a
+  step named `body` cannot shadow the field it just produced, and when nothing
+  is found the message names what it did see.
+- **`id:` throughout.** The example project and `speq init` wrote `name:` while
+  every page and every plugin example writes `id:`. The loader still takes both;
+  a reader deciding which to write should not have to find that out.
+
+### Fixed
+
+- `${env:TOKEN}` in a project with nothing loaded to answer `env:` reported that
+  `'env:TOKEN' is not defined` — true, and the wrong sentence. It now says that
+  no value provider is loaded for the prefix, which ones are, and that the usual
+  three come from `@speqkit/plugin-data`.
+- Every hint began with the dash the console prints between a message and its
+  hint, so `validate --json` carried ` — did you mean` as the first characters
+  of every `hint`: punctuation from one surface inside a document read by
+  another. Hints are sentences; the surface that joins them writes the
+  separator.
+
+### The contract
+
+`@speqkit/plugin-api` 0.11.0 → 0.12.0, additively. `StepTypeDef` gains an
+optional `binds(step)`, and `InputSchema` names `description`, `enum`, a `type`
+that may be a list and an `additionalProperties` that may be a schema — every
+one of them already legal under the index signature, now written down.
+`PLUGIN_API_VERSION` stays `1`: every 0.11.0 plugin still loads unchanged.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.6.0 |
+| `@speqkit/plugin-api` | 0.12.0 |
+| `@speqkit/plugin-cli` | 0.6.0 |
+| `@speqkit/plugin-yaml` | 0.5.0 |
+| `@speqkit/plugin-http` | 0.5.0 |
+| `@speqkit/plugin-loop` | 0.5.0 |
+| `@speqkit/plugin-junit` | 0.5.0 |
+| `@speqkit/plugin-playwright` | 0.5.0 |
+| `@speqkit/plugin-use` | 0.4.0 |
+| `@speqkit/plugin-data` | 0.4.0 |
+| `@speqkit/plugin-assert` | 0.4.0 |
+| `@speqkit/plugin-json` | 0.4.0 |
+| `@speqkit/plugin-gate` | 0.2.0 |
+| `@speqkit/test-kit` | 0.5.0 |
+| `create-speqkit-plugin` | 0.5.0 |
+
+Fifteen this time, where 0.5.0 was three, and the difference is the one thing
+that decides it: the contract moved. A caret on `0.x` pins the minor, so any
+plugin left behind would keep asking npm for `^0.11.0` and a fresh `speq
+install` would fetch a second copy of the contract to satisfy it — correct,
+loadable and pointless on disk. `@speqkit/installer` stays at 0.2.0, being the
+one package with no range on the contract and nothing changed in it.
+
 ## [0.5.0] — 2026-09-03
 
 A kernel-only release the day after 0.4.0, and the reason it is one: 0.4.0
@@ -572,7 +712,8 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/speqkit/speqkit/releases/tag/v0.6.0
 [0.5.0]: https://github.com/speqkit/speqkit/releases/tag/v0.5.0
 [0.4.0]: https://github.com/speqkit/speqkit/releases/tag/v0.4.0
 [0.3.0]: https://github.com/speqkit/speqkit/releases/tag/v0.3.0

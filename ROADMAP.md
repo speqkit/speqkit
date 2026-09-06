@@ -784,6 +784,75 @@ read, check, or notice going stale.
 needs a row for it, because `workspace.test.ts` checks that a package this
 repository publishes has one. *Done.*
 
+## M10 — Checkable before it runs — any time — **done**
+
+M8 made the vocabulary legible to a machine. This milestone is about the
+sentence that vocabulary was in service of: **a generated test can be checked
+before it runs.** It was true of the words and not of the joins. `${nope}`,
+`${c.body.id}` naming the step below, `method: GETT`, `retry: { attemps: 3 }`
+and a `json:` key `speq docs http` handed a reader to paste all came back
+green from `speq validate` and red from the run — which is the failure mode
+the whole approach exists to remove, arriving with the framework's own
+signature on it.
+
+- [x] **A reference is checked before the run**
+  - *Done when:* `speq validate` reports `unresolved-reference`,
+    `forward-reference` and `unknown-provider`, against what the test binds —
+    its givens in declaration order, the id of every step above, the loaded
+    providers.
+  - *The contract change it needed:* `StepTypeDef.binds(step)`, because what a
+    nesting step makes addressable under it is not the kernel's to know. A step
+    type that nests and says nothing is taken at its word and nothing is
+    reported under it — silent rather than wrong, since a false
+    `unresolved-reference` teaches a reader to stop believing the command.
+  - *Only the head of a path.* `${order.body.total}` names a step the kernel
+    can see and a shape only the run produces.
+- [x] **An input is checked against the whole of its schema**
+  - *Done when:* `type`, `enum`, `const`, nested `properties`, `items`, the
+    bounds, `pattern` and the three combinators are read at every depth, and
+    the contract says which keywords those are.
+  - *And the schemas say something:* every property in every in-box plugin
+    carries a `description` and the nested shapes are declared, because
+    `speq capabilities` is what an editor and a model read. A mapping with
+    nothing inside it is an invitation to invent the keys;
+    `check-plugin-package.mjs` notes one now.
+  - *And `configSchema` is finally read* — `invalid-plugin-config`, a startup
+    refusal rather than a diagnostic, because it is true about the project and
+    not about any test.
+- [x] **An example is checked against the grammar it is an example of**
+  - *Done when:* `speq docs --check` runs each `Example.code` through the same
+    walk `speq validate` uses, and CI runs it against the example project.
+  - *Found four rotten examples in eleven plugins,* which is the honest measure
+    of what "checks the names" was worth.
+- [x] **The command line is read strictly, and coloured only for a terminal**
+  - *Done when:* an unknown flag is refused with the nearest one that exists,
+    `--test` and `--suite` repeat and take globs, `--flag=value` parses, and
+    colour follows `isTTY`, `NO_COLOR`, `FORCE_COLOR` and `--color`/`--no-color`.
+- [x] **A new project starts with the standard library**
+  - *Done when:* every example in `speq docs` runs in a project `speq init`
+    just made. `assert` and `data` are the vocabulary and the values, not two
+    more plugins; `--minimal` is for a project that knows why.
+
+### Not in M10, and left open on purpose
+
+The same review that produced this milestone named three things that are
+surface rather than correctness, and they are worth more once a real project
+has used the framework than before:
+
+- **`speq context`** — one document for a system prompt, instead of a caller
+  assembling `capabilities --json`, `docs --json` and the `${…}` rules itself.
+- **`@speqkit/plugin-mcp`** — a surface plugin in the shape of `plugin-cli`,
+  so a session calls `validate` and `run` as tools rather than pasting text.
+  No contract change: it is `ctx.host` and nothing else.
+- **`line`/`column` on `Diagnostic`** — additive, and the difference between
+  patching a line and rewriting a file. The YAML loader has the positions
+  already.
+
+They are held for the same reason the contract freeze is: **the framework has
+not yet carried a real project's suite.** Each of the three is a guess about
+how somebody works, and that is precisely the class of guess the freeze item
+below says to stop making without evidence.
+
 ## M4 — The ecosystem — continues
 
 - [ ] **`speq import` from Postman and OpenAPI**

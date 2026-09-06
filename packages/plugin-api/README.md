@@ -73,11 +73,11 @@ build anything you cannot afford to rewrite.
 
 ## Changes
 
-Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`. Everything below
+Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`, `0.12.0`. Everything below
 `0.4.0` was a change to the contract in this repository before anything was
 published from it, and the entry it landed under is kept as written.
 
-**Unreleased** — `StepTypeDef` gained an optional `binds(step)`: the names a
+**0.12.0** — `StepTypeDef` gained an optional `binds(step)`: the names a
 nesting step makes addressable to the steps under it, beyond what is visible
 outside — `loop` answers `[as, as + 'Index']`, `retry` answers nothing. What it
 buys is `speq validate` reading every `${…}` before the run. The kernel knows
@@ -88,7 +88,7 @@ know, so a step type with `steps` and no `binds` is taken at its word and
 nothing is reported under it. An added optional member, so every 0.11.0 plugin
 still satisfies the contract and `PLUGIN_API_VERSION` stays at `1`.
 
-Also unreleased: `InputSchema` says what the kernel reads of it. It had been
+Also in 0.12.0: `InputSchema` says what the kernel reads of it. It had been
 "JSON-Schema-shaped" since the first commit and the kernel read two words —
 `required`, and `additionalProperties: false` — so `method: GETT`,
 `attempts: "3"` and a typo one level down in `retry:` all went out on the
