@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import {
   definePlugin,
-  type Capabilities, type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery,
+  type Capabilities, type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type Host,
   type InputSchema, type ReporterDef, type RunEvent, type RunOutcome, type StepRecord,
   type StepStatus, type TestDef, type TestOutcome
 } from '@speqkit/plugin-api'
@@ -101,26 +101,23 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--verbose] [--json]',
+      usage: 'speq run [--env <name>] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--verbose] [--json] [--color|--no-color]',
       async run(argv) {
         // A malformed flag stays plain text on stderr even here: there is no
         // run to describe, and a caller that wrote `--shard 5/4` has a bug in
-        // itself rather than a result to read.
-        const asJson = wantsJson(argv)
-        verbose = argv.includes('--verbose')
-        const workers = readWorkers(argv)
-        if (typeof workers === 'string') {
-          process.stderr.write(`${workers}\n`)
-          return EXIT_CONFIG
-        }
+        // itself rather than a result to read. So does an unknown flag.
+        const args = parse(argv, { ...SELECTION, ...RUN_FLAGS })
+        if (typeof args === 'string') return refuse(args)
+        const asJson = args.json
+        verbose = args.verbose
+        applyColour(args)
+        const workers = readWorkers(args.workers)
+        if (typeof workers === 'string') return refuse(workers)
 
-        const shard = readShard(argv)
-        if (typeof shard === 'string') {
-          process.stderr.write(`${shard}\n`)
-          return EXIT_CONFIG
-        }
+        const shard = readShard(args.shard)
+        if (typeof shard === 'string') return refuse(shard)
 
-        const tests = shardOf(await ctx.host.discover(query(argv)), shard)
+        const tests = shardOf(await select(ctx.host, args), shard)
         if (tests.length === 0) {
           const message = shard ? 'no tests in this shard' : 'no tests matched'
           if (asJson) writeJson({ status: 'no-tests', message })
@@ -141,7 +138,7 @@ export default definePlugin({
           // `--json` replaces the *default* reporter and not a chosen one:
           // `--json --reporter junit` still writes the XML, because the
           // document on stdout and the file on disk answer different callers.
-          reporters: list(flag(argv, '--reporter')) ?? (asJson ? [] : DEFAULT_REPORTERS),
+          reporters: args.reporter ?? (asJson ? [] : DEFAULT_REPORTERS),
           concurrency: workers
         })
         if (asJson) writeJson(summarise(outcome, ctx.host.reportDir))
@@ -151,15 +148,18 @@ export default definePlugin({
 
     cli.register('report', {
       summary: 'render a run that already happened, without running it again',
-      usage: 'speq report [--run <id>] [--reporter a,b] [--list]',
+      usage: 'speq report [--run <id>] [--reporter a,b] [--list] [--color|--no-color]',
       async run(argv) {
+        const args = parse(argv, { run: 'string', reporter: 'list', list: 'boolean', ...COLOUR })
+        if (typeof args === 'string') return refuse(args)
+        applyColour(args)
         const runs = ctx.host.runs()
 
         if (runs.length === 0) {
           process.stderr.write(`no recorded runs in ${ctx.host.reportDir}; run 'speq run' first\n`)
           return EXIT_CONFIG
         }
-        if (argv.includes('--list')) {
+        if (args.list) {
           for (const run of runs) {
             const when = run.at ? new Date(run.at).toISOString() : 'unknown time'
             process.stdout.write(`${run.runId}  ${when}\n`)
@@ -167,7 +167,7 @@ export default definePlugin({
           return EXIT_OK
         }
 
-        const wanted = flag(argv, '--run')
+        const wanted = args.run
         const chosen = wanted ? runs.find((r) => r.runId.startsWith(wanted)) : runs[0]
         if (!chosen) {
           process.stderr.write(
@@ -176,10 +176,7 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        const events = await ctx.host.replay(
-          chosen,
-          list(flag(argv, '--reporter')) ?? DEFAULT_REPORTERS
-        )
+        const events = await ctx.host.replay(chosen, args.reporter ?? DEFAULT_REPORTERS)
         const finished = events.find((e) => e.type === 'run.finished')
         return finished?.type === 'run.finished' && finished.status !== 'passed' ? EXIT_FAILED : EXIT_OK
       }
@@ -197,15 +194,18 @@ export default definePlugin({
      */
     cli.register('validate', {
       summary: 'check every test against the grammar the loaded plugins define',
-      usage: 'speq validate [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--json]',
+      usage: 'speq validate [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--json]',
       async run(argv) {
-        const tests = await ctx.host.discover(query(argv))
+        const args = parse(argv, { ...SELECTION, json: 'boolean', ...COLOUR })
+        if (typeof args === 'string') return refuse(args)
+        applyColour(args)
+        const tests = await select(ctx.host, args)
         const diagnostics = ctx.host.validate(tests)
 
         // Emitted as they came back, not reshaped. A `Diagnostic` is already
         // the contract's own record — file, path, code, message, hint — and a
         // second spelling of it here would be a second thing to keep in step.
-        if (wantsJson(argv)) {
+        if (args.json) {
           writeJson({ checked: tests.length, diagnostics })
           return diagnostics.length === 0 ? EXIT_OK : EXIT_CONFIG
         }
@@ -221,20 +221,20 @@ export default definePlugin({
 
     cli.register('list', {
       summary: 'show the tests that are visible and how to address them',
-      usage: 'speq list [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--shard i/n] [--json]',
+      usage: 'speq list [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--shard i/n] [--json]',
       async run(argv) {
         // `--shard` is here and not only on `run` because the property worth
         // checking — four shards between them run each test exactly once — is
         // checkable without running anything, and this is where you check it.
-        const shard = readShard(argv)
-        if (typeof shard === 'string') {
-          process.stderr.write(`${shard}\n`)
-          return EXIT_CONFIG
-        }
+        const args = parse(argv, { ...SELECTION, shard: 'string', json: 'boolean', ...COLOUR })
+        if (typeof args === 'string') return refuse(args)
+        applyColour(args)
+        const shard = readShard(args.shard)
+        if (typeof shard === 'string') return refuse(shard)
 
-        const tests = shardOf(await ctx.host.discover(query(argv)), shard)
+        const tests = shardOf(await select(ctx.host, args), shard)
 
-        if (wantsJson(argv)) {
+        if (args.json) {
           writeJson({ tests: tests.map(identityOf) })
           return EXIT_OK
         }
@@ -262,8 +262,11 @@ export default definePlugin({
       summary: 'the grammar the loaded plugins define, with the schemas',
       usage: 'speq capabilities [--json]',
       run(argv) {
+        const args = parse(argv, { json: 'boolean', ...COLOUR })
+        if (typeof args === 'string') return refuse(args)
+        applyColour(args)
         const capabilities = ctx.host.capabilities()
-        if (wantsJson(argv)) writeJson(capabilities)
+        if (args.json) writeJson(capabilities)
         else printCapabilities(capabilities)
         return EXIT_OK
       }
@@ -271,11 +274,23 @@ export default definePlugin({
   }
 })
 
+/**
+ * Colour, when there is a terminal to show it on.
+ *
+ * The escape codes went out unconditionally — into a pipe, into a CI log,
+ * into a file somebody grepped — and `NO_COLOR=1` changed nothing. The rule
+ * is the usual one: colour when stdout is a terminal and `NO_COLOR` is unset,
+ * always with `FORCE_COLOR`, and `--color` / `--no-color` on the command
+ * override both, since a CI job that renders ANSI is exactly the caller that
+ * would ask.
+ */
+let colour = process.env.FORCE_COLOR !== undefined || (process.env.NO_COLOR === undefined && !!process.stdout.isTTY)
 const E = '\x1b['
-const dim = (s: string) => `${E}2m${s}${E}0m`
-const green = (s: string) => `${E}32m${s}${E}0m`
-const red = (s: string) => `${E}31m${s}${E}0m`
-const yellow = (s: string) => `${E}33m${s}${E}0m`
+const paint = (code: string) => (s: string) => (colour ? `${E}${code}m${s}${E}0m` : s)
+const dim = paint('2')
+const green = paint('32')
+const red = paint('31')
+const yellow = paint('33')
 
 interface Line {
   text: string
@@ -533,9 +548,6 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
  * it always had: things that went wrong with the command rather than with the
  * tests.
  */
-function wantsJson(argv: string[]): boolean {
-  return argv.includes('--json')
-}
 
 /** Indented, because a person reads this too — a machine cannot tell. */
 function writeJson(document: unknown): void {
@@ -737,8 +749,7 @@ function fieldsOf(schema: InputSchema | undefined): string | undefined {
  * ours is somebody else's service, and N suites at once is N times the load on
  * it. Nothing here can know what that system will take.
  */
-function readWorkers(argv: string[]): number | string {
-  const raw = flag(argv, '--workers')
+function readWorkers(raw: string | undefined): number | string {
   if (raw === undefined) return 1
   const workers = Number(raw)
   if (!Number.isInteger(workers) || workers < 1) {
@@ -768,8 +779,7 @@ interface Shard {
  * that silently took the whole suite after being asked for a quarter of it is
  * a machine doing four times the work it was told to, and nothing says so.
  */
-function readShard(argv: string[]): Shard | undefined | string {
-  const raw = flag(argv, '--shard')
+function readShard(raw: string | undefined): Shard | undefined | string {
   if (raw === undefined) return undefined
 
   const wrong = `--shard takes i/n — the i-th of n slices, both whole numbers, 1 <= i <= n — and got '${raw}'.`
@@ -816,25 +826,165 @@ function shardOf(tests: TestDef[], shard: Shard | undefined): TestDef[] {
   return tests.slice(start, start + size + (before < extra ? 1 : 0))
 }
 
+/* ------------------------------------------------------------------ */
+/* The command line, read strictly                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What a flag takes: nothing, one value, or one value per mention.
+ *
+ * The first reader of the command line was `argv.indexOf(name)` — which
+ * found the first `--test`, lost the second in silence, could not read
+ * `--test=a`, and let `--bogus` through as if it had been typed on purpose.
+ * The README promised that an unknown flag is refused, and it was not. A flag
+ * a runner did not understand and did not mention is a run doing something
+ * other than what it was asked, with nothing saying so; that is the same
+ * fault as `--workers 8` quietly running one, and it costs the same refusal.
+ */
+type FlagKind = 'boolean' | 'string' | 'list'
+type FlagSpec = Record<string, FlagKind>
+
+/** Read by the bootstrap before the command sees argv, and legal on every command. */
+const GLOBAL: FlagSpec = { env: 'string', 'speq-root': 'string' }
+
 /** The four flags that decide which tests a command is talking about. */
-function query(argv: string[]): DiscoverQuery {
-  return {
-    test: flag(argv, '--test'),
-    suite: flag(argv, '--suite'),
-    tags: list(flag(argv, '--tags')),
-    // `--name` is the one that addresses a single test, cases included:
-    // `--name 'menu.create[eur]'`. The other three say where to look or what
-    // to look for, and after reading a report what you want is that one row.
-    names: list(flag(argv, '--name'))
+const SELECTION: FlagSpec = { test: 'list', suite: 'list', tags: 'list', name: 'list' }
+const COLOUR: FlagSpec = { color: 'boolean', 'no-color': 'boolean' }
+const RUN_FLAGS: FlagSpec = { reporter: 'list', workers: 'string', shard: 'string', verbose: 'boolean', json: 'boolean', ...COLOUR }
+
+interface Parsed {
+  color: boolean
+  'no-color': boolean
+  test?: string[]
+  suite?: string[]
+  tags?: string[]
+  name?: string[]
+  reporter?: string[]
+  workers?: string
+  shard?: string
+  run?: string
+  verbose: boolean
+  json: boolean
+  list: boolean
+  positionals: string[]
+}
+
+/**
+ * `--flag value`, `--flag=value`, and `--flag` for a boolean. A `list` flag
+ * takes one value per mention and splits each on commas, so `--tags a,b
+ * --tags c` and `--tags a --tags b,c` are the same three tags. The first
+ * thing wrong is returned as a sentence, and the command refuses on it.
+ */
+function parse(argv: string[], spec: FlagSpec): Parsed | string {
+  const known: FlagSpec = { ...GLOBAL, ...spec }
+  const out: Record<string, unknown> = { verbose: false, json: false, list: false, color: false, 'no-color': false, positionals: [] }
+  const usage = `Flags here: ${Object.keys(known).map((k) => `--${k}`).join(', ')}.`
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!
+    if (!arg.startsWith('--')) {
+      ;(out.positionals as string[]).push(arg)
+      continue
+    }
+    const eq = arg.indexOf('=')
+    const name = eq >= 0 ? arg.slice(2, eq) : arg.slice(2)
+    const kind = known[name]
+    if (!kind) {
+      const near = Object.keys(known).find((k) => distance(k, name) <= 2)
+      return `unknown flag '--${name}'${near ? ` — did you mean '--${near}'?` : ''}. ${usage}`
+    }
+    if (kind === 'boolean') {
+      if (eq >= 0) return `--${name} takes no value, and got '${arg.slice(eq + 1)}'.`
+      out[name] = true
+      continue
+    }
+    const value = eq >= 0 ? arg.slice(eq + 1) : argv[++i]
+    if (value === undefined || (eq < 0 && value.startsWith('--'))) {
+      return `--${name} takes a value, and got none.`
+    }
+    if (kind === 'string') {
+      if (out[name] !== undefined) return `--${name} was given twice; it takes one value.`
+      out[name] = value
+      continue
+    }
+    const items = value.split(',').map((v) => v.trim()).filter(Boolean)
+    out[name] = [...((out[name] as string[] | undefined) ?? []), ...items]
   }
+  return out as unknown as Parsed
 }
 
-function list(value: string | undefined): string[] | undefined {
-  if (value === undefined) return undefined
-  return value.split(',').map((v) => v.trim()).filter(Boolean)
+function applyColour(args: Parsed): void {
+  if (args.color) colour = true
+  if (args['no-color']) colour = false
 }
 
-function flag(argv: string[], name: string): string | undefined {
-  const index = argv.indexOf(name)
-  return index >= 0 ? argv[index + 1] : undefined
+function refuse(message: string): number {
+  process.stderr.write(`${message}\n`)
+  return EXIT_CONFIG
+}
+
+function distance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)])
+  for (let j = 0; j <= b.length; j++) dp[0]![j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+  }
+  return dp[a.length]![b.length]!
+}
+
+/**
+ * The tests the selection flags name, in the order discovery returns them.
+ *
+ * `DiscoverQuery` takes one file and one directory, which is the right shape
+ * for the kernel: a query is a question, not a union. The union is the
+ * command line's, so it is made here — one discovery per `--test` and per
+ * `--suite`, the answers joined and each test kept once, with the tags and
+ * names applied to all of them. A `--test` with a `*` in it is a pattern
+ * over the files under its leading directory (`suites/` when it has none):
+ * one star within a path segment, two across segments — `suites/menu/` then
+ * `*.yaml`, or two stars then `/smoke-*.yaml`.
+ */
+async function select(host: Host, args: Parsed): Promise<TestDef[]> {
+  const common: DiscoverQuery = { tags: args.tags, names: args.name }
+  const queries: DiscoverQuery[] = []
+  for (const test of args.test ?? []) {
+    queries.push(test.includes('*') ? { ...common, suite: staticPrefix(test) } : { ...common, test })
+  }
+  for (const suite of args.suite ?? []) queries.push({ ...common, suite })
+  if (queries.length === 0) return host.discover(common)
+
+  const patterns = (args.test ?? []).filter((t) => t.includes('*')).map(globToRegExp)
+  const seen = new Set<string>()
+  const tests: TestDef[] = []
+  for (const query of queries) {
+    for (const test of await host.discover(query)) {
+      if (seen.has(test.name)) continue
+      if (query.suite && !args.suite?.includes(query.suite) && !patterns.some((p) => p.test(test.source ?? ''))) continue
+      seen.add(test.name)
+      tests.push(test)
+    }
+  }
+  return tests
+}
+
+/** The directory a pattern starts in: `suites/menu/` then a star → `suites/menu`; none → `suites`. */
+function staticPrefix(pattern: string): string {
+  const parts = pattern.split('/')
+  const fixed: string[] = []
+  for (const part of parts.slice(0, -1)) {
+    if (part.includes('*')) break
+    fixed.push(part)
+  }
+  return fixed.length > 0 ? fixed.join('/') : 'suites'
+}
+
+/** `*` within a segment, `**` across segments, everything else literal. */
+function globToRegExp(pattern: string): RegExp {
+  const source = pattern
+    .split('**')
+    .map((part) => part.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*'))
+    .join('.*')
+  return new RegExp(`^${source}$`)
 }

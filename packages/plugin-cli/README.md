@@ -9,12 +9,21 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file>] [--suite <dir>] [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json]
+speq run [--env ci] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json] [--color|--no-color]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate [--json]
 speq list [--shard i/n] [--json]
 speq capabilities [--json]
 ```
+
+A flag is written `--test x` or `--test=x`; `--test` and `--suite` may be
+written more than once, and a `--test` with a `*` in it is a pattern over the
+files under its leading directory — `suites/menu/*.yaml`, or `**/smoke-*.yaml`
+under `suites/`. A flag a command does not take is refused, with the nearest
+one it does: a run that did something other than what it was asked, with
+nothing saying so, is the same fault as `--workers 8` quietly running one.
+Output is coloured when stdout is a terminal and `NO_COLOR` is unset;
+`--color` and `--no-color` override that, `FORCE_COLOR` too.
 
 ## Four flags choose the tests
 
@@ -28,7 +37,9 @@ speq run --name 'menu.create[jpy]'
 
 Reading a report and wanting to re-run exactly that row is the commonest thing
 anybody does, and until this flag it meant running the file and watching the
-other nine. All four apply to `run`, `validate` and `list` alike.
+other nine. All four apply to `run`, `validate` and `list` alike, and the
+files and directories are joined: `--suite suites/orders --test suites/health.yaml`
+is both, with `--tags` and `--name` applied to the lot.
 
 ## It is a plugin, and that is the point
 

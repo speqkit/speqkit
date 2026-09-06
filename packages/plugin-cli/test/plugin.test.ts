@@ -109,6 +109,78 @@ describe('the selection flags', () => {
     expect(subtree.err).not.toMatch(/health\.yaml/)
   })
 
+  /**
+   * The first reader of argv was `indexOf`: it found the first `--test`, lost
+   * the second in silence, could not read `--test=a`, and let `--bogus`
+   * through as if it had been typed on purpose. The README promised that an
+   * unknown flag is refused; now it is.
+   */
+  it('take a flag more than once, and in the = spelling', async () => {
+    const commands = await withProject()
+
+    const two = await invoke(commands, 'list', ['--test', 'suites/health.yaml', '--test=suites/orders/list.yaml'])
+    expect(two.code).toBe(0)
+    expect(two.out).toContain('health answers')
+    expect(two.out).toContain('orders can be listed')
+    expect(two.out).toContain('2 test(s)')
+
+    const both = await invoke(commands, 'list', ['--suite', 'suites/orders', '--test', 'suites/health.yaml', '--tags', 'smoke,orders'])
+    expect(both.out).toContain('3 test(s)')
+  })
+
+  it('take a pattern for --test', async () => {
+    const commands = await withProject()
+
+    const orders = await invoke(commands, 'list', ['--test', 'suites/orders/*.yaml'])
+    expect(orders.out).toContain('orders can be listed')
+    expect(orders.out).toContain('a typo')
+    expect(orders.out).not.toContain('health answers')
+
+    const deep = await invoke(commands, 'list', ['--test', '**/li*.yaml'])
+    expect(deep.out).toContain('1 test(s)')
+    expect(deep.out).toContain('orders can be listed')
+  })
+
+  it('refuse a flag they do not take, with the nearest one they do', async () => {
+    const commands = await withProject()
+
+    const typo = await invoke(commands, 'list', ['--tets', 'suites/health.yaml'])
+    expect(typo.code).toBe(2)
+    expect(typo.out).toBe('')
+    expect(typo.err).toContain("unknown flag '--tets' — did you mean '--test'?")
+
+    const bogus = await invoke(commands, 'run', ['--bogus'])
+    expect(bogus.code).toBe(2)
+    expect(bogus.err).toContain("unknown flag '--bogus'")
+    expect(bogus.err).toContain('--workers')
+
+    const valued = await invoke(commands, 'list', ['--json=1'])
+    expect(valued.code).toBe(2)
+    expect(valued.err).toContain('--json takes no value')
+
+    const bare = await invoke(commands, 'list', ['--shard'])
+    expect(bare.code).toBe(2)
+    expect(bare.err).toContain('--shard takes a value')
+
+    // The bootstrap's own flags are legal on every command, since the command
+    // sees them too.
+    const global = await invoke(commands, 'list', ['--env', 'ci', '--speq-root', kit.root])
+    expect(global.code).toBe(0)
+  })
+
+  it('colour the output only for a terminal, or when told to', async () => {
+    const commands = await withProject()
+
+    // The default — a terminal and no `NO_COLOR` — is decided when the plugin
+    // loads and cannot be asked from inside one process, so the two flags
+    // that override it are what is checked here.
+    const painted = await invoke(commands, 'run', ['--test', 'suites/health.yaml', '--color'])
+    expect(painted.out).toContain('\x1b[')
+
+    const off = await invoke(commands, 'run', ['--test', 'suites/health.yaml', '--no-color'])
+    expect(off.out).not.toContain('\x1b[')
+  })
+
   it('let list narrow by tag', async () => {
     const commands = await withProject()
 
