@@ -130,6 +130,36 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
   return diagnostics
 }
 
+/**
+ * A piece of a test, checked against the grammar on its own.
+ *
+ * What `speq docs --check` runs over an example: a list of steps, an `assert:`
+ * block, a `setup:` — whatever a plugin author pasted into `docs.examples`.
+ * It is the same walk as `validateTests`, minus everything that is about a
+ * whole test — a name, a non-empty body, the `cases` table — because a
+ * fragment has none of those and should not be told to.
+ *
+ * `file` is what the diagnostics name, since a fragment has no file: the
+ * plugin and the example's title, so the complaint says where to look.
+ */
+export interface Fragment {
+  setup?: StepDef[]
+  steps?: StepDef[]
+  assert?: AssertionDef[]
+  cleanup?: StepDef[]
+}
+
+export function validateFragment(registry: Registry, fragment: Fragment, file: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+  const where: Where = { file }
+  const visit = stepVisitor(diagnostics, registry, where)
+  walkSteps(fragment.setup ?? [], 'setup', visit)
+  walkSteps(fragment.steps ?? [], 'steps', visit)
+  walkSteps(fragment.cleanup ?? [], 'cleanup', visit)
+  checkAssertions(diagnostics, registry, fragment.assert, where, '')
+  return diagnostics
+}
+
 /** The subject a diagnostic is about: a test, or a suite that declares steps. */
 interface Where {
   test?: TestDef

@@ -67,7 +67,7 @@ export default definePlugin({
           '  url: ${base}/refunds',
           '  headers:',
           '    authorization: Bearer ${env:API_TOKEN}',
-          '  json:',
+          '  body:',
           '    orderId: ${orderId}',
           '    amount: 600',
           '  assert:',

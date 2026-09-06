@@ -197,6 +197,74 @@ describe('speq docs --check', () => {
     expect(output).toContain('which nothing loaded defines')
   })
 
+  /**
+   * The other half of the anti-rot mechanism, and the half the first version
+   * did not have: an example is checked against the grammar it is an example
+   * of. The name check catches a step type that was renamed; this catches a
+   * field that was — and it caught, in this repository, an HTTP example that
+   * wrote `json:` where the schema says `body:`.
+   */
+  it('refuses an example that would not pass speq validate', () => {
+    const wrong = PLUGIN.replace("'  litres: 1'", "'  liters: 1'")
+    const { code, output } = speq(project([wrong]), ['docs', '--check'])
+
+    expect(code).toBe(2)
+    expect(output).toContain("example 'boiling a litre' would not validate")
+    expect(output).toContain("unknown field 'liters'")
+    expect(output).toContain("did you mean 'litres'")
+  })
+
+  it('reads an example in every shape a test file has', () => {
+    const shapes = PLUGIN.replace(
+      "code: ['- id: kettle', '  type: kettle.boil', '  litres: 1'].join('\\n')",
+      [
+        "code: ['steps:', '  - type: kettle.boil', '    litres: 1', 'assert:', '  - type: boilling'].join('\\n')"
+      ].join('')
+    ).replace(
+      "      }\n    ]\n  },",
+      "      },\n      {\n        title: 'a whole file',\n        for: ['kettle.boil'],\n" +
+        "        code: ['tests:', '  - id: t', '    steps:', '      - type: kettle.boil'].join('\\n')\n      }\n    ]\n  },"
+    )
+    const { code, output } = speq(project([shapes]), ['docs', '--check'])
+
+    expect(code).toBe(2)
+    // The `assert:` block of a test fragment, with a typo in the word. A name
+    // nothing loaded defines is reported and does not fail: an example of a
+    // format is written in some other plugin's steps, and `for` is where a
+    // name is held to account.
+    expect(output).toContain("unknown assertion 'boilling', which is not loaded here")
+    // A test under `tests:`, missing the field the schema requires.
+    expect(output).toContain("example 'a whole file' would not validate")
+    expect(output).toContain("missing required field 'litres'")
+  })
+
+  it('leaves an example alone that is not a piece of a test', () => {
+    const shell = PLUGIN.replace(
+      "code: ['- id: kettle', '  type: kettle.boil', '  litres: 1'].join('\\n')",
+      "code: ['speq run --tags kettle', '# speq.yaml', 'kettle:', '  litres: 1'].join('\\n')"
+    )
+    const { code, output } = speq(project([shell]), ['docs', '--check'])
+
+    expect(code).toBe(0)
+    expect(output).not.toContain('would not validate')
+  })
+
+  /**
+   * A plugin's own `validate` may look for a file on disk or a key in
+   * speq.yaml. An example has neither, and is not wrong for it: what an
+   * example can be wrong about is the grammar, which is the kernel's to check.
+   */
+  it('checks an example against the grammar and not against the project', () => {
+    const picky = PLUGIN.replace(
+      "      execute: (_exec, input) => ({ celsius: 100, litres: input.litres })",
+      "      validate: () => [{ message: 'no kettle is plugged in' }],\n      execute: (_exec, input) => ({ celsius: 100, litres: input.litres })"
+    )
+    const { code, output } = speq(project([picky]), ['docs', '--check'])
+
+    expect(code).toBe(0)
+    expect(output).not.toContain('no kettle is plugged in')
+  })
+
   it('reports a capability no example demonstrates without failing on it', () => {
     const extra = PLUGIN.replace(
       "    ctx.defineAssertion('boiling'",
@@ -208,7 +276,6 @@ describe('speq docs --check', () => {
     // failure would buy an example per entry rather than an example worth
     // reading. Reported, and it changes nothing.
     expect(code).toBe(0)
-    expect(output).toContain('kettle.descale')
-    expect(output).toContain('no example demonstrates')
+    expect(output).toContain("'kettle.descale' — no example demonstrates it")
   })
 })

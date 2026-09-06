@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { parse as parseYaml } from 'yaml'
 import { Store, addLink, readLinks, readLock, removeLink, install, type InstallEvent } from '@speqkit/installer'
 import type { Capabilities, Capability, CommandHost, Example } from '@speqkit/plugin-api'
 import { bootstrap } from './bootstrap.js'
 import { capabilitiesOf } from './host.js'
-import { shortName } from './registry.js'
+import { shortName, type Registry } from './registry.js'
+import { validateFragment, type Fragment } from './validate.js'
 import { discoverRoot } from './discovery.js'
 import { loadConfig, readRawConfig } from './config.js'
 import { StartupError, startupFailure } from './errors.js'
@@ -127,7 +129,7 @@ function commandInit(argv: string[]): number {
   if (empty) {
     writeFileSync(
       join(root, 'suites', 'health.yaml'),
-      `name: service is up\ntags: [smoke]\n\n` +
+      `id: service is up\ntags: [smoke]\n\n` +
         `steps:\n  - id: health\n    type: http\n    method: GET\n    url: /health\n\n` +
         `assert:\n  - type: status\n    expected: 200\n`
     )
@@ -383,7 +385,7 @@ function commandDoctor(session: Awaited<ReturnType<typeof bootstrap>>): number {
 function commandDocs(session: Awaited<ReturnType<typeof bootstrap>>, argv: string[]): number {
   const capabilities = capabilitiesOf(session.registry)
   const entries = groupByPlugin(capabilities)
-  if (argv.includes('--check')) return checkDocs(entries)
+  if (argv.includes('--check')) return checkDocs(entries, session.registry)
 
   const json = argv.includes('--json')
   const subject = positional(argv)
@@ -569,14 +571,25 @@ function printExamples(examples: Example[]): void {
  * A plugin saying nothing about itself is an error rather than a note: it is
  * the state the whole command exists to remove, and the one that a plugin's own
  * author is the only person able to fix. A dead name in an example's `for` is
- * an error for a sharper reason — it is what a renamed step type leaves behind,
- * and the only mechanism here that catches documentation rotting.
+ * an error for a sharper reason — it is what a renamed step type leaves behind.
+ *
+ * An example that would not pass `speq validate` is an error too, and it is
+ * the one this command was missing. The first version checked names only —
+ * and shipped, in this repository, an HTTP example with a `json:` key the
+ * step's own closed schema refuses. A reader who pasted it got
+ * `unknown field 'json'` from the same binary that had just handed it over,
+ * and the reader least able to notice is the one writing a suite from
+ * `speq docs --json` without ever seeing a terminal. So each example is read
+ * as YAML and, where it is a piece of a test, checked against the grammar a
+ * test file is checked against: steps, assertions, a `setup:` or `cleanup:`
+ * block, whole tests under `tests:`. An example that is not YAML — a shell
+ * line, a `speq.yaml` fragment — is not a test and is left alone.
  *
  * A capability no example demonstrates is reported and changes nothing. Some
  * genuinely need none, and turning that into a failure would push authors to
  * write an example per entry rather than an example worth reading.
  */
-function checkDocs(entries: PluginEntry[]): number {
+function checkDocs(entries: PluginEntry[], registry: Registry): number {
   const known = new Set(entries.flatMap((e) => e.contributes.flatMap((c) => [c.name, ...(c.prefix ? [c.prefix] : [])])))
   const problems: string[] = []
   const notes: string[] = []
@@ -598,16 +611,38 @@ function checkDocs(entries: PluginEntry[]): number {
           )
         }
       }
+      // Checked against the grammar and not against the project: a plugin's
+      // own `validate` may look for a schema file on disk or a key in
+      // speq.yaml, and an example has neither. Those codes carry the plugin's
+      // name; the kernel's — a missing or unknown field — are the ones an
+      // example can be wrong about. A step type nothing loaded defines is a
+      // note rather than a failure, because an example of the *format* is
+      // written in somebody else's steps, and `plugin-yaml` checked alone
+      // would otherwise fail for not having `http` beside it. Names are what
+      // `for` is for, and a renamed type is caught there.
+      const where = `${plugin.name}: example '${example.title}'`
+      for (const fragment of fragmentsOf(example.code, registry)) {
+        for (const d of validateFragment(registry, fragment, where)) {
+          if (d.code.includes('/')) continue
+          if (d.code === 'unknown-step-type' || d.code === 'unknown-assertion') {
+            notes.push(`${where} — ${d.path}: ${d.message}, which is not loaded here`)
+            continue
+          }
+          problems.push(`${where} would not validate — ${d.path}: ${d.message}${d.hint ?? ''}`)
+        }
+      }
     }
     const shown = new Set(plugin.examples.flatMap((x) => x.for ?? []))
     for (const capability of plugin.contributes) {
-      if (!shown.has(capability.name)) notes.push(`${plugin.name}: ${capability.kind} '${capability.name}'`)
+      if (!shown.has(capability.name)) {
+        notes.push(`${plugin.name}: ${capability.kind} '${capability.name}' — no example demonstrates it`)
+      }
     }
   }
 
   for (const problem of problems) process.stderr.write(`  ${problem}\n`)
   if (notes.length > 0) {
-    process.stdout.write(`${notes.length} capability(ies) no example demonstrates:\n`)
+    process.stdout.write(`${notes.length} thing(s) a reader here cannot check:\n`)
     for (const note of notes) process.stdout.write(`  ${note}\n`)
   }
   process.stdout.write(
@@ -616,6 +651,54 @@ function checkDocs(entries: PluginEntry[]): number {
       : `\n${problems.length} problem(s)\n`
   )
   return problems.length === 0 ? EXIT_OK : EXIT_CONFIG
+}
+
+/**
+ * The pieces of a test an example holds, if it holds any.
+ *
+ * Four shapes are recognised, which is every shape a plugin in this
+ * repository has written: a list of steps; a list of assertions; a mapping
+ * with any of `setup`, `steps`, `assert`, `cleanup` at the top — a piece of a
+ * test file, or a suite manifest; and a file with `tests:` in it, each entry
+ * of which is a fragment of its own. A bare list is steps unless every entry
+ * names an assertion and none a step type, so an example of `duration_under`
+ * written as the step that carries it is read as the step it is.
+ *
+ * Anything else — text that is not YAML, a scalar, a mapping about
+ * configuration — has no grammar to be checked against and yields nothing.
+ */
+function fragmentsOf(code: string, registry: Registry): Fragment[] {
+  let parsed: unknown
+  try {
+    parsed = parseYaml(code)
+  } catch {
+    return []
+  }
+  return fragmentsIn(parsed, registry)
+}
+
+function fragmentsIn(parsed: unknown, registry: Registry): Fragment[] {
+  const isMapping = (v: unknown): v is Record<string, unknown> =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+  const typed = (v: unknown): v is { type: string }[] =>
+    Array.isArray(v) && v.length > 0 && v.every((x) => isMapping(x) && typeof x.type === 'string')
+
+  if (typed(parsed)) {
+    const assertionsOnly = parsed.every(
+      (x) => registry.assertions.has(x.type) && !registry.stepTypes.has(x.type)
+    )
+    return [assertionsOnly ? { assert: parsed as Fragment['assert'] } : { steps: parsed as Fragment['steps'] }]
+  }
+  if (!isMapping(parsed)) return []
+  if (Array.isArray(parsed.tests)) {
+    return parsed.tests.flatMap((t) => fragmentsIn(t, registry))
+  }
+  const fragment: Fragment = {}
+  for (const key of ['setup', 'steps', 'cleanup'] as const) {
+    if (typed(parsed[key])) fragment[key] = parsed[key] as Fragment['steps']
+  }
+  if (typed(parsed.assert)) fragment.assert = parsed.assert as Fragment['assert']
+  return Object.keys(fragment).length > 0 ? [fragment] : []
 }
 
 function byKind(

@@ -96,6 +96,12 @@ jobs:
       # and nowhere else in this job.
       - run: ./node_modules/.bin/speq capabilities
 
+      # Every example a plugin here ships, checked against the grammar it is
+      # an example of. This is where a `json:` that the schema calls `body:`
+      # gets caught — the reader who would otherwise catch it is the one
+      # pasting it, or the model reading `speq docs --json`.
+      - run: ./node_modules/.bin/speq docs --check
+
       # The example's own broken file, which is there to be caught. A green
       # exit here would mean validation had stopped checking anything.
       - name: the typo is still caught

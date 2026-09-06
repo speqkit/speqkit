@@ -36,6 +36,8 @@ interface Subject {
   value: unknown
   /** False when a `path` was written and nothing was there. */
   found: boolean
+  /** Where the selector looked, for the message when nothing was found. */
+  lookedIn?: string
 }
 
 /** One entry of the vocabulary. */
@@ -63,7 +65,9 @@ export default definePlugin({
         title: 'reading into a step result with `path`',
         summary:
           '`path` reads the whole result, not the payload — so an HTTP body is `body.…`. ' +
-          'That extra word is what lets the same words check a SQL row.',
+          'That extra word is what lets the same words check a SQL row. ' +
+          'Under a step it reads that step; at the end of the test it reads the last step, ' +
+          'or any step by id: `path: created.body.name`.',
         for: ['equals', 'at_least', 'contains', 'matches', 'is_type'],
         code: [
           'assert:',
@@ -112,7 +116,7 @@ export default definePlugin({
           'assert:',
           '  - type: schema',
           '    path: body',
-          '    schemaRef: order.json'
+          '    ref: order.json'
         ].join('\n')
       },
       {
@@ -165,6 +169,15 @@ export default definePlugin({
  * that makes this plugin worth having: the same `at_least` reads a SQL row and
  * a file's contents, because nothing here believes it is looking at a
  * response.
+ *
+ * Which step it reads is the last one, and then any step by id. A test-level
+ * `assert:` is written after the whole test and about the whole test, so
+ * `path: created.body.name` there means the step called `created` — which is
+ * how the documentation has always written it, and for a year the selector
+ * read only `last` and reported that `created.body.name` was not there. The
+ * last step's result is tried first, so a step named `body` cannot shadow the
+ * field of the same name in the result it just produced; a step id is read
+ * only when the last result has nothing at the head of the path.
  */
 const SELECTOR = {
   path: { type: 'string' },
@@ -174,19 +187,56 @@ const SELECTOR = {
 function subjectOf(ctx: AssertContext, input: Record<string, unknown>): Subject {
   if (Object.hasOwn(input, 'value')) return { label: 'the value', value: input.value, found: true }
   if (typeof input.path === 'string') {
-    const value = readPath(ctx.last, input.path)
-    return { label: input.path, value, found: value !== undefined }
+    const segments = segmentsOf(input.path)
+    const head = segments[0]
+    const fromLast = readSegments(ctx.last, segments)
+    if (fromLast !== undefined) return { label: input.path, value: fromLast, found: true }
+
+    // Not in the last result: a step by id, when the head of the path is one.
+    const step = head !== undefined && Object.hasOwn(ctx.results, head) ? ctx.results[head] : undefined
+    if (step !== undefined) {
+      const value = readSegments(step, segments.slice(1))
+      return { label: input.path, value, found: value !== undefined, lookedIn: `step '${head}'` }
+    }
+    return { label: input.path, value: undefined, found: false, lookedIn: whereLooked(ctx, head) }
   }
   return { label: 'the result', value: ctx.last, found: ctx.last !== undefined }
 }
 
-function readPath(from: unknown, path: string): unknown {
+/**
+ * The sentence after "is not there": where the selector looked, and what it
+ * saw. A path that leads nowhere is the most common mistake in an assertion,
+ * and "not there" alone made the author guess between a typo in the field, a
+ * step that never ran and a `path` written against the wrong step.
+ */
+function whereLooked(ctx: AssertContext, head: string | undefined): string {
+  const keys = (value: unknown): string =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.keys(value as object).sort().join(', ') || '(no keys)'
+      : show(value)
+  const steps = Object.keys(ctx.results).sort()
+  const parts = [`the last step's result has ${keys(ctx.last)}`]
+  if (head !== undefined && steps.length > 0) {
+    parts.push(`and '${head}' is not one of the steps so far: ${steps.join(', ')}`)
+  }
+  return parts.join(' ')
+}
+
+function segmentsOf(path: string): string[] {
+  return path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)
+}
+
+function readSegments(from: unknown, segments: string[]): unknown {
   let current = from
-  for (const segment of path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)) {
+  for (const segment of segments) {
     if (current === null || current === undefined) return undefined
     current = (current as Record<string, unknown>)[segment]
   }
   return current
+}
+
+function readPath(from: unknown, path: string): unknown {
+  return readSegments(from, segmentsOf(path))
 }
 
 /**
@@ -409,7 +459,7 @@ function define(ctx: PluginContext, name: string, check: Check): void {
       if (!subject.found && !check.tolerantOfMissing) {
         return {
           passed: false,
-          message: `${subject.label} is not there`,
+          message: `${subject.label} is not there` + (subject.lookedIn ? ` — ${subject.lookedIn}` : ''),
           expected: input.expected,
           actual: undefined
         }
@@ -468,7 +518,7 @@ function defineSchemaCheck(ctx: PluginContext): void {
   }
 
   ctx.defineAssertion('schema', {
-    summary: 'the value at `path` validates against a JSON Schema file, named by `schemaRef`',
+    summary: 'the value at `path` validates against a JSON Schema file, named by `ref`',
     schema: {
       type: 'object',
       properties: { ...SELECTOR, ref: { type: 'string' } },
@@ -477,7 +527,10 @@ function defineSchemaCheck(ctx: PluginContext): void {
     },
     validate(assertion) {
       const problems = checkSelector(assertion)
-      const ref = String(assertion.ref)
+      // A missing `ref` is the schema's complaint, already filed; looking
+      // for a file called 'undefined' would be a second one about nothing.
+      if (typeof assertion.ref !== 'string') return problems
+      const ref = assertion.ref
       const file = locate(ref)
       if (!existsSync(file)) return [...problems, { path: 'ref', message: `no such schema: ${file}` }]
 

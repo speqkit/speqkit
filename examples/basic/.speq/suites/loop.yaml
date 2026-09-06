@@ -1,7 +1,7 @@
 # What this file proves: `loop` is a plugin, not a kernel feature.
 # The kernel contains no control flow at all — the plugin calls back into
 # the executor through ctx.runSteps() with its own child variable scope.
-name: nested steps run in a child scope
+id: nested steps run in a child scope
 
 steps:
   - id: seed

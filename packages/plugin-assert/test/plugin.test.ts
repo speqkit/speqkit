@@ -78,9 +78,47 @@ describe('the selector', () => {
     await given()
     const outcome = await check({ type: 'at_least', path: 'body.discount', expected: 10 })
 
-    // "got undefined" reads like a wrong number. It is a missing field.
+    // "got undefined" reads like a wrong number. It is a missing field —
+    // and the sentence says what the selector did see, so the author can
+    // tell a typo in the field from a `path` written against the wrong step.
     expect(outcome.passed).toBe(false)
-    expect(outcome.message).toBe('body.discount is not there')
+    expect(outcome.message).toContain('body.discount is not there')
+    expect(outcome.message).toContain("the last step's result has body, status, text")
+  })
+
+  /**
+   * The way the documentation has always written a test-level assertion:
+   * `path: created.body.name`, naming the step. For a year the selector read
+   * only the last result and reported that `created.body.name` was not there
+   * — true of the last result, and useless.
+   */
+  it('reads a step by id when the last result has nothing at the head of the path', async () => {
+    kit = await harness(assertions, { with: [responder], root })
+    await kit.step({ id: 'created', type: 'respond', with: RESPONSE })
+    await kit.step({ id: 'listed', type: 'respond', with: { body: { name: 'something else' } } })
+
+    expect((await check({ type: 'equals', path: 'created.body.name', expected: 'speq-item' })).passed).toBe(true)
+    expect((await check({ type: 'equals', path: 'listed.body.name', expected: 'something else' })).passed).toBe(true)
+    expect((await check({ type: 'equals', path: 'body.name', expected: 'something else' })).passed).toBe(true)
+    expect((await check({ type: 'exists', path: 'created.body.deleted_at' })).passed).toBe(false)
+  })
+
+  it('prefers the last result, so a step cannot shadow a field of the same name', async () => {
+    kit = await harness(assertions, { with: [responder], root })
+    await kit.step({ id: 'body', type: 'respond', with: { body: { name: 'the step' } } })
+    await kit.step({ type: 'respond', with: { body: { name: 'the field' } } })
+
+    expect((await check({ type: 'equals', path: 'body.name', expected: 'the field' })).passed).toBe(true)
+  })
+
+  it('names the steps it could have read when the head of the path is none of them', async () => {
+    kit = await harness(assertions, { with: [responder], root })
+    await kit.step({ id: 'created', type: 'respond', with: RESPONSE })
+    const outcome = await check({ type: 'equals', path: 'craeted.body.name', expected: 'speq-item' })
+
+    expect(outcome.passed).toBe(false)
+    expect(outcome.message).toContain('craeted.body.name is not there')
+    expect(outcome.message).toContain("'craeted' is not one of the steps so far: created")
   })
 })
 

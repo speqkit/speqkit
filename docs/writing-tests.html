@@ -231,6 +231,13 @@
     that step, <code>assert:</code> on the test is about the whole thing —
     usually comparing two steps, or a step against a given.
   </p>
+  <p>
+    Where <code>path</code> reads from follows: under a step it reads that
+    step's result, and at the end of the test it reads the last step's, or
+    any step's by id — <code>path: created.body.name</code> names the step
+    called <code>created</code>. A check that is not about one step at all
+    takes a <code>value:</code> instead, written with <code>${…}</code>.
+  </p>
 
   <h3>Control flow is a plugin</h3>
   <p>

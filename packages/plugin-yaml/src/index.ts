@@ -35,7 +35,7 @@ export default definePlugin({
           '        type: http',
           '        method: POST',
           '        url: ${base}/orders/${orderId}/refunds',
-          '        json: { amount: 400 }',
+          '        body: { amount: 400 }',
           '        assert:',
           '          - type: status',
           '            expected: 201'
@@ -53,8 +53,10 @@ export default definePlugin({
           'tags: [payments]',
           'setup:',
           '  - id: tenant',
-          '    type: use',
-          '    ref: register-tenant'
+          '    type: http',
+          '    method: POST',
+          '    url: /tenants',
+          '    body: { name: payments-suite }'
         ].join('\n')
       },
       {

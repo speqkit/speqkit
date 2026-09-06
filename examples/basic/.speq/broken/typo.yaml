@@ -7,7 +7,7 @@
 # example's own broken file from the one they just wrote. Pointing the flag at
 # this directory is what shows the two typos below being caught with no
 # network involved at all.
-name: catches a typo before the network
+id: catches a typo before the network
 steps:
   - id: whoops
     type: htpp
