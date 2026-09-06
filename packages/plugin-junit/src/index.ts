@@ -50,8 +50,8 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      output: { type: 'string' },
-      suiteName: { type: 'string' }
+      output: { type: 'string', description: 'where the XML is written, relative to the report directory; junit.xml by default' },
+      suiteName: { type: 'string', description: 'the name of the top-level testsuite; speq by default' }
     },
     additionalProperties: false
   },

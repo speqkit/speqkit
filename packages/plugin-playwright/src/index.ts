@@ -88,13 +88,23 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      browser: { type: 'string' },
-      headless: { type: 'boolean' },
-      slowMo: { type: 'number' },
-      baseUrl: { type: 'string' },
-      viewport: { type: 'object' },
-      timeoutMs: { type: 'number' }
-    }
+      browser: { type: 'string', enum: ['chromium', 'firefox', 'webkit'], description: 'which engine to launch; chromium by default' },
+      headless: { type: 'boolean', description: 'false to watch it; true by default' },
+      slowMo: { type: 'number', minimum: 0, description: 'milliseconds added to every action, for watching' },
+      baseUrl: { type: 'string', description: 'prepended to every relative `url`' },
+      viewport: {
+        type: 'object',
+        description: 'the page size, in CSS pixels',
+        properties: {
+          width: { type: 'integer', minimum: 1, description: 'in CSS pixels' },
+          height: { type: 'integer', minimum: 1, description: 'in CSS pixels' }
+        },
+        required: ['width', 'height'],
+        additionalProperties: false
+      },
+      timeoutMs: { type: 'number', minimum: 0, description: 'how long an action waits for its element; 30000 by default' }
+    },
+    additionalProperties: false
   },
 
   setup(ctx) {
@@ -148,7 +158,10 @@ export default definePlugin({
 
     const selectorSchema: InputSchema = {
       type: 'object',
-      properties: { selector: { type: 'string' }, timeout: { type: 'number' } },
+      properties: {
+        selector: { type: 'string', description: 'a Playwright selector: css, text=, or [data-test=…]' },
+        timeout: { type: 'number', minimum: 0, description: 'how long to wait for the element, in milliseconds' }
+      },
       required: ['selector'],
       additionalProperties: false
     }
@@ -157,7 +170,10 @@ export default definePlugin({
       summary: 'opens a page at `url`, in the browser this project configured',
       schema: {
         type: 'object',
-        properties: { url: { type: 'string' }, waitUntil: { type: 'string' } },
+        properties: {
+          url: { type: 'string', description: 'absolute, or relative to `playwright.baseUrl` in speq.yaml' },
+          waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'], description: 'when navigation counts as done; `load` by default' }
+        },
         required: ['url'],
         additionalProperties: false
       },
@@ -184,7 +200,11 @@ export default definePlugin({
       summary: 'types `value` into the field the selector names',
       schema: {
         type: 'object',
-        properties: { selector: { type: 'string' }, value: {}, timeout: { type: 'number' } },
+        properties: {
+          selector: { type: 'string', description: 'a Playwright selector: css, text=, or [data-test=…]' },
+          value: { description: 'what to type into it' },
+          timeout: { type: 'number', minimum: 0, description: 'how long to wait for the element, in milliseconds' }
+        },
         required: ['selector', 'value'],
         additionalProperties: false
       },
@@ -199,7 +219,11 @@ export default definePlugin({
       summary: 'presses a key, e.g. Enter or Escape',
       schema: {
         type: 'object',
-        properties: { selector: { type: 'string' }, key: { type: 'string' }, timeout: { type: 'number' } },
+        properties: {
+          selector: { type: 'string', description: 'a Playwright selector: css, text=, or [data-test=…]' },
+          key: { type: 'string', description: 'a key name Playwright knows: Enter, Tab, ArrowDown, Control+a' },
+          timeout: { type: 'number', minimum: 0, description: 'how long to wait for the element, in milliseconds' }
+        },
         required: ['selector', 'key'],
         additionalProperties: false
       },
@@ -214,7 +238,11 @@ export default definePlugin({
       summary: 'waits until the element the selector names reaches a state',
       schema: {
         type: 'object',
-        properties: { selector: { type: 'string' }, state: { type: 'string' }, timeout: { type: 'number' } },
+        properties: {
+          selector: { type: 'string', description: 'a Playwright selector: css, text=, or [data-test=…]' },
+          state: { type: 'string', enum: ['attached', 'detached', 'visible', 'hidden'], description: 'what to wait for; `visible` by default' },
+          timeout: { type: 'number', minimum: 0, description: 'how long to wait, in milliseconds' }
+        },
         required: ['selector'],
         additionalProperties: false
       },
@@ -247,7 +275,11 @@ export default definePlugin({
       summary: 'attaches a screenshot to the run, which every report links',
       schema: {
         type: 'object',
-        properties: { name: { type: 'string' }, selector: { type: 'string' }, fullPage: { type: 'boolean' } },
+        properties: {
+          name: { type: 'string', description: 'the artifact name, with or without .png' },
+          selector: { type: 'string', description: 'shoot one element instead of the viewport' },
+          fullPage: { type: 'boolean', description: 'scroll and capture the whole page' }
+        },
         additionalProperties: false
       },
       async execute(exec, input) {
@@ -269,7 +301,7 @@ export default definePlugin({
       summary: 'the element the selector names is on the page and visible',
       schema: {
         type: 'object',
-        properties: { selector: { type: 'string' } },
+        properties: { selector: { type: 'string', description: 'the element that has to be visible' } },
         required: ['selector'],
         additionalProperties: false
       },
@@ -285,7 +317,7 @@ export default definePlugin({
       summary: 'the element the selector names contains this text',
       schema: {
         type: 'object',
-        properties: { expected: { type: 'string' } },
+        properties: { expected: { type: 'string', description: 'the text to look for' } },
         required: ['expected'],
         additionalProperties: false
       },
@@ -306,7 +338,7 @@ export default definePlugin({
       summary: 'the page\'s title is exactly this',
       schema: {
         type: 'object',
-        properties: { expected: { type: 'string' } },
+        properties: { expected: { type: 'string', description: 'the exact title' } },
         required: ['expected'],
         additionalProperties: false
       },
@@ -327,7 +359,7 @@ export default definePlugin({
       summary: 'the address the browser is on contains this',
       schema: {
         type: 'object',
-        properties: { expected: { type: 'string' } },
+        properties: { expected: { type: 'string', description: 'a substring of the url' } },
         required: ['expected'],
         additionalProperties: false
       },

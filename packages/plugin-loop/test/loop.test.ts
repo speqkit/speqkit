@@ -115,11 +115,12 @@ describe('loop', () => {
   })
 
   // The two mistakes a schema cannot catch, caught before the run rather than
-  // three minutes into it.
+  // three minutes into it — and the one it can, now that the kernel reads
+  // `minimum`, caught by the schema alone.
   it.each([
     [{ type: 'loop', steps: [] }, "needs 'over' (a list) or 'times'"],
     [{ type: 'loop', over: [1], times: 2, steps: [] }, "exclude each other"],
-    [{ type: 'loop', times: 0, steps: [] }, "has to be positive"]
+    [{ type: 'loop', times: 0, steps: [] }, "below the minimum of 1"]
   ])('refuses %j before anything runs', async (step, expected) => {
     kit = await harness(loop, { with: [body] })
     const diagnostics = kit.validate([{ name: 't', steps: [step], source: 'a.yaml' }])
@@ -132,7 +133,14 @@ describe('loop', () => {
   it('says nothing about a loop that is fine', async () => {
     kit = await harness(loop, { with: [body] })
     expect(kit.validate([
-      { name: 't', steps: [{ type: 'loop', over: '${fetched.items}', steps: [] }], source: 'a.yaml' }
+      {
+        name: 't',
+        steps: [
+          { id: 'fetched', type: 'body', with: { items: [1] } },
+          { type: 'loop', over: '${fetched.items}', as: 'it', steps: [{ type: 'body', with: '${it}' }] }
+        ],
+        source: 'a.yaml'
+      }
     ])).toEqual([])
   })
 })
@@ -167,7 +175,7 @@ describe('retry', () => {
       { name: 't', steps: [{ type: 'retry', attempts: 0, steps: [] }], source: 'a.yaml' }
     ])
 
-    expect(diagnostics[0]).toMatchObject({ path: 'steps[0].attempts', message: expect.stringContaining('at least 1') })
+    expect(diagnostics[0]).toMatchObject({ path: 'steps[0].attempts', message: expect.stringContaining('below the minimum of 1') })
   })
 
   it('errors after the last attempt, carrying the failure that caused it', async () => {

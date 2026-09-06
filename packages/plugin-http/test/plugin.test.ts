@@ -77,6 +77,50 @@ describe('a request', () => {
     }])
     expect(diagnostics[0]?.message).toMatch(/unknown field 'bodyRaw'/)
   })
+
+  /**
+   * The same silence one level down. `retry: { attemps: 3 }` was accepted for
+   * as long as the kernel read only the top of a schema, and the request went
+   * out without a retry policy and a green tick. `GETT` went out as GETT.
+   */
+  it('refuses a typo inside a nested block, and a method that is not one', async () => {
+    const kit = await withHttp()
+    const diagnostics = kit.validate([{
+      name: 't',
+      source: 'suites/t.yaml',
+      steps: [{ type: 'http', method: 'GETT', url: '/x', retry: { attemps: 3, delayMs: 'soon', backoff: 'linear' } }]
+    }])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['invalid-value', 'steps[0].retry.delayMs'],
+      ['invalid-value', 'steps[0].retry.backoff'],
+      ['unknown-field', 'steps[0].retry'],
+      ['http/unknown-method', 'steps[0].method']
+    ])
+    expect(diagnostics[2]!.message).toContain("did you mean 'attempts'")
+    expect(diagnostics[3]!.hint).toContain('GET, POST')
+  })
+
+  it('takes a method in either case, and a method that is still a template', async () => {
+    const kit = await withHttp()
+    expect(kit.validate([{
+      name: 't',
+      source: 'suites/t.yaml',
+      variables: { verb: 'get' },
+      steps: [{ type: 'http', method: 'delete', url: '/x' }, { type: 'http', method: '${verb}', url: '/x' }]
+    }])).toEqual([])
+  })
+
+  it('refuses a status written as a string, which would never have been equal to the number', async () => {
+    const kit = await withHttp()
+    const diagnostics = kit.validate([{
+      name: 't',
+      source: 'suites/t.yaml',
+      steps: [{ type: 'http', url: '/x', assert: [{ type: 'status', expected: '200' }] }]
+    }])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([['invalid-value', 'steps[0].assert[0].expected']])
+  })
 })
 
 describe('multipart', () => {

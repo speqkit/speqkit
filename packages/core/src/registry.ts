@@ -7,6 +7,7 @@ import { PLUGIN_API_VERSION, STEPS_SCHEMA } from '@speqkit/plugin-api'
 import { EventBus } from './events.js'
 import { ResourceManager } from './resources.js'
 import { StartupError } from './errors.js'
+import { checkAgainstSchema } from './schema.js'
 import { detachedHost } from './host.js'
 
 /**
@@ -76,6 +77,29 @@ export class Registry {
     return this.#loaded
   }
 
+  /**
+   * The plugin's block in speq.yaml, against the schema it declared for it.
+   *
+   * `configSchema` had been on the contract since the first commit and
+   * `ctx.config()` was documented as "already validated" — and nothing had
+   * ever read the schema. The fifth dead mechanism of the same kind, after
+   * `defineReporter`, `attach`, `AssertContext.results` and `tags`: a
+   * `baseUrll:` under `http:` was carried to the plugin, which read `baseUrl`,
+   * found nothing, and sent every request to a relative path. Checked here,
+   * before `setup` reads it, and refused as a startup error rather than a
+   * diagnostic: it is true about the project and not about any test.
+   */
+  #checkConfig(plugin: string, schema: InputSchema): void {
+    const key = shortName(plugin)
+    const problems = checkAgainstSchema(this.configFor(plugin), schema)
+    if (problems.length === 0) return
+    throw new StartupError(
+      'invalid-plugin-config',
+      `speq.yaml: the '${key}' block does not match what '${plugin}' declares:\n` +
+        problems.map((p) => `  ${p.path ? `${key}.${p.path}` : key}: ${p.message}`).join('\n')
+    )
+  }
+
   service(name: string): unknown {
     return this.#services.get(name)
   }
@@ -92,7 +116,10 @@ export class Registry {
     }
     if (this.#loaded.includes(spec.name)) return
 
-    if (spec.configSchema) this.configSchemas.set(shortName(spec.name), spec.configSchema)
+    if (spec.configSchema) {
+      this.configSchemas.set(shortName(spec.name), spec.configSchema)
+      this.#checkConfig(spec.name, spec.configSchema)
+    }
     if (spec.docs) this.docs.set(spec.name, spec.docs)
     await spec.setup(this.#context(spec.name))
     this.#loaded.push(spec.name)

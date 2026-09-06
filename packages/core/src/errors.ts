@@ -62,7 +62,8 @@ export const STARTUP_CODES = [
   'incompatible-plugin',
   'duplicate-capability',
   'duplicate-service',
-  'reserved-prefix'
+  'reserved-prefix',
+  'invalid-plugin-config'
 ] as const
 
 export type StartupCode = (typeof STARTUP_CODES)[number]

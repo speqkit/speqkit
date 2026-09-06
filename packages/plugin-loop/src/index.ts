@@ -66,11 +66,12 @@ export default definePlugin({
       schema: {
         type: 'object',
         properties: {
-          over: {},
-          times: { type: 'number' },
-          as: { type: 'string' },
-          steps: { type: 'array' }
+          over: { description: 'the list to run once per item — usually `${a.body.items}`; excludes `times`' },
+          times: { type: 'integer', minimum: 1, description: 'how many times to run the steps; excludes `over`' },
+          as: { type: 'string', description: 'the name the body reads the current item under; `item` by default, with `<as>Index` beside it' },
+          steps: { type: 'array', description: 'the body, run in a child scope that is popped when the loop ends' }
         },
+        required: ['steps'],
         additionalProperties: false
       },
 
@@ -96,9 +97,6 @@ export default definePlugin({
         const times = step.times !== undefined
         if (over && times) return ["'over' and 'times' exclude each other; a loop is over a list or a count"]
         if (!over && !times) return ["a loop needs 'over' (a list) or 'times' (a count)"]
-        if (times && typeof step.times === 'number' && step.times <= 0) {
-          return [{ path: 'times', message: `'times' has to be positive, got ${step.times}` }]
-        }
         return []
       },
 
@@ -129,19 +127,18 @@ export default definePlugin({
       summary: 'runs its steps again until they pass, up to `attempts`, waiting `delayMs` between tries',
       schema: {
         type: 'object',
-        properties: { attempts: { type: 'number' }, delayMs: { type: 'number' }, steps: { type: 'array' } },
+        properties: {
+          attempts: { type: 'integer', minimum: 1, description: 'the most times the steps run; 3 by default' },
+          delayMs: { type: 'number', minimum: 0, description: 'the wait between tries, in milliseconds; 0 by default' },
+          steps: { type: 'array', description: 'the steps to run again until every one of them passes' }
+        },
+        required: ['steps'],
         additionalProperties: false
       },
 
       /** A retry binds nothing new; its body reads exactly what the test does. */
       binds: () => [],
 
-      validate(step) {
-        if (typeof step.attempts === 'number' && step.attempts < 1) {
-          return [{ path: 'attempts', message: `'attempts' has to be at least 1, got ${step.attempts}` }]
-        }
-        return []
-      },
 
       async execute(exec, input) {
         const children = (input.steps ?? []) as StepDef[]

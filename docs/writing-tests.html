@@ -220,7 +220,13 @@
     <code>body:</code> is a diagnostic from <code>speq validate</code> before
     any request goes out. This is not pedantry: the suite this framework was
     designed against had six such keys silently ignored, three upload paths
-    with no coverage at all, and a green tick on every run.
+    with no coverage at all, and a green tick on every run. The whole schema
+    is read, not the top of it: <code>method: GETT</code>,
+    <code>attempts: "3"</code> and a typo one level down in
+    <code>retry:</code> are diagnostics too, and so is a plugin's block in
+    <code>speq.yaml</code> that does not match what the plugin declares. A
+    value that is still a <code>${…}</code> template fits any shape, because
+    what it becomes is the run's to know.
   </p>
   <p>
     <b>So is a name nothing binds.</b> Every <code>${…}</code> is read before

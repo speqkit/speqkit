@@ -146,7 +146,7 @@ export default definePlugin({
   },
   configSchema: {
     type: 'object',
-    properties: { schemasDir: { type: 'string' } },
+    properties: { schemasDir: { type: 'string', description: 'where `ref` is resolved from; `schemas` by default' } },
     additionalProperties: false
   },
 
@@ -180,8 +180,13 @@ export default definePlugin({
  * only when the last result has nothing at the head of the path.
  */
 const SELECTOR = {
-  path: { type: 'string' },
-  value: {}
+  path: {
+    type: 'string',
+    description:
+      'what to look at, read into the whole step result — `body.items[0].sku`, `status`, `headers.content-type` — ' +
+      'from the last step, or from any step by id: `created.body.name`. Excludes `value`'
+  },
+  value: { description: 'what to look at, given outright — usually `${step.body.field}`. Excludes `path`' }
 } as const
 
 function subjectOf(ctx: AssertContext, input: Record<string, unknown>): Subject {
@@ -319,13 +324,13 @@ const VOCABULARY: Record<string, Check> = {
     summary: 'the value at `path` is one of the listed `expected`',
     phrase: (i) => `to be one of ${show(i.expected)}`,
     holds: (s, i) => Array.isArray(i.expected) && i.expected.some((c) => deepEqual(s.value, c)),
-    takes: { expected: { type: 'array' } }
+    takes: { expected: { type: 'array', description: 'the values it may be' } }
   },
   not_one_of: {
     summary: 'the value at `path` is none of the listed `expected`',
     phrase: (i) => `not to be one of ${show(i.expected)}`,
     holds: (s, i) => Array.isArray(i.expected) && !i.expected.some((c) => deepEqual(s.value, c)),
-    takes: { expected: { type: 'array' } }
+    takes: { expected: { type: 'array', description: 'the values it may not be' } }
   },
 
   /* Text. */
@@ -333,19 +338,19 @@ const VOCABULARY: Record<string, Check> = {
     summary: 'the string at `path` matches the regular expression in `expected`',
     phrase: (i) => `to match /${String(i.expected)}/${String(i.flags ?? '')}`,
     holds: (s, i) => typeof s.value === 'string' && new RegExp(String(i.expected), String(i.flags ?? '')).test(s.value),
-    takes: { expected: { type: 'string' }, flags: { type: 'string' } }
+    takes: { expected: { type: 'string', description: 'a regular expression, without the slashes' }, flags: { type: 'string', description: 'regular-expression flags: i, m, s' } }
   },
   starts_with: {
     summary: 'the string at `path` begins with `expected`',
     phrase: (i) => `to start with ${show(i.expected)}`,
     holds: (s, i) => typeof s.value === 'string' && s.value.startsWith(String(i.expected)),
-    takes: { expected: { type: 'string' } }
+    takes: { expected: { type: 'string', description: 'the prefix' } }
   },
   ends_with: {
     summary: 'the string at `path` ends with `expected`',
     phrase: (i) => `to end with ${show(i.expected)}`,
     holds: (s, i) => typeof s.value === 'string' && s.value.endsWith(String(i.expected)),
-    takes: { expected: { type: 'string' } }
+    takes: { expected: { type: 'string', description: 'the suffix' } }
   },
 
   /* Presence. These are the checks that must be allowed to look at a path
@@ -405,7 +410,11 @@ const VOCABULARY: Record<string, Check> = {
       return i.at_least !== undefined || i.at_most !== undefined
     },
     needs: [],
-    takes: { expected: { type: 'number' }, at_least: { type: 'number' }, at_most: { type: 'number' } }
+    takes: {
+      expected: { type: 'integer', minimum: 0, description: 'the exact length' },
+      at_least: { type: 'integer', minimum: 0, description: 'the smallest length that passes' },
+      at_most: { type: 'integer', minimum: 0, description: 'the largest length that passes' }
+    }
   },
 
   /* Shape, for the cases a schema file would be too much ceremony for. */
@@ -414,7 +423,7 @@ const VOCABULARY: Record<string, Check> = {
     phrase: (i) => `to be a ${String(i.expected)}`,
     holds: (s, i) => typeName(s.value) === String(i.expected) ||
       (String(i.expected) === 'number' && typeName(s.value) === 'integer'),
-    takes: { expected: { type: 'string' } },
+    takes: { expected: { type: 'string', enum: ['string', 'number', 'integer', 'boolean', 'array', 'object', 'null'], description: 'the type name' } },
     tolerantOfMissing: true
   }
 }
@@ -429,7 +438,11 @@ function define(ctx: PluginContext, name: string, check: Check): void {
     summary: check.summary,
     schema: {
       type: 'object',
-      properties: { ...SELECTOR, expected: {}, ...(check.takes ?? {}) },
+      properties: {
+        ...SELECTOR,
+        expected: { description: 'what the value is compared with' },
+        ...(check.takes ?? {})
+      },
       ...(needs.length ? { required: needs } : {}),
       additionalProperties: false
     },
@@ -521,7 +534,7 @@ function defineSchemaCheck(ctx: PluginContext): void {
     summary: 'the value at `path` validates against a JSON Schema file, named by `ref`',
     schema: {
       type: 'object',
-      properties: { ...SELECTOR, ref: { type: 'string' } },
+      properties: { ...SELECTOR, ref: { type: 'string', description: 'a JSON Schema file under `schemasDir`, `schemas/` by default' } },
       required: ['ref'],
       additionalProperties: false
     },
@@ -580,7 +593,10 @@ function defineBridges(ctx: PluginContext): void {
       summary: `deprecated — write ${instead}`,
       schema: {
         type: 'object',
-        properties: { path: { type: 'string' }, expected: {} },
+        properties: {
+          path: { type: 'string', description: `deprecated — write ${instead}` },
+          expected: { description: `deprecated — write ${instead}` }
+        },
         required: ['expected'],
         additionalProperties: false
       },

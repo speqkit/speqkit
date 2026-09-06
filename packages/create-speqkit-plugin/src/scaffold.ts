@@ -228,7 +228,7 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      greeting: { type: 'string' }
+      greeting: { type: 'string', description: 'the word every message opens with; hello by default' }
     },
     additionalProperties: false
   },
@@ -243,7 +243,11 @@ export default definePlugin({
       // goes out, and name the file and the path when it does.
       schema: {
         type: 'object',
-        properties: { to: { type: 'string' } },
+        // A \`description\` on every property, because the schema is what a
+        // reader who is not a person gets: \`speq capabilities\` hands it to an
+        // editor for completion and to a model writing a suite, and a shape
+        // with no words attached is an invitation to invent the keys.
+        properties: { to: { type: 'string', description: 'who is greeted' } },
         required: ['to'],
         additionalProperties: false
       },
@@ -280,7 +284,7 @@ export default definePlugin({
       summary: "the message the step built contains this text",
       schema: {
         type: 'object',
-        properties: { contains: { type: 'string' } },
+        properties: { contains: { type: 'string', description: 'text the message has to hold' } },
         required: ['contains'],
         additionalProperties: false
       },

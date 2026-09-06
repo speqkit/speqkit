@@ -225,6 +225,61 @@ if (entry && !/\.tsx?$/.test(entry) && existsSync(join(dir, entry.replace(/^\.\/
         )
       }
     }
+
+    // The schemas, as a reader who is not a person gets them. `speq
+    // capabilities` hands every schema over, an editor completes from it and
+    // a model writes the suite from it — so a property with no `description`,
+    // or a mapping with no `properties` inside it, is a shape with no words
+    // attached, and `retry: { type: object }` is an invitation to invent the
+    // keys. Counted by running `setup` against a registry that records and
+    // does nothing else, which is the same trick `speq capabilities` uses.
+    const wordless = []
+    const inspect = (kind, name, schema, path = '') => {
+      if (!schema || typeof schema !== 'object') return
+      const props = schema.properties && typeof schema.properties === 'object' ? schema.properties : undefined
+      if (path && schema.type === 'object' && !props && !schema.additionalProperties) {
+        wordless.push(`${kind} '${name}': \`${path}\` is a mapping with nothing said about what goes in it`)
+      }
+      for (const [key, sub] of Object.entries(props ?? {})) {
+        const here = path ? `${path}.${key}` : key
+        if (!sub || typeof sub !== 'object') continue
+        if (typeof sub.description !== 'string') wordless.push(`${kind} '${name}': \`${here}\` has no description`)
+        inspect(kind, name, sub, here)
+      }
+    }
+    try {
+      const recorder = {
+        pluginName: plugin.name,
+        host: {},
+        config: () => ({}),
+        defineStepType: (name, def) => inspect('step', name, def.schema),
+        defineAssertion: (name, def) => inspect('assertion', name, def.schema),
+        defineResource: () => {},
+        defineReporter: () => {},
+        defineValueProvider: () => {},
+        defineLoader: () => {},
+        defineHook: () => {},
+        provide: () => {},
+        inject: () => {},
+        onEvent: () => {},
+        schema: { steps: { $ref: '#/definitions/steps' } }
+      }
+      await plugin.setup(recorder)
+      inspect('config', 'configSchema', plugin.configSchema)
+      if (wordless.length > 0) {
+        warn(
+          'schemas',
+          `${wordless.length} place(s) in the schemas say nothing to a reader who is not a person:\n` +
+            wordless.slice(0, 8).map((w) => `      ${w}`).join('\n') +
+            (wordless.length > 8 ? `\n      … and ${wordless.length - 8} more` : '') +
+            '\n    A `description` on each is what `speq capabilities` hands an editor and a model.'
+        )
+      } else {
+        good('every schema property says what it is for')
+      }
+    } catch (err) {
+      warn('schemas', `could not run setup() to read the schemas (${err.message}).`)
+    }
   }
 }
 

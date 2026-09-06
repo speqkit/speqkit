@@ -52,8 +52,8 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      output: { type: 'string' },
-      compact: { type: 'boolean' }
+      output: { type: 'string', description: 'where the summary is written, relative to the report directory; results/summary.json by default' },
+      compact: { type: 'boolean', description: 'one line instead of indented; false by default' }
     },
     additionalProperties: false
   },

@@ -165,9 +165,11 @@ describe('gen', () => {
       harness(data, { config: { data: { generators: { price: { type: 'int', min: 900, max: 100 } } } } })
     ).rejects.toThrow(/min 900 is above max 100/)
 
+    // The schema catches this one now, before setup() is even called, and
+    // the refusal is the kernel's: a config block that does not match.
     await expect(
       harness(data, { config: { data: { generators: { x: { type: 'uid' } } } } })
-    ).rejects.toThrow(/is not a generator type/)
+    ).rejects.toThrow(/generators.x.type is 'uid', not one of/)
   })
 
   /**

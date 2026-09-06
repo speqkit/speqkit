@@ -34,6 +34,43 @@ interface HttpConfig {
  * The kernel has no idea what HTTP is, which is the whole test of the
  * architecture.
  */
+/* ------------------------------------------------------------------ */
+/* The shapes, written once and declared twice                        */
+/* ------------------------------------------------------------------ */
+
+const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
+const WHOLE_TEMPLATE = /^\$\{[^}]+\}$/
+
+/**
+ * A schema with a `description` on every field, because the schema is what a
+ * reader who is not a person gets: `speq capabilities` hands it over, an
+ * editor completes from it, and a model writes the suite from it. A shape
+ * with no words attached — `retry: { type: object }` — is an invitation to
+ * invent the keys inside it, and `attemps: 3` under it was accepted without
+ * a word for as long as the kernel read only the top level.
+ */
+const HEADERS_SCHEMA = {
+  type: 'object',
+  description: 'one header per key; a value that is not a string is sent as its text',
+  additionalProperties: { type: ['string', 'number', 'boolean'] }
+} as const
+
+const RETRY_SCHEMA = {
+  type: 'object',
+  description:
+    'asks again on a network error or a listed status; off unless `attempts` is above 1. ' +
+    '429 is deliberately not in the default list, and only idempotent methods repeat unless `methods` says otherwise',
+  properties: {
+    attempts: { type: 'integer', minimum: 1, description: 'total tries, the first one included; 1 turns retrying off' },
+    delayMs: { type: 'number', minimum: 0, description: 'the wait before the second try, in milliseconds; 300 by default' },
+    backoff: { type: 'string', enum: ['fixed', 'exponential'], description: 'whether the wait doubles each time; exponential by default' },
+    network: { type: 'boolean', description: 'retry when no answer came at all; true by default' },
+    status: { type: 'array', items: { type: 'integer' }, description: 'response codes worth asking again about; 502, 503 and 504 by default' },
+    methods: { type: 'array', items: { type: 'string' }, description: 'methods that may be repeated; GET, HEAD, OPTIONS, PUT and DELETE by default' }
+  },
+  additionalProperties: false
+} as const
+
 export default definePlugin({
   name: '@speqkit/plugin-http',
   docs: {
@@ -92,10 +129,11 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      baseUrl: { type: 'string' },
-      headers: { type: 'object' },
-      retry: { type: 'object' }
-    }
+      baseUrl: { type: 'string', description: 'prepended to every relative `url`' },
+      headers: HEADERS_SCHEMA,
+      retry: RETRY_SCHEMA
+    },
+    additionalProperties: false
   },
 
   setup(ctx) {
@@ -106,13 +144,41 @@ export default definePlugin({
       schema: {
         type: 'object',
         properties: {
-          method: { type: 'string' },
-          url: { type: 'string' },
-          headers: { type: 'object' },
-          body: {},
-          multipart: { type: 'object' },
-          query: { type: 'object' },
-          retry: { type: 'object' }
+          method: {
+            type: 'string',
+            description: 'GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS, in either case; GET when absent'
+          },
+          url: { type: 'string', description: 'absolute, or relative to `http.baseUrl` in speq.yaml' },
+          headers: HEADERS_SCHEMA,
+          body: {
+            description:
+              'a string is sent as written; anything else is sent as JSON, with content-type set unless a header says otherwise'
+          },
+          multipart: {
+            type: 'object',
+            description: 'a multipart/form-data body: a scalar per plain field, a mapping per file part; excludes `body`',
+            additionalProperties: {
+              anyOf: [
+                { type: ['string', 'number', 'boolean'] },
+                {
+                  type: 'object',
+                  properties: {
+                    file: { type: 'string', description: 'a path relative to the project root, read at run time' },
+                    content: { type: 'string', description: 'the bytes to send, when they are not on disk' },
+                    filename: { type: 'string', description: 'what the server sees; defaults to the file name' },
+                    contentType: { type: 'string', description: 'defaults from the file extension' }
+                  },
+                  additionalProperties: false
+                }
+              ]
+            }
+          },
+          query: {
+            type: 'object',
+            description: 'appended to the url as a query string, one key per parameter',
+            additionalProperties: { type: ['string', 'number', 'boolean', 'null'] }
+          },
+          retry: RETRY_SCHEMA
         },
         required: ['url'],
         additionalProperties: false
@@ -132,6 +198,17 @@ export default definePlugin({
        */
       validate(step, validation) {
         const problems: (string | ValidationProblem)[] = []
+        // Case-insensitive on purpose — `get` has always been sent as GET —
+        // which is why this is a check and not an `enum`, since an enum
+        // would have to list every spelling to say the same thing.
+        if (typeof step.method === 'string' && !WHOLE_TEMPLATE.test(step.method) && !METHODS.has(step.method.toUpperCase())) {
+          problems.push({
+            path: 'method',
+            code: 'unknown-method',
+            message: `'${step.method}' is not an HTTP method`,
+            hint: `one of ${[...METHODS].join(', ')}`
+          })
+        }
         if (step.body !== undefined && step.multipart !== undefined) {
           problems.push({
             path: 'multipart',
@@ -241,7 +318,12 @@ export default definePlugin({
 
     ctx.defineAssertion('status', {
       summary: 'the response code of the request the step just made',
-      schema: { type: 'object', properties: { expected: {} }, required: ['expected'] },
+      schema: {
+        type: 'object',
+        properties: { expected: { type: 'integer', description: 'the status code, as a number: 200, not "200"' } },
+        required: ['expected'],
+        additionalProperties: false
+      },
       evaluate(assert, input) {
         const actual = assert.last?.status
         return outcome(
@@ -256,7 +338,12 @@ export default definePlugin({
 
     ctx.defineAssertion('duration_under', {
       summary: 'the request came back inside a budget, in milliseconds',
-      schema: { type: 'object', properties: { ms: { type: 'number' } }, required: ['ms'] },
+      schema: {
+        type: 'object',
+        properties: { ms: { type: 'number', minimum: 0, description: 'the budget, in milliseconds' } },
+        required: ['ms'],
+        additionalProperties: false
+      },
       evaluate(assert, input) {
         const actual = Number(assert.last?.durationMs ?? 0)
         const limit = Number(input.ms)

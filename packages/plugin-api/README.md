@@ -88,6 +88,20 @@ know, so a step type with `steps` and no `binds` is taken at its word and
 nothing is reported under it. An added optional member, so every 0.11.0 plugin
 still satisfies the contract and `PLUGIN_API_VERSION` stays at `1`.
 
+Also unreleased: `InputSchema` says what the kernel reads of it. It had been
+"JSON-Schema-shaped" since the first commit and the kernel read two words —
+`required`, and `additionalProperties: false` — so `method: GETT`,
+`attempts: "3"` and a typo one level down in `retry:` all went out on the
+wire. The kernel now reads `type`, `enum`, `const`, nested `properties`,
+`items`, the bounds, `pattern` and the three combinators, at every depth; a
+value that is still a whole `${…}` template fits any shape. The type gained
+`description`, `enum`, a `type` that may be a list and an
+`additionalProperties` that may be a schema — every one of them already legal
+under the index signature, now named. And `configSchema` is read: a plugin's
+block in `speq.yaml` that does not match it is a startup refusal,
+`invalid-plugin-config`. `ctx.config()` had said "already validated" for
+as long as it existed, and nothing had ever validated it.
+
 **0.11.0** — `Host` gained `capabilities()`, and with it `Capabilities` and
 `Capability`: every step type, assertion, value provider, reporter and loader
 the loaded plugins define, with the `InputSchema` each declared. The schemas

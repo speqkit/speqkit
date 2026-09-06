@@ -87,10 +87,10 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      pattern: { type: 'string' },
-      key: { type: 'string' },
-      branch: { type: 'boolean' },
-      base: { type: 'string' }
+      pattern: { type: 'string', description: 'the regular expression a work key matches, in a tag or a branch name; a JIRA-style KEY-123 by default' },
+      key: { type: 'string', description: 'the work key to select on, instead of reading it from the branch' },
+      branch: { type: 'boolean', description: 'false to stop reading the key from the branch name; true by default' },
+      base: { type: 'string', description: 'what `speq gate diff` compares against; origin/main by default' }
     },
     additionalProperties: false
   },

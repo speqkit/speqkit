@@ -567,12 +567,28 @@ export interface HookPayload {
 /**
  * A JSON-Schema-shaped object. Kept structural on purpose so a plugin may
  * hand-write it, generate it from zod, or emit it from anything else.
+ *
+ * What the kernel reads of it before a run: `type` (one or several, and
+ * `integer`), `enum`, `const`, `properties` with `required` and
+ * `additionalProperties` at every depth, `items`, `minimum`, `maximum`,
+ * `minLength`, `maxLength`, `minItems`, `maxItems`, `pattern`, `anyOf`,
+ * `oneOf` and `allOf`. A keyword outside that list is carried and not applied
+ * — a plugin that needs `$ref` or `format` checks it in its own `validate`.
+ * A value that is still a whole `${…}` template fits any shape, since what it
+ * becomes is the run's to know.
+ *
+ * It is also what a reader who is not a person gets: `speq capabilities`
+ * hands every schema over, an editor completes from it and a model writes the
+ * suite from it. A `description` on each property is the difference between
+ * a shape and a shape with words attached.
  */
 export interface InputSchema {
-  type?: string
+  type?: string | string[]
+  description?: string
   properties?: Record<string, unknown>
   required?: string[]
-  additionalProperties?: boolean
+  additionalProperties?: boolean | InputSchema
+  enum?: unknown[]
   [key: string]: unknown
 }
 

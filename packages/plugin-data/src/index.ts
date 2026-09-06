@@ -107,10 +107,31 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      seed: { type: 'string' },
-      emailDomain: { type: 'string' },
-      vars: { type: 'object' },
-      generators: { type: 'object' }
+      seed: { type: 'string', description: 'fixes every `${gen:…}` value; the run id by default, so a run replays from the string that names its report' },
+      emailDomain: { type: 'string', description: 'what `${gen:email}` builds addresses under; example.com by default' },
+      vars: {
+        type: 'object',
+        description: 'project values, addressable as `${vars:name}` and layered per environment',
+        additionalProperties: true
+      },
+      generators: {
+        type: 'object',
+        description: 'named generators with their parameters settled once, addressable as `${gen:name}`',
+        additionalProperties: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['uuid', 'string', 'int', 'email', 'date'], description: 'which generator this is built on' },
+            minLength: { type: 'integer', minimum: 1, description: 'for `string`: the shortest value; 16 by default' },
+            maxLength: { type: 'integer', minimum: 1, description: 'for `string`: the longest value; the minimum by default' },
+            min: { type: 'integer', description: 'for `int`: the smallest value; 0 by default' },
+            max: { type: 'integer', description: 'for `int`: the largest value; 1000000 by default' },
+            from: { type: 'string', description: 'for `date`: the earliest, as an ISO date; a year ago by default' },
+            to: { type: 'string', description: 'for `date`: the latest, as an ISO date; today by default' }
+          },
+          required: ['type'],
+          additionalProperties: false
+        }
+      }
     },
     additionalProperties: false
   },

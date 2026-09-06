@@ -573,6 +573,116 @@ describe('validation uses the grammar the plugins defined', () => {
 })
 
 /**
+ * The shape of an input, read against the whole schema and not two words of it.
+ *
+ * `InputSchema` had been JSON-Schema-shaped since the first commit, and the
+ * kernel read `required` and `additionalProperties: false` — enough to catch
+ * `bodyRaw:` for `body:`, and not `method: GETT`, `attempts: "3"`, or a typo
+ * one level down in `retry:`, because a nested mapping was never opened and
+ * a type was never compared. All of those went out on the wire.
+ */
+describe('an input is checked against the shape its schema declares', () => {
+  const shaped = definePlugin({
+    name: 'shaped',
+    setup(ctx) {
+      ctx.defineStepType('ship', {
+        schema: {
+          type: 'object',
+          properties: {
+            to: { type: 'string', minLength: 1 },
+            method: { type: 'string', enum: ['air', 'sea'] },
+            weight: { type: 'number', minimum: 0, maximum: 100 },
+            count: { type: 'integer' },
+            tags: { type: 'array', items: { type: 'string' }, maxItems: 2 },
+            options: {
+              type: 'object',
+              properties: { insured: { type: 'boolean' }, note: { type: 'string' } },
+              additionalProperties: false
+            },
+            parts: {
+              type: 'object',
+              additionalProperties: {
+                anyOf: [{ type: 'string' }, { type: 'object', properties: { file: { type: 'string' } }, additionalProperties: false }]
+              }
+            },
+            ref: { type: 'string', pattern: '^REF-[0-9]+$' }
+          },
+          required: ['to'],
+          additionalProperties: false
+        },
+        execute: () => ({})
+      })
+      ctx.defineAssertion('arrived', {
+        schema: { type: 'object', properties: { within: { type: 'number' } }, additionalProperties: false },
+        evaluate: () => ({ passed: true, message: 'arrived' })
+      })
+      ctx.defineValueProvider('vars', { prefix: 'vars', resolve: () => 1 })
+    }
+  })
+
+  const check = async (step: Record<string, unknown>) => {
+    const registry = await registryWith(shaped)
+    return validateTests(registry, [{ name: 't', source: 't.yaml', steps: [{ type: 'ship', to: 'x', ...step }] }])
+      .map((d) => [d.code, d.path, d.message])
+  }
+
+  it('reads a type, an enum and a bound', async () => {
+    expect(await check({ method: 'rail' })).toEqual([
+      ['invalid-value', 'steps[0].method', "method is 'rail', not one of 'air', 'sea'"]
+    ])
+    expect(await check({ weight: '12' })).toEqual([['invalid-value', 'steps[0].weight', "weight is '12', not a number"]])
+    expect(await check({ weight: 101 })).toEqual([['invalid-value', 'steps[0].weight', 'weight is 101, above the maximum of 100']])
+    expect(await check({ count: 1.5 })).toEqual([['invalid-value', 'steps[0].count', 'count is 1.5, not a whole number']])
+    expect(await check({ ref: 'REF-x' })).toEqual([
+      ['invalid-value', 'steps[0].ref', "ref is 'REF-x', which does not match /^REF-[0-9]+$/"]
+    ])
+    expect(await check({ tags: ['a', 2, 'c'] })).toEqual([
+      ['invalid-value', 'steps[0].tags', 'tags has 3 item(s), more than 2'],
+      ['invalid-value', 'steps[0].tags[1]', 'tags[1] is 2, not a string']
+    ])
+  })
+
+  it('opens a nested mapping, which is where the typo that mattered was', async () => {
+    expect(await check({ options: { insurred: true, note: 3 } })).toEqual([
+      ['invalid-value', 'steps[0].options.note', 'options.note is 3, not a string'],
+      ['unknown-field', 'steps[0].options', "unknown field 'options.insurred' — did you mean 'insured'?"]
+    ])
+  })
+
+  it('names the branch that was meant when a value may take several shapes', async () => {
+    expect(await check({ parts: { doc: 'plain', pic: { file: 'a.png', filenam: 'b' } } })).toEqual([
+      ['unknown-field', 'steps[0].parts.pic', "unknown field 'parts.pic.filenam' — available: file"]
+    ])
+    expect(await check({ parts: { doc: 7 } })).toEqual([
+      ['invalid-value', 'steps[0].parts.doc', 'parts.doc is 7, which matches none of the 2 shapes it may take']
+    ])
+  })
+
+  it('reads a whole-template value as fitting any shape, and a template inside a string as a string', async () => {
+    expect(await check({ weight: '${vars:kg}', method: '${mode}', count: '${n}' })).toEqual([
+      ['unresolved-reference', 'steps[0].method', "${mode}: 'mode' is not defined here"],
+      ['unresolved-reference', 'steps[0].count', "${n}: 'n' is not defined here"]
+    ])
+    expect(await check({ weight: '${vars:kg} kg' })).toEqual([
+      ['invalid-value', 'steps[0].weight', "weight is '${vars:kg} kg', not a number"]
+    ])
+  })
+
+  it('keeps the kernel\'s own keys on a step, and only those on an assertion', async () => {
+    const registry = await registryWith(shaped)
+    const diagnostics = validateTests(registry, [{
+      name: 't',
+      source: 't.yaml',
+      steps: [{ id: 'a', type: 'ship', to: 'x', timeout: 5, meta: { owner: 'me' }, assert: [{ type: 'arrived', within: 3, id: 'no', meta: {} }] }]
+    }])
+
+    expect(diagnostics.map((d) => [d.code, d.path, d.message])).toEqual([
+      ['unknown-field', 'steps[0].assert[0]', "unknown field 'id' — available: meta, type, within"]
+    ])
+  })
+})
+
+/**
  * The joins, read before the run.
  *
  * Validation stopped at the words — a step type, its fields — and a test whose
@@ -762,6 +872,10 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
         validate: () => { throw new Error('I am the bug') },
         execute: () => ({})
       })
+      ctx.defineStepType('count', {
+        schema: { type: 'object', properties: { n: { type: 'integer' } }, additionalProperties: false },
+        execute: () => ({})
+      })
     }
   })
 
@@ -784,7 +898,8 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
           { type: 'nope' },
           { type: 'send' },
           { type: 'send', to: 'x', extra: 1 },
-          { type: 'brittle' }
+          { type: 'brittle' },
+          { type: 'count', n: 'three' }
         ],
         assert: [{ type: 'nope' }]
       },
@@ -828,6 +943,7 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
       'duplicate-step-id',
       'duplicate-test-name',
       'forward-reference',
+      'invalid-value',
       'missing-field',
       'pending-needs-reason',
       'plugin-check-threw',

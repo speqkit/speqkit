@@ -3,6 +3,7 @@ import type {
   ValidationProblem, Validator
 } from '@speqkit/plugin-api'
 import { shortName, type Registry, type Registered } from './registry.js'
+import { checkAgainstSchema, distance } from './schema.js'
 
 export type { Diagnostic }
 
@@ -390,8 +391,8 @@ function stepVisitor(
       return
     }
     if (entry.def.schema) {
-      for (const problem of checkSchema(step, entry.def.schema)) {
-        diagnostics.push({ file, path, ...problem })
+      for (const problem of checkAgainstSchema(step, entry.def.schema, STEP_RESERVED)) {
+        diagnostics.push({ file, path: problem.path ? `${path}.${problem.path}` : path, code: problem.code, message: problem.message })
       }
     }
     contribute(diagnostics, registry, entry, step, where, path, 'step type')
@@ -489,8 +490,8 @@ function checkAssertions(
       continue
     }
     if (entry.def.schema) {
-      for (const problem of checkSchema(assertion, entry.def.schema)) {
-        diagnostics.push({ file: where.file, path, ...problem })
+      for (const problem of checkAgainstSchema(assertion, entry.def.schema, ASSERTION_RESERVED)) {
+        diagnostics.push({ file: where.file, path: problem.path ? `${path}.${problem.path}` : path, code: problem.code, message: problem.message })
       }
     }
     contribute(diagnostics, registry, entry, assertion, where, path, 'assertion')
@@ -566,36 +567,10 @@ function walkSteps(steps: StepDef[], path: string, visit: (s: StepDef, p: string
   }
 }
 
-/**
- * A deliberately small structural check: required keys, and unknown keys when
- * the schema closes itself. Full JSON Schema arrives with the installer, once
- * schemas are being generated from plugin builds rather than hand-written.
- */
-function checkSchema(
-  value: Record<string, unknown>,
-  schema: InputSchema
-): { code: string; message: string }[] {
-  const problems: { code: string; message: string }[] = []
-  for (const key of schema.required ?? []) {
-    if (value[key] === undefined) {
-      problems.push({ code: 'missing-field', message: `missing required field '${key}'` })
-    }
-  }
-  if (schema.additionalProperties === false && schema.properties) {
-    const allowed = new Set([
-      ...Object.keys(schema.properties), 'id', 'type', 'timeout', 'steps', 'assert', 'meta'
-    ])
-    for (const key of Object.keys(value)) {
-      if (!allowed.has(key)) {
-        problems.push({
-          code: 'unknown-field',
-          message: `unknown field '${key}'${withDash(suggest(key, [...allowed]))}`
-        })
-      }
-    }
-  }
-  return problems
-}
+/** What the kernel owns on a step, whatever the step type's schema says. */
+const STEP_RESERVED = ['id', 'type', 'timeout', 'steps', 'assert', 'meta'] as const
+/** And on an assertion, which has neither an id nor children. */
+const ASSERTION_RESERVED = ['type', 'meta'] as const
 
 /**
  * A sentence, not a suffix. A hint used to begin with the dash the console
@@ -613,21 +588,3 @@ function suggest(input: string, known: string[]): string | undefined {
   return known.length ? `available: ${known.sort().join(', ')}` : undefined
 }
 
-function withDash(hint: string | undefined): string {
-  return hint ? ` — ${hint}` : ''
-}
-
-function distance(a: string, b: string): number {
-  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)])
-  for (let j = 0; j <= b.length; j++) dp[0]![j] = j
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      dp[i]![j] = Math.min(
-        dp[i - 1]![j]! + 1,
-        dp[i]![j - 1]! + 1,
-        dp[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)
-      )
-    }
-  }
-  return dp[a.length]![b.length]!
-}

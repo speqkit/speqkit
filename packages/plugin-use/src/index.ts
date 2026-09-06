@@ -109,9 +109,9 @@ export default definePlugin({
   configSchema: {
     type: 'object',
     properties: {
-      modulesDir: { type: 'string' },
-      sharedDir: { type: 'string' },
-      fixturesDir: { type: 'string' }
+      modulesDir: { type: 'string', description: 'where module files live; `modules` by default' },
+      sharedDir: { type: 'string', description: 'where shared blocks live; `shared` by default' },
+      fixturesDir: { type: 'string', description: 'where fixtures live; `fixtures` by default' }
     },
     additionalProperties: false
   },
@@ -151,7 +151,7 @@ export default definePlugin({
      */
     ctx.defineStepType(CAPTURE, {
       summary: "internal: reads a block's `returns` in the scope the block ran in",
-      schema: { type: 'object', properties: { values: {} }, additionalProperties: false },
+      schema: { type: 'object', properties: { values: { description: 'internal: the `returns` block, resolved where the block ran' } }, additionalProperties: false },
       execute: (_exec, input) => (input.values ?? {}) as Record<string, unknown>
     })
 
@@ -160,11 +160,11 @@ export default definePlugin({
       schema: {
         type: 'object',
         properties: {
-          ref: { type: 'string' },
-          action: { type: 'string' },
-          fixture: { type: 'string' },
-          properties: { type: 'object' },
-          overrides: { type: 'object' }
+          ref: { type: 'string', description: 'a shared block, by name under `sharedDir`; the step publishes what the block returns, or its steps by id' },
+          action: { type: 'string', description: 'a module action as `<module>.<action>`; the step publishes its `returns`' },
+          fixture: { type: 'string', description: 'a fixture, by name under `fixturesDir`; the step publishes the object it builds' },
+          properties: { type: 'object', description: 'the values an action declares it needs, by name', additionalProperties: true },
+          overrides: { type: 'object', description: 'fields laid over a fixture, top level only', additionalProperties: true }
         },
         additionalProperties: false
       },

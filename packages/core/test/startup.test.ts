@@ -122,6 +122,40 @@ describe('a refusal to start', () => {
   })
 
   /**
+   * `configSchema` had been on the contract since the first commit, and
+   * `ctx.config()` was documented as already validated — and nothing had ever
+   * read the schema. A `baseUrll:` under `http:` reached the plugin, which
+   * read `baseUrl`, found nothing, and sent every request to a relative path.
+   */
+  it('refuses a plugin block that does not match the plugin\'s own schema', () => {
+    const { code, stdout, stderr } = speq(
+      project('version: 1\nplugins:\n  - yaml\n  - cli\n  - http\nhttp:\n  baseUrll: http://x\n  retry: { attempts: 0 }\n'),
+      ['list']
+    )
+
+    expect(code).toBe(2)
+    expect(stdout).toBe('')
+    expect(stderr).toContain("the 'http' block does not match")
+    expect(stderr).toContain("unknown field 'http.baseUrll' — did you mean 'baseUrl'?")
+    expect(stderr).toContain('http.retry.attempts: retry.attempts is 0, below the minimum of 1')
+
+    const document = JSON.parse(speq(
+      project('version: 1\nplugins:\n  - yaml\n  - cli\n  - http\nhttp:\n  baseUrll: http://x\n'),
+      ['list', '--json']
+    ).stdout)
+    expect(document.error.code).toBe('invalid-plugin-config')
+  })
+
+  it('reads a config value that is still a template as fitting any shape', () => {
+    const { code } = speq(
+      project('version: 1\nplugins:\n  - yaml\n  - cli\n  - http\nhttp:\n  retry: { attempts: "${vars:tries}" }\n'),
+      ['list']
+    )
+
+    expect(code).toBe(0)
+  })
+
+  /**
    * The walk itself, in process, because it cannot be reached through the
    * binary: standing outside the repository is also standing outside the
    * `tsx` this harness loads the kernel with.
@@ -185,7 +219,8 @@ describe('a refusal to start', () => {
       'incompatible-plugin',
       'duplicate-capability',
       'duplicate-service',
-      'reserved-prefix'
+      'reserved-prefix',
+      'invalid-plugin-config'
     ])
     expect(new Set(STARTUP_CODES).size).toBe(STARTUP_CODES.length)
   })
