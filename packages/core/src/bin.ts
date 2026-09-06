@@ -628,7 +628,7 @@ function checkDocs(entries: PluginEntry[], registry: Registry): number {
             notes.push(`${where} — ${d.path}: ${d.message}, which is not loaded here`)
             continue
           }
-          problems.push(`${where} would not validate — ${d.path}: ${d.message}${d.hint ?? ''}`)
+          problems.push(`${where} would not validate — ${d.path}: ${d.message}${d.hint ? ` — ${d.hint}` : ''}`)
         }
       }
     }

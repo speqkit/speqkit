@@ -649,6 +649,24 @@ export interface StepTypeDef {
   schema?: InputSchema
   /** Per-step timeout override, in milliseconds. */
   timeoutMs?: number
+  /**
+   * The names this step binds for the steps nested under it, beyond what is
+   * visible outside — `loop` answers `[as, as + 'Index']`, `retry` answers
+   * nothing, and neither is a name the kernel could have known.
+   *
+   * What it buys is `speq validate` reading `${…}` before the run. The
+   * kernel knows every name a test binds itself — its givens and the ids of
+   * the steps above — and a reference to a name that is none of them is
+   * reported as a diagnostic instead of as an errored step twenty minutes
+   * into a suite. Inside a nesting step the kernel cannot know, so a step
+   * type with `steps` and no `binds` is taken at its word: nothing is
+   * reported under it. Declaring the names is what makes a `${skuu}` in a
+   * loop body a diagnostic rather than a run.
+   *
+   * The names a step publishes *after* itself are not declared here, because
+   * there is exactly one and it is already written: its `id`.
+   */
+  binds?(step: StepDef): string[] | void
   /** Checks this step means something, beyond having the right shape. */
   validate?: Validator<StepDef>
   execute(ctx: ExecContext, input: Record<string, unknown>): StepResult | Promise<StepResult>

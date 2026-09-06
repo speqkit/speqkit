@@ -573,6 +573,173 @@ describe('validation uses the grammar the plugins defined', () => {
 })
 
 /**
+ * The joins, read before the run.
+ *
+ * Validation stopped at the words — a step type, its fields — and a test whose
+ * every word was right could still name a step that runs below it, a given
+ * that was never declared, or a `${env:…}` in a project with nothing loaded
+ * to answer it. All three were found out as an errored step in the middle of
+ * a run, and a model writing a suite gets exactly those wrong more often than
+ * it misspells `http`. The kernel knows every name a test binds itself, so a
+ * reference to none of them is a diagnostic; what a nesting step binds for
+ * the steps under it is the plugin's to declare, and one that declares
+ * nothing is not second-guessed.
+ */
+describe('a reference is checked against what the test binds', () => {
+  const nesting = definePlugin({
+    name: 'nesting',
+    setup(ctx) {
+      ctx.defineStepType('each', {
+        binds: (step) => [String(step.as ?? 'item')],
+        execute: async (exec, input) => {
+          await exec.runSteps((input.steps as StepDef[]) ?? [], { vars: { [String(input.as ?? 'item')]: 1 } })
+          return {}
+        }
+      })
+      ctx.defineStepType('opaque', {
+        execute: async (exec, input) => {
+          await exec.runSteps((input.steps as StepDef[]) ?? [], { vars: { whatever: 1 } })
+          return {}
+        }
+      })
+      ctx.defineValueProvider('secrets', { prefix: 'vault', resolve: () => 'shh' })
+    }
+  })
+
+  const test = (fields: Partial<Parameters<typeof validateTests>[1][number]>) =>
+    ({ name: 't', source: 't.yaml', steps: [{ type: 'echo' }], ...fields })
+
+  it('lets a step read a given, a step above it, and itself from its own assertions', async () => {
+    const registry = await registryWith(echo, nesting)
+    const diagnostics = validateTests(registry, [test({
+      variables: { base: 'x', derived: '${base}/y' },
+      setup: [{ id: 'made', type: 'echo', value: '${derived}' }],
+      steps: [
+        { id: 'a', type: 'echo', value: '${made.value}', assert: [{ type: 'equals', expected: '${a.value}' }] },
+        { id: 'b', type: 'echo', value: '${a.value} ${vault:token} ${meta:owner}' }
+      ],
+      assert: [{ type: 'equals', expected: '${b.value}' }],
+      cleanup: [{ type: 'echo', value: '${a.value} ${b.value}' }]
+    })])
+
+    expect(diagnostics).toEqual([])
+  })
+
+  it('refuses a name nothing binds, and says what is bound', async () => {
+    const registry = await registryWith(echo)
+    const diagnostics = validateTests(registry, [test({
+      variables: { base: 'x' },
+      steps: [{ id: 'a', type: 'echo', value: '${bsae}/${nowhere.at.all}' }]
+    })])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['unresolved-reference', 'steps[0].value'],
+      ['unresolved-reference', 'steps[0].value']
+    ])
+    expect(diagnostics[0]!.message).toBe("${bsae}: 'bsae' is not defined here")
+    expect(diagnostics[0]!.hint).toBe("did you mean 'base'?")
+    expect(diagnostics[1]!.hint).toBe('defined here: base')
+  })
+
+  it('tells a step below from a name that is nowhere', async () => {
+    const registry = await registryWith(echo)
+    const diagnostics = validateTests(registry, [test({
+      steps: [
+        { id: 'a', type: 'echo', value: '${b.value}' },
+        { id: 'b', type: 'echo', value: '${b.value}' }
+      ]
+    })])
+
+    expect(diagnostics.map((d) => d.code)).toEqual(['forward-reference', 'forward-reference'])
+    expect(diagnostics[0]!.message).toContain("names step 'b', which runs after this")
+    expect(diagnostics[1]!.message).toContain("names this step's own result")
+  })
+
+  it('reads a given in declaration order, one at a time', async () => {
+    const registry = await registryWith(echo)
+    const diagnostics = validateTests(registry, [test({
+      variables: { derived: '${base}/y', base: 'x' }
+    })])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([['unresolved-reference', 'variables.derived']])
+  })
+
+  it('refuses a prefix nothing loaded claims, wherever it is written', async () => {
+    const registry = await registryWith(echo, nesting)
+    const diagnostics = validateTests(registry, [test({
+      variables: { token: '${env:TOKEN}' },
+      steps: [{ type: 'opaque', steps: [{ type: 'echo', value: '${gen:uuid} ${vault:ok}' }] }]
+    })])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['unknown-provider', 'variables.token'],
+      ['unknown-provider', 'steps[0].steps[0].value']
+    ])
+    expect(diagnostics[0]!.message).toContain("'env'")
+    expect(diagnostics[0]!.hint).toContain('@speqkit/plugin-data')
+    expect(diagnostics[0]!.hint).toContain('loaded: vault')
+  })
+
+  it('reads a nesting step\'s body against what the step says it binds', async () => {
+    const registry = await registryWith(echo, nesting)
+    const diagnostics = validateTests(registry, [test({
+      steps: [
+        { id: 'a', type: 'echo' },
+        {
+          id: 'loop',
+          type: 'each',
+          as: 'row',
+          steps: [
+            { id: 'first', type: 'echo', value: '${row} ${a.value}' },
+            { type: 'echo', value: '${first.value} ${roww}' }
+          ]
+        },
+        { type: 'echo', value: '${first.value} ${loop.value}' }
+      ]
+    })])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['unresolved-reference', 'steps[1].steps[1].value'],
+      ['unresolved-reference', 'steps[2].value']
+    ])
+    expect(diagnostics[0]!.hint).toBe("did you mean 'row'?")
+    // A child scope is popped when its step returns; what survives is the
+    // outer step's own result, and the message says to read that instead.
+    expect(diagnostics[1]!.message).toContain("nested under 'loop' and not visible outside it")
+    expect(diagnostics[1]!.hint).toContain('${loop.…}')
+  })
+
+  it('takes a nesting step that declares nothing at its word', async () => {
+    const registry = await registryWith(echo, nesting)
+    const diagnostics = validateTests(registry, [test({
+      steps: [{ type: 'opaque', steps: [{ type: 'echo', value: '${whatever} ${anything.at.all}' }] }]
+    })])
+
+    expect(diagnostics).toEqual([])
+  })
+
+  it('checks a suite\'s own setup against the suite\'s own names', async () => {
+    const registry = await registryWith(echo)
+    const suite = {
+      name: 'orders',
+      source: 'suites/suite.yaml',
+      setup: [{ id: 'tenant', type: 'echo' }, { type: 'echo', value: '${tenant.value} ${nope}' }],
+      cleanup: [{ type: 'echo', value: '${tenant.value}' }]
+    }
+    const diagnostics = validateTests(registry, [
+      test({ steps: [{ type: 'echo', value: '${tenant.value}' }], suites: [suite] })
+    ])
+
+    // The suite's second setup step reads a name that is nowhere; the test
+    // cannot see the suite's `tenant` at all, by design, and is told so.
+    expect(diagnostics.map((d) => [d.file, d.code, d.path])).toEqual([
+      ['suites/suite.yaml', 'unresolved-reference', 'setup[1].value'],
+      ['t.yaml', 'unresolved-reference', 'steps[0].value']
+    ])
+  })
+})
+
+/**
  * A message is written for a person and may be reworded in any release; a code
  * is written for a program and may not. Without the second one the only way to
  * tell a step type that does not exist from one whose input is malformed was
@@ -621,6 +788,14 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
         ],
         assert: [{ type: 'nope' }]
       },
+      {
+        name: 'r',
+        source: 'r.yaml',
+        steps: [
+          { type: 'send', to: '${later.value} ${nowhere} ${vault:token}' },
+          { id: 'later', type: 'send', to: 'x' }
+        ]
+      },
       { name: 'f', source: 'f.yaml', steps: [{ type: 'send', to: 'x' }], cases: 'no' },
       { name: 'g', source: 'g.yaml', steps: [{ type: 'send', to: 'x' }], cases: [] },
       {
@@ -652,6 +827,7 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
       'duplicate-case-id',
       'duplicate-step-id',
       'duplicate-test-name',
+      'forward-reference',
       'missing-field',
       'pending-needs-reason',
       'plugin-check-threw',
@@ -659,7 +835,9 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
       'test-has-no-steps',
       'unknown-assertion',
       'unknown-field',
+      'unknown-provider',
       'unknown-step-type',
+      'unresolved-reference',
       'variable-is-a-step-id'
     ])
   })

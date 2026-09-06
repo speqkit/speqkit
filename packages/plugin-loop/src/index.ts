@@ -80,6 +80,17 @@ export default definePlugin({
        * mistake used to surface as an errored step in the middle of a run,
        * from a message that could not say which file it was in.
        */
+      /**
+       * What the body may read that the test outside cannot: the current
+       * item under `as`, and its index under `<as>Index`. Declared so that
+       * `speq validate` reads a `${skuu}` in the body as the typo it is
+       * rather than as a name some plugin might bind.
+       */
+      binds: (step) => {
+        const alias = typeof step.as === 'string' ? step.as : 'item'
+        return [alias, `${alias}Index`]
+      },
+
       validate(step) {
         const over = step.over !== undefined && step.over !== null
         const times = step.times !== undefined
@@ -121,6 +132,9 @@ export default definePlugin({
         properties: { attempts: { type: 'number' }, delayMs: { type: 'number' }, steps: { type: 'array' } },
         additionalProperties: false
       },
+
+      /** A retry binds nothing new; its body reads exactly what the test does. */
+      binds: () => [],
 
       validate(step) {
         if (typeof step.attempts === 'number' && step.attempts < 1) {

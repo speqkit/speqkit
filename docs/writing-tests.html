@@ -222,6 +222,17 @@
     designed against had six such keys silently ignored, three upload paths
     with no coverage at all, and a green tick on every run.
   </p>
+  <p>
+    <b>So is a name nothing binds.</b> Every <code>${…}</code> is read before
+    the run against what the test declares: its givens, in order, and the id
+    of every step above. <code>${craeted.body.id}</code> is a diagnostic with
+    the right spelling beside it; a step named below the one reading it is a
+    <code>forward-reference</code>; <code>${env:TOKEN}</code> with no plugin
+    answering <code>env:</code> says which plugin does. Inside a
+    <code>loop</code> the body may also read what the loop binds, because the
+    plugin says so — and a nesting step from a plugin that says nothing is
+    taken at its word.
+  </p>
 
   <h3>Assertions belong to the step that produced the result</h3>
   <p>

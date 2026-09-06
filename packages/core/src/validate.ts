@@ -39,6 +39,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
     const visit = stepVisitor(diagnostics, registry, where)
     walkSteps(suite.setup ?? [], 'setup', visit)
     walkSteps(suite.cleanup ?? [], 'cleanup', visit)
+    checkReferences(diagnostics, registry, { setup: suite.setup, cleanup: suite.cleanup }, where.file)
     if (suite.pending !== undefined && typeof suite.pending !== 'string') {
       diagnostics.push({
         file: where.file,
@@ -68,8 +69,8 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
           code: 'duplicate-test-name',
           message: `duplicate test name '${test.name}'`,
           hint: first === file
-            ? ' — already used in this file; every event a run emits is keyed by the name'
-            : ` — already used in ${first}; every event a run emits is keyed by the name`
+            ? 'already used in this file; every event a run emits is keyed by the name'
+            : `already used in ${first}; every event a run emits is keyed by the name`
         })
       } else {
         named.set(test.name, file)
@@ -104,6 +105,8 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
     walkSteps(test.cleanup ?? [], 'cleanup', visit)
 
     checkAssertions(diagnostics, registry, test.assert, { test, file }, '')
+
+    checkReferences(diagnostics, registry, test, file)
 
     // A `cases` table that survived discovery unexpanded is a table the kernel
     // could not turn into tests. It is reported here rather than there because
@@ -158,6 +161,192 @@ export function validateFragment(registry: Registry, fragment: Fragment, file: s
   walkSteps(fragment.cleanup ?? [], 'cleanup', visit)
   checkAssertions(diagnostics, registry, fragment.assert, where, '')
   return diagnostics
+}
+
+/* ------------------------------------------------------------------ */
+/* `${…}` before the run                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every `${…}` a test writes, read against what the test binds.
+ *
+ * The bet the project rests on is that a generated test can be checked before
+ * it runs, and until this the check stopped at the words: a step type and its
+ * fields. The *joins* — the name of the step above, the given declared at the
+ * top, the provider a prefix asks — were found out at run time, as an errored
+ * step, and a model gets those wrong more often than it misspells `http`.
+ *
+ * What the kernel knows for certain: a test's givens, bound in order, each
+ * visible to the one below it; the id of every step, visible to every step
+ * after it and to the assertions and cleanup; and which value providers are
+ * loaded. So a reference to a name that is none of those is a diagnostic —
+ * `unresolved-reference`, or `forward-reference` when the name is a step
+ * further down, because that one has a sentence of its own. A prefix nothing
+ * loaded answers is `unknown-provider`, whichever scope it is written in,
+ * because a provider does not come from scope.
+ *
+ * What the kernel cannot know is what a nesting step binds for the steps
+ * under it — `loop` binds `as`, and a step type this repository has never
+ * seen binds whatever it likes. A step type says so with `StepTypeDef.binds`,
+ * and one that nests and says nothing is taken at its word: nothing is
+ * reported under it. Strict where the grammar is the kernel's, silent where
+ * it is not, and never a diagnostic about a name that would have resolved.
+ *
+ * Only the head of a path is checked. `${order.body.total}` names a step the
+ * kernel can see and a shape only the run produces; a wrong `total` is still
+ * the run's to find, and the assertion's message says what was there.
+ */
+function checkReferences(
+  diagnostics: Diagnostic[],
+  registry: Registry,
+  subject: Partial<Pick<TestDef, 'variables' | 'setup' | 'steps' | 'assert' | 'cleanup'>>,
+  file: string
+): void {
+  const providers = new Set([...registry.valueProviders.values()].map((p) => p.def.prefix))
+  providers.add('meta')
+  /** Every step id in the subject, and for a nested one the step it is under. */
+  const everyId = new Map<string, StepDef | undefined>()
+  const collect = (steps: StepDef[] | undefined, under: StepDef | undefined): void => {
+    for (const step of steps ?? []) {
+      if (step.id && !everyId.has(step.id)) everyId.set(step.id, under)
+      collect(step.steps, step)
+    }
+  }
+  collect(subject.setup, undefined)
+  collect(subject.steps, undefined)
+  collect(subject.cleanup, undefined)
+
+  const names = new Set<string>()
+  const scope: Scope = { names, open: false }
+
+  const found = (path: string, expression: string, inScope: Scope, self?: string): void => {
+    const colon = expression.indexOf(':')
+    const prefix = colon > 0 ? expression.slice(0, colon) : undefined
+    if (prefix !== undefined && PREFIX.test(prefix)) {
+      if (!providers.has(prefix)) {
+        diagnostics.push({
+          file,
+          path,
+          code: 'unknown-provider',
+          message: `\${${expression}} asks a value provider nothing loaded claims: '${prefix}'`,
+          hint: providerHint(prefix, providers)
+        })
+      }
+      return
+    }
+    if (inScope.open) return
+    const head = expression.replace(/\[(\d+)\]/g, '.$1').split('.')[0]?.trim()
+    if (!head || inScope.names.has(head)) return
+    if (head === self) {
+      diagnostics.push({
+        file,
+        path,
+        code: 'forward-reference',
+        message: `\${${expression}} names this step's own result, which does not exist until it has run`,
+        hint: "a step's input cannot read its result; its `assert:` block can"
+      })
+      return
+    }
+    if (everyId.has(head)) {
+      const under = everyId.get(head)
+      diagnostics.push(under
+        ? {
+            file,
+            path,
+            code: 'unresolved-reference',
+            message: `\${${expression}} names step '${head}', which is nested under ` +
+              `${under.id ? `'${under.id}'` : `a '${under.type}' step`} and not visible outside it`,
+            hint: 'a nested scope is popped when its step returns; read what the outer step publishes' +
+              (under.id ? `, \${${under.id}.…}` : '')
+          }
+        : {
+            file,
+            path,
+            code: 'forward-reference',
+            message: `\${${expression}} names step '${head}', which runs after this`,
+            hint: 'a step can read only what ran before it; move the step up, or the reference down'
+          })
+      return
+    }
+    diagnostics.push({
+      file,
+      path,
+      code: 'unresolved-reference',
+      message: `\${${expression}}: '${head}' is not defined here`,
+      hint: nameHint(head, inScope.names)
+    })
+  }
+
+  for (const [name, value] of Object.entries(subject.variables ?? {})) {
+    walkTemplates(value, `variables.${name}`, (path, expression) => found(path, expression, scope))
+    names.add(name)
+  }
+  const visit = (steps: StepDef[] | undefined, at: string, inScope: Scope): void => {
+    for (const [index, step] of (steps ?? []).entries()) {
+      const here = `${at}[${index}]`
+      for (const [key, value] of Object.entries(step)) {
+        if (key === 'steps' || key === 'assert' || key === 'meta' || key === 'type' || key === 'id') continue
+        walkTemplates(value, `${here}.${key}`, (path, expression) => found(path, expression, inScope, step.id))
+      }
+      if (Array.isArray(step.steps)) {
+        const def = registry.stepTypes.get(step.type)?.def
+        const bound = def?.binds?.(step)
+        const inner: Scope = {
+          names: new Set([...inScope.names, ...(bound ?? [])]),
+          open: inScope.open || !def?.binds
+        }
+        visit(step.steps, `${here}.steps`, inner)
+      }
+      // Bound before its own assertions run, so a step may address itself.
+      if (step.id) inScope.names.add(step.id)
+      for (const [index, assertion] of (step.assert ?? []).entries()) {
+        walkTemplates(assertion, `${here}.assert[${index}]`, (path, expression) => found(path, expression, inScope))
+      }
+    }
+  }
+  visit(subject.setup, 'setup', scope)
+  visit(subject.steps, 'steps', scope)
+  for (const [index, assertion] of (subject.assert ?? []).entries()) {
+    walkTemplates(assertion, `assert[${index}]`, (path, expression) => found(path, expression, scope))
+  }
+  visit(subject.cleanup, 'cleanup', scope)
+}
+
+interface Scope {
+  names: Set<string>
+  /** True under a nesting step that did not say what it binds. */
+  open: boolean
+}
+
+const TEMPLATE = /\$\{([^}]+)\}/g
+const PREFIX = /^[A-Za-z_][\w-]*$/
+
+/** Every `${…}` in a value, with the path it was written at. */
+function walkTemplates(value: unknown, path: string, on: (path: string, expression: string) => void): void {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(TEMPLATE)) on(path, match[1]!.trim())
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => walkTemplates(item, `${path}[${index}]`, on))
+    return
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) walkTemplates(item, `${path}.${key}`, on)
+  }
+}
+
+function providerHint(prefix: string, loaded: Set<string>): string {
+  const known = [...loaded].filter((p) => p !== 'meta').sort()
+  const from = new Set(['env', 'gen', 'vars']).has(prefix) ? `'${prefix}:' comes from @speqkit/plugin-data; ` : ''
+  return `${from}loaded: ${known.length ? known.join(', ') : '(none)'}`
+}
+
+function nameHint(head: string, names: Set<string>): string {
+  const known = [...names].sort()
+  const near = suggest(head, known)
+  if (near?.startsWith('did you mean')) return near
+  return known.length ? `defined here: ${known.join(', ')}` : 'nothing is defined here yet — a given, or a step with an id above'
 }
 
 /** The subject a diagnostic is about: a test, or a suite that declares steps. */
@@ -400,7 +589,7 @@ function checkSchema(
       if (!allowed.has(key)) {
         problems.push({
           code: 'unknown-field',
-          message: `unknown field '${key}'${suggest(key, [...allowed]) ?? ''}`
+          message: `unknown field '${key}'${withDash(suggest(key, [...allowed]))}`
         })
       }
     }
@@ -408,13 +597,24 @@ function checkSchema(
   return problems
 }
 
+/**
+ * A sentence, not a suffix. A hint used to begin with the dash the console
+ * prints between message and hint, and the dash rode into `validate --json`
+ * as the first three characters of every `hint` — punctuation from one
+ * surface leaking into a document read by another. The surface that joins
+ * the two writes the separator; the hint says what it has to say.
+ */
 function suggest(input: string, known: string[]): string | undefined {
   const near = known
     .map((k) => [k, distance(input, k)] as const)
     .filter(([, d]) => d <= 2)
     .sort((a, b) => a[1] - b[1])[0]
-  if (near) return ` — did you mean '${near[0]}'?`
-  return known.length ? ` — available: ${known.sort().join(', ')}` : undefined
+  if (near) return `did you mean '${near[0]}'?`
+  return known.length ? `available: ${known.sort().join(', ')}` : undefined
+}
+
+function withDash(hint: string | undefined): string {
+  return hint ? ` — ${hint}` : ''
 }
 
 function distance(a: string, b: string): number {

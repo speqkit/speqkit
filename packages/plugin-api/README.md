@@ -77,6 +77,17 @@ Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`. Everything
 `0.4.0` was a change to the contract in this repository before anything was
 published from it, and the entry it landed under is kept as written.
 
+**Unreleased** — `StepTypeDef` gained an optional `binds(step)`: the names a
+nesting step makes addressable to the steps under it, beyond what is visible
+outside — `loop` answers `[as, as + 'Index']`, `retry` answers nothing. What it
+buys is `speq validate` reading every `${…}` before the run. The kernel knows
+what a test binds itself — its givens in order, the id of every step above —
+and reports a reference to none of them as `unresolved-reference`,
+`forward-reference` or `unknown-provider`; what a nesting step binds it cannot
+know, so a step type with `steps` and no `binds` is taken at its word and
+nothing is reported under it. An added optional member, so every 0.11.0 plugin
+still satisfies the contract and `PLUGIN_API_VERSION` stays at `1`.
+
 **0.11.0** — `Host` gained `capabilities()`, and with it `Capabilities` and
 `Capability`: every step type, assertion, value provider, reporter and loader
 the loaded plugins define, with the `InputSchema` each declared. The schemas

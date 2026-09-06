@@ -53,8 +53,20 @@ export function lookupPath(scope: ResolveScope, path: string): unknown {
       return walk(frame[head], segments.slice(1), path)
     }
   }
+
+  // `${env:HOME}` with nothing claiming `env` used to fall through to here
+  // and report that 'env:HOME' is not defined — true, and the wrong sentence:
+  // the name is a prefix, and what is missing is the plugin that answers it.
+  if (colon > 0 && PREFIX.test(path.slice(0, colon))) {
+    throw new UnresolvedError(path, head, {
+      prefix: path.slice(0, colon),
+      known: [...scope.providers.keys()]
+    })
+  }
   throw new UnresolvedError(path, head)
 }
+
+const PREFIX = /^[A-Za-z_][\w-]*$/
 
 /**
  * Raised where a `${...}` naming an asynchronous provider cannot be awaited.
@@ -80,12 +92,28 @@ export class AsyncProviderError extends Error {
 export class UnresolvedError extends Error {
   constructor(
     readonly path: string,
-    readonly missing: string
+    readonly missing: string,
+    /** Set when what is missing is a value provider rather than a name. */
+    readonly provider?: { prefix: string; known: string[] }
   ) {
-    super(`cannot resolve \${${path}}: '${missing}' is not defined`)
+    super(
+      provider
+        ? `cannot resolve \${${path}}: no value provider is loaded for '${provider.prefix}'` +
+            (provider.known.length ? ` — loaded: ${provider.known.sort().join(', ')}` : ' — none is loaded') +
+            (BUILT_IN_PREFIXES.has(provider.prefix) ? `; '${provider.prefix}:' comes from @speqkit/plugin-data` : '')
+        : `cannot resolve \${${path}}: '${missing}' is not defined`
+    )
     this.name = 'UnresolvedError'
   }
 }
+
+/**
+ * The prefixes a reader is most likely to write from the documentation, and
+ * the plugin that answers them. Named here so the message can say where to
+ * get it — the kernel owns no prefix but `meta`, and this is a hint about a
+ * plugin rather than knowledge of one.
+ */
+const BUILT_IN_PREFIXES = new Set(['env', 'gen', 'vars'])
 
 function splitPath(path: string): string[] {
   // a.b[0].c -> ['a','b','0','c']

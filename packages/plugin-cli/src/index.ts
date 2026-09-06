@@ -510,7 +510,7 @@ function clip(lines: string[]): string[] {
 
 function printDiagnostics(diagnostics: Diagnostic[]): void {
   for (const d of diagnostics) {
-    process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ?? ''}\n`)
+    process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ? ` — ${d.hint}` : ''}\n`)
   }
   process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
 }
