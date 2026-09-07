@@ -14,6 +14,117 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.6.1] — 2026-09-07
+
+Reports, and somewhere to look at them. Three plugins, and one hole in the
+kernel's own documentation check that the third of them fell straight into.
+
+### Added
+
+- **`@speqkit/plugin-allure` — the report a QA department already has a screen
+  for.** Writes an Allure 2 results directory folded out of the event stream:
+  a result per test, a container per test, the attachments copied in beside
+  them, and `environment.properties` / `executor.json` / `categories.json`
+  when they are configured. `allure serve` and `allure generate` turn it into
+  the HTML, at the version the team has already pinned — vendoring somebody
+  else's renderer inside a plugin would freeze it at whatever we happened to
+  bundle and still not be the one on the build agent. `failed` and `error`
+  stay apart as Allure's `failed` and `broken`; a step nests by `parentId`, an
+  assertion becomes a step under the step it names, and a suite's own setup
+  goes in `befores` — the one thing JUnit has nowhere to put and drops.
+  `meta` is read three ways: the seven keys Allure knows become labels,
+  `issue` / `tms` / `links` become links, and **everything else becomes a
+  parameter** rather than being dropped in silence. `historyId` comes from the
+  suite and the name and from nothing else, so the trend survives.
+  - One honest limit, stated in the README and in the fold: Allure wants
+    absolute instants and the stream carries exactly one, `run.started.at`. On
+    a live run the fold is exact. On `speq report --reporter allure` the events
+    arrive at once, so durations and order are exact and the stagger is lost.
+    The alternative was stamping the replay's wall clock onto a run that
+    happened in CI last week.
+  - `clean` is on by default and sweeps **by pattern** — `*-result.json`,
+    `*-container.json`, `*-attachment.*` and the three named files. The output
+    directory is a path out of somebody's config file, and `rm -rf` on one of
+    those is not a thing a plugin gets to do.
+- **`@speqkit/plugin-html` — one file, opened by double-clicking it.** Allure's
+  report is a directory of JSON its page fetches, and a browser on `file://`
+  refuses those fetches; that is why `allure serve` exists, and the person who
+  pays for it is the developer who has downloaded a CI artifact to find out why
+  their branch is red. This writes one `report.html` with nothing outside it —
+  no fetch, no CDN, no framework, no second command. Totals that filter,
+  search, the nested step tree, `what it did` under any step that recorded a
+  `detail`, expected against actual on every failing assertion, screenshots
+  inline, light and dark. Failing tests are already open.
+  - Artifacts ride inside the page up to a budget (512 KB each, 8 MB in total,
+    both configurable) and stay links into `reports/<runId>/artifacts/` past
+    it — relative to the HTML file, because an absolute path is right on the
+    machine that produced the report and wrong on every machine that downloads
+    it. The reporter says on stdout what it did with each.
+  - **Which plugin contributed each step type and assertion, as a badge.** The
+    one thing on the page not folded out of the stream: the stream says a
+    step's `type` and can never say whose type it is, so it comes from
+    `host.capabilities()` — the running session, not a table baked into the
+    plugin.
+  - The page is built with `createElement` and `textContent`, and the run rides
+    in an inert JSON island with `<`, `>` and `&` escaped. A report is a page
+    full of strings the system under test chose; one that executes what a
+    service put in an error message is a vulnerability with a colour scheme.
+    There is a test that feeds it a payload which tries.
+- **`@speqkit/plugin-ui` — `speq ui`, the project in a browser.** The roadmap's
+  UI plugin, as a plugin, the way `plugin-cli` is one: it reaches for exactly
+  the verbs the CLI reaches for — `discover`, `validate`, `capabilities`,
+  `runs` — and not one thing more. A surface that is not the terminal turned
+  out to need no ninth contribution point.
+  - **Project**: the suite tree, with a dot for the newest run and a strip for
+    the last dozen; a test shown as what it says — tags, inherited suites,
+    variables, `setup` / `steps` / `cleanup` / `assert` — **and against every
+    step and assertion, the plugin that contributed it and that plugin's own
+    sentence about it**. The file itself is one click away, and whatever
+    `validate` says about it is at the bottom.
+  - **Runs**: every `events.jsonl` under `reports/`, folded — step tree,
+    `what it did`, diffs, and the screenshots served out of that run's
+    directory. Any test links back to itself in the project view.
+  - **Plugins**: the grammar as a document — every loaded plugin, where this
+    session found it, what it contributes, each input's schema, and the
+    examples it ships.
+  - Read-only, and the README says why: `RunRequest` has no cancellation
+    signal, so a Run button would start something against a real system that
+    the browser cannot stop.
+  - It binds `127.0.0.1`, because it serves the source of every test and every
+    recorded response body with no authentication; `--host` says out loud what
+    you have done. Every path is checked after resolution rather than as text,
+    nothing but `GET` is answered, everything carries `nosniff`, and an
+    artifact captured as `.html` is served as `text/plain`.
+
+### Fixed
+
+- **`speq docs --check` refused a plugin whose contribution is a command.** An
+  example says what it demonstrates with `for`, checked against the loaded
+  capabilities — and a command is not one, because `Capabilities` is the
+  grammar a *suite* is written in. So `plugin-ui`, whose whole contribution is
+  `speq ui`, could not name what its examples show and failed the check for
+  having documentation. Contributed command names now count. `plugin-gate` only
+  ever passed because it happens to register a reporter called `gate`.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.6.1 |
+| `@speqkit/plugin-allure` | 0.1.0 |
+| `@speqkit/plugin-html` | 0.1.0 |
+| `@speqkit/plugin-ui` | 0.1.0 |
+| `create-speqkit-plugin` | 0.5.1 |
+
+The first patch release here, and it is the versioning doing its job rather than
+an oversight: three new packages went out, the contract did not move a line, and
+what changed in the kernel was one check that had been refusing something valid.
+A caret on `0.6.0` accepts `0.6.1`, so nothing already installed goes stale and
+no plugin had to be republished to keep a peer range current.
+`create-speqkit-plugin` moves because it writes the kernel's version into every
+project it scaffolds by number, and a number is the one thing that cannot be
+left to a caret.
+
 ## [0.6.0] — 2026-09-06
 
 The bet this project rests on is that a generated test can be checked *before
@@ -712,7 +823,8 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/speqkit/speqkit/releases/tag/v0.6.1
 [0.6.0]: https://github.com/speqkit/speqkit/releases/tag/v0.6.0
 [0.5.0]: https://github.com/speqkit/speqkit/releases/tag/v0.5.0
 [0.4.0]: https://github.com/speqkit/speqkit/releases/tag/v0.4.0

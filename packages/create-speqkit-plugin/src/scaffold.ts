@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
  * package versions, so the list cannot quietly go stale.
  */
 export const VERSIONS = {
-  'speqkit': '^0.6.0',
+  'speqkit': '^0.6.1',
   '@speqkit/plugin-api': '^0.12.0',
   '@speqkit/test-kit': '^0.5.0',
   'typescript': '^5.7.2',
