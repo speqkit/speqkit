@@ -1,0 +1,41 @@
+{
+  "name": "@speqkit/plugin-ui",
+  "version": "0.1.0",
+  "description": "The project in a browser: the suite tree, what each step is, and every run that happened.",
+  "license": "MIT",
+  "author": "Stepan Kaziatko",
+  "homepage": "https://github.com/speqkit/speqkit#readme",
+  "bugs": "https://github.com/speqkit/speqkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speqkit/speqkit.git",
+    "directory": "packages/plugin-ui"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "keywords": [
+    "speqkit-plugin"
+  ],
+  "peerDependencies": {
+    "@speqkit/plugin-api": "workspace:^"
+  },
+  "devDependencies": {
+    "@speqkit/plugin-api": "workspace:*",
+    "speqkit": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

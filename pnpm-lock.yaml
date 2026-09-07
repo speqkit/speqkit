@@ -87,6 +87,15 @@ importers:
         specifier: ^7.5.8
         version: 7.8.0
 
+  packages/plugin-allure:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-api: {}
 
   packages/plugin-assert:
@@ -141,6 +150,15 @@ importers:
         specifier: workspace:*
         version: link:../plugin-api
 
+  packages/plugin-html:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-http:
     devDependencies:
       '@speqkit/plugin-api':
@@ -185,6 +203,15 @@ importers:
       playwright:
         specifier: ^1.62.1
         version: 1.62.1
+      speqkit:
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-ui:
+    devDependencies:
+      '@speqkit/plugin-api':
+        specifier: workspace:*
+        version: link:../plugin-api
       speqkit:
         specifier: workspace:*
         version: link:../core

@@ -38,10 +38,19 @@
       "path": "packages/plugin-junit/tsconfig.build.json"
     },
     {
+      "path": "packages/plugin-allure/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-html/tsconfig.build.json"
+    },
+    {
       "path": "packages/plugin-playwright/tsconfig.build.json"
     },
     {
       "path": "packages/plugin-cli/tsconfig.build.json"
+    },
+    {
+      "path": "packages/plugin-ui/tsconfig.build.json"
     },
     {
       "path": "packages/test-kit/tsconfig.build.json"

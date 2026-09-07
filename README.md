@@ -355,6 +355,9 @@ node --import tsx ../../packages/core/src/bin.ts run --test suites/ui.yaml
 | `@speqkit/plugin-data` | Where values come from: seeded generated data, the environment, project variables. |
 | `@speqkit/plugin-assert` | The assertion vocabulary: equality, order, membership, text, presence, size, JSON Schema. |
 | `@speqkit/plugin-junit` | JUnit XML for CI, built from the event stream and nothing else. |
+| `@speqkit/plugin-allure` | An Allure results directory, for teams whose dashboards already point at one. |
+| `@speqkit/plugin-html` | One self-contained `report.html`. No server, no second tool, no CDN. |
+| `@speqkit/plugin-ui` | `speq ui` — the project in a browser: the suite tree, which plugin owns each step, and every recorded run. |
 | `@speqkit/plugin-playwright` | Browser steps, scoped browser/page resources, screenshot artifacts. Playwright is an optional peer dependency. |
 | `@speqkit/test-kit` | Runs a plugin inside the real kernel, so an author can test one without a project. Not a plugin. |
 | `create-speqkit-plugin` | `npm create speqkit-plugin <name>` — source, tests and the decisions already made. Not a plugin. |

@@ -8,7 +8,10 @@ export default defineConfig({
     alias: [
       { find: '@speqkit/plugin-api', replacement: r('./packages/plugin-api/src/index.ts') },
       { find: '@speqkit/installer', replacement: r('./packages/installer/src/index.ts') },
+      { find: '@speqkit/plugin-allure', replacement: r('./packages/plugin-allure/src/index.ts') },
       { find: '@speqkit/plugin-gate', replacement: r('./packages/plugin-gate/src/index.ts') },
+      { find: '@speqkit/plugin-html', replacement: r('./packages/plugin-html/src/index.ts') },
+      { find: '@speqkit/plugin-ui', replacement: r('./packages/plugin-ui/src/index.ts') },
       { find: '@speqkit/plugin-json', replacement: r('./packages/plugin-json/src/index.ts') },
       { find: '@speqkit/plugin-junit', replacement: r('./packages/plugin-junit/src/index.ts') },
       { find: '@speqkit/test-kit', replacement: r('./packages/test-kit/src/index.ts') },

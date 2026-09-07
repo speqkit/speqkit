@@ -855,6 +855,13 @@ below says to stop making without evidence.
 
 ## M4 — The ecosystem — continues
 
+- [x] **The reports a team already has a process around** — `@speqkit/plugin-allure`
+  writes an Allure results directory and `@speqkit/plugin-html` writes one
+  self-contained `report.html`. Both are folded out of the event stream and
+  nothing else, so `speq report` regenerates either without rerunning a thing.
+  Two answers because there are two readers: the QA department whose sign-off
+  already points at Allure, and the developer who downloaded a CI artifact and
+  will not install a JVM to read it.
 - [ ] **`speq import` from Postman and OpenAPI**
   - *Done when:* a collection becomes a suite of YAML files in one command.
   - *Why a command and not a loader:* a collection converted once is your
@@ -865,14 +872,24 @@ below says to stop making without evidence.
   - *Done when:* a plugin this repository did not write and cannot break is
     published and linked. Until then, "the kernel is a loader" is a claim
     rather than a property. Commissioning one is worth more than writing three.
-- [ ] **A UI plugin**
+- [~] **A UI plugin** — `@speqkit/plugin-ui` is written; two of the four
+  clauses are open.
   - *Done when:* a panel shows the suite tree, diagnostics as you type, a run
     in progress and past runs — as a plugin, the way `plugin-cli` is one.
-  - *Buildable today:* everything above, through `ctx.host` and a reporter, plus
-    `events.jsonl` for an out-of-process panel.
-  - *Blocked on:* `host.capabilities()` for completion and a step palette, a
-    cancellation signal in `RunRequest` for a stop button, and a writing side to
-    `LoaderDef` for editing that preserves comments.
+  - *Landed:* the suite tree, every test shown as what it says with **the
+    plugin that owns each step beside it**, `validate`'s diagnostics per file,
+    every recorded run folded out of `events.jsonl` with its artifacts, a
+    per-test history strip across runs, and the whole grammar as a document.
+    It reaches for `discover`, `validate`, `capabilities` and `runs` and
+    nothing else — a surface that is not the terminal needed no ninth
+    contribution point, which was the open question.
+  - *Still open:* **a run in progress**, which needs a cancellation signal in
+    `RunRequest` before a start button is anything but a trap; and
+    **diagnostics as you type**, which needs either a watcher or a writing
+    side to `LoaderDef`. The panel re-reads the project on every request, so
+    "as you refresh" is where it stands.
+  - *No longer blocking:* `host.capabilities()` shipped and is what makes the
+    step-to-plugin mapping possible at all.
 - [ ] **Mobile, through Appium**
   - *Done when:* a device driver and a session are resources, and taps and
     assertions are step types — the shape `plugin-playwright` already proved

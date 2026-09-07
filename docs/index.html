@@ -225,7 +225,8 @@ speq run           <span class="c"># the suites</span></code></pre>
         <li><code>loop</code> and <code>retry</code> — <code>@speqkit/plugin-loop</code></li>
         <li>The assertion vocabulary — <code>@speqkit/plugin-assert</code></li>
         <li>Where a value comes from — <code>@speqkit/plugin-data</code></li>
-        <li>JUnit XML and <code>summary.json</code> — two reporter plugins</li>
+        <li>JUnit XML, <code>summary.json</code>, Allure results and a self-contained HTML report — four reporter plugins</li>
+        <li>The project in a browser — <code>@speqkit/plugin-ui</code></li>
         <li>Browsers — <code>@speqkit/plugin-playwright</code></li>
       </ul>
     </div>
@@ -333,6 +334,9 @@ speq run           <span class="c"># the suites</span></code></pre>
       <tr><td>@speqkit/plugin-cli</td><td>The terminal surface. Publishes the <code>cli</code> service; the console output is a reporter.</td></tr>
       <tr><td>@speqkit/plugin-junit</td><td>JUnit XML for CI, built from the event stream and nothing else.</td></tr>
       <tr><td>@speqkit/plugin-json</td><td>The run as one <code>summary.json</code>, in the shape a workflow reads with <code>jq</code>.</td></tr>
+      <tr><td>@speqkit/plugin-allure</td><td>An Allure results directory, for a team whose dashboards already point at one.</td></tr>
+      <tr><td>@speqkit/plugin-html</td><td>One self-contained <code>report.html</code>. No server, no second tool, no CDN.</td></tr>
+      <tr><td>@speqkit/plugin-ui</td><td><code>speq ui</code> — the project in a browser: the suite tree, which plugin owns each step, every recorded run.</td></tr>
       <tr><td>@speqkit/plugin-playwright</td><td>Browser steps, scoped browser/page resources, screenshot artifacts.</td></tr>
       <tr><td>@speqkit/test-kit</td><td>Runs a plugin inside the real kernel, so an author can test one without a project.</td></tr>
       <tr><td>create-speqkit-plugin</td><td><code>npm create speqkit-plugin &lt;name&gt;</code> — source, tests, and the decisions already made.</td></tr>
