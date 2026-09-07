@@ -367,7 +367,10 @@ describe('slicing a run into shards', () => {
     // reads that log looking for a selection mistake that is not there.
     const { code, err } = await invoke(commands, 'run', ['--shard', '12/12', '--reporter', ''])
     expect(code).toBe(2)
-    expect(err).toBe('no tests in this shard\n')
+    expect(err).toContain('no tests in this shard')
+    // And says which of the two numbers is the news: the tests are there, this
+    // slice of them is not, and there is no typo to go looking for.
+    expect(err).toContain('9 test(s) matched; shard 12/12 holds none of them')
   })
 })
 
@@ -690,9 +693,17 @@ describe('answering a machine', () => {
       diagnostics: [{ code: 'unknown-step-type' }]
     })
 
+    // Which of the four "nothing matched" this is, because they are four
+    // different things to do next: a typo, a tag nobody uses, a real file in
+    // the wrong place, or a project where discovery finds nothing at all.
     const empty = await invoke(commands, 'run', ['--json', '--tags', 'nobody-uses-this'])
     expect(empty.code).toBe(2)
-    expect(parse(empty.out)).toEqual({ status: 'no-tests', message: 'no tests matched' })
+    expect(parse(empty.out)).toMatchObject({
+      status: 'no-tests',
+      message: 'no tests matched',
+      discovered: 3,
+      asked: ['--tags nobody-uses-this']
+    })
   })
 
   it('leaves a chosen reporter alone', async () => {

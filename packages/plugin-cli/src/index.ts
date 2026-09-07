@@ -117,11 +117,12 @@ export default definePlugin({
         const shard = readShard(args.shard)
         if (typeof shard === 'string') return refuse(shard)
 
-        const tests = shardOf(await select(ctx.host, args), shard)
+        const matched = await select(ctx.host, args)
+        const tests = shardOf(matched, shard)
         if (tests.length === 0) {
-          const message = shard ? 'no tests in this shard' : 'no tests matched'
-          if (asJson) writeJson({ status: 'no-tests', message })
-          else process.stderr.write(`${message}\n`)
+          const said = await nothingMatched(ctx.host, args, matched.length, shard)
+          if (asJson) writeJson({ status: 'no-tests', ...said })
+          else process.stderr.write(`${said.message}\n${said.detail}\n`)
           return EXIT_CONFIG
         }
 
@@ -250,6 +251,12 @@ export default definePlugin({
           process.stdout.write(`${test.source ?? '?'}  ${test.name}${tags}\n`)
         }
         process.stdout.write(`\n${tests.length} test(s)\n`)
+        if (tests.length === 0) {
+          // On stderr, because stdout here is the list itself and a caller
+          // piping it into `wc -l` is doing a reasonable thing.
+          const said = await nothingMatched(ctx.host, args, tests.length, shard)
+          process.stderr.write(`${dim(said.detail)}\n`)
+        }
         return EXIT_OK
       }
     })
@@ -989,6 +996,54 @@ function distance(a: string, b: string): number {
  * one star within a path segment, two across segments — `suites/menu/` then
  * `*.yaml`, or two stars then `/smoke-*.yaml`.
  */
+/**
+ * Why nothing matched, which is a different question from the fact that
+ * nothing did.
+ *
+ * `no tests matched` was the whole answer, and it was the same answer for a
+ * name with a typo in it, a `--tags` nobody uses, a file that is real but sits
+ * outside `suites/`, and a project where discovery finds nothing at all. Those
+ * are four different things to do next, so this says which of them it is: what
+ * was asked for, how many tests exist before any of it was applied, and where
+ * they were looked for.
+ */
+async function nothingMatched(
+  host: Host,
+  args: Parsed,
+  matched: number,
+  shard?: { index: number; of: number }
+): Promise<{ message: string; detail: string; discovered: number; asked: string[] }> {
+  const asked = [
+    ...(args.test ?? []).map((t) => `--test ${t}`),
+    ...(args.suite ?? []).map((s) => `--suite ${s}`),
+    ...(args.tags?.length ? [`--tags ${args.tags.join(',')}`] : []),
+    ...(args.name?.length ? [`--name ${args.name.join(',')}`] : [])
+  ]
+
+  // A shard that is empty is not a selection problem: the tests are there and
+  // this slice of them is not, which is a normal thing for a small suite split
+  // many ways and needs no advice about typos.
+  if (shard && matched > 0) {
+    return {
+      message: 'no tests in this shard',
+      detail: `  ${matched} test(s) matched; shard ${shard.index}/${shard.of} holds none of them`,
+      discovered: matched,
+      asked
+    }
+  }
+
+  const everything = await host.discover({})
+  const where = join(host.root, args.suite?.[0] ?? 'suites')
+  const detail = everything.length === 0
+    ? `  nothing was discovered under ${where} — a test is a file a loader claims, and the loaders here are what 'speq capabilities' lists`
+    : asked.length === 0
+      ? `  ${everything.length} test(s) exist under ${where}, and nothing narrowed them — so this is a filter the project applies, not one you typed`
+      : `  ${everything.length} test(s) exist; none of them is matched by ${asked.join(' ')}\n` +
+        "  'speq list' shows every test with the path and the name that address it"
+
+  return { message: 'no tests matched', detail, discovered: everything.length, asked }
+}
+
 async function select(host: Host, args: Parsed): Promise<TestDef[]> {
   const common: DiscoverQuery = { tags: args.tags, names: args.name }
   const queries: DiscoverQuery[] = []

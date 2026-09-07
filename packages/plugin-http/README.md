@@ -81,12 +81,34 @@ socket is opened, which is what makes a connection that never answers legible
 — there is no response to describe, and what the step was attempting is the
 whole of what can be said.
 
-Two things are done to it on the way out. `authorization`, `cookie`,
-`x-api-key` and their neighbours keep their names and lose their values: a run
-log is a CI artifact, read by people and programs that had no part in the run,
-and the name is what tells a missing token from a rejected one. And a body over
-8 KB is cut, with the number of characters dropped said out loud, so nobody
-debugs against a payload they think is complete.
+Two things are done to it on the way out.
+
+**Credentials are taken out of it**, and out of more than the headers, because
+a header is not where most tokens in a real suite live. Three sweeps, all of
+them keeping the name and losing the value — the name is what tells a missing
+token from a rejected one:
+
+- **By header name.** `authorization`, `cookie`, `x-api-key` and their
+  neighbours.
+- **By field name, wherever the field is.** A query parameter called
+  `api_key`, a JSON key called `password`, `token`, `client_secret`,
+  `session_id` — matched with the separators taken out, so `apiKey`,
+  `api_key` and `api-key` are one rule. The rest of the body stays readable: a
+  payload with everything blacked out is a payload nobody can debug against.
+- **By value, from the environment.** Every variable whose *name* says it
+  holds a credential — `*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*API_KEY` — has
+  its value looked for in what is about to be written down. This is the one
+  that catches a token in a signed URL or in a field somebody called `q`: by
+  the time a step runs the kernel has resolved `${env:API_TOKEN}` and there is
+  no template left to recognise, so the value is what is looked for.
+
+```yaml
+http:
+  redact: [x-tenant-signature]   # beside everything above, not instead of it
+```
+
+And **a body over 8 KB is cut**, with the number of characters dropped said out
+loud, so nobody debugs against a payload they think is complete.
 
 ## Sending a file
 

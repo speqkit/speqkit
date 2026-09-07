@@ -19,6 +19,8 @@ interface HttpConfig {
   baseUrl?: string
   headers?: Record<string, string>
   retry?: RetryConfig
+  /** Extra names to mask wherever they appear — beside the ones always masked. */
+  redact?: string[]
 }
 
 /**
@@ -131,7 +133,12 @@ export default definePlugin({
     properties: {
       baseUrl: { type: 'string', description: 'prepended to every relative `url`' },
       headers: HEADERS_SCHEMA,
-      retry: RETRY_SCHEMA
+      retry: RETRY_SCHEMA,
+      redact: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'extra field names to mask in what a failed step records — headers, query parameters and JSON keys alike; password, token, api_key and their spellings are always masked'
+      }
     },
     additionalProperties: false
   },
@@ -261,13 +268,14 @@ export default definePlugin({
         // A connection that is refused has no response to describe it, and
         // this is the step's only chance to say what it was trying to do —
         // the kernel keeps it if the step ends badly and drops it otherwise.
+        const hide = redactor(config.redact)
         const request = {
           method,
-          url,
-          headers: redact(headers),
+          url: hide.url(url),
+          headers: hide.headers(headers),
           ...(payload instanceof FormData
             ? { multipart: Object.keys(partsOf(input.multipart)) }
-            : payload !== undefined ? { body: clip(payload) } : {})
+            : payload !== undefined ? { body: clip(hide.body(payload)) } : {})
         }
         exec.record({ request })
 
@@ -297,8 +305,10 @@ export default definePlugin({
           request,
           response: {
             status: response.status,
-            headers: redact(Object.fromEntries(response.headers)),
-            body: clip(text),
+            headers: hide.headers(Object.fromEntries(response.headers)),
+            // A response carries credentials too — a login answers with the
+            // token the rest of the suite uses — and it is the same sweep.
+            body: clip(hide.body(text)),
             attempts
           }
         })
@@ -401,12 +411,126 @@ const SECRET_HEADERS = new Set([
   'x-api-key', 'api-key', 'x-auth-token'
 ])
 
-function redact(headers: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [name, value] of Object.entries(headers)) {
-    out[name] = SECRET_HEADERS.has(name.toLowerCase()) ? '(redacted)' : value
+/**
+ * Names that carry a credential wherever they are written.
+ *
+ * Headers were the whole of the redaction, and a header is not where most
+ * tokens in a real suite live: `?api_key=` in a query string and
+ * `{"password": …}` in a login body both went into `events.jsonl` in full, and
+ * `events.jsonl` is uploaded as a CI artifact. Matched on the name with the
+ * separators taken out, so `api_key`, `apiKey` and `api-key` are one entry.
+ */
+const SECRET_KEYS = new Set([
+  'password', 'passwd', 'secret', 'token', 'accesstoken', 'refreshtoken', 'idtoken',
+  'apikey', 'apisecret', 'clientsecret', 'privatekey', 'authorization', 'auth', 'credential',
+  'credentials', 'sessionid', 'otp'
+])
+
+const REDACTED = '(redacted)'
+
+/**
+ * Environment variables whose *name* says they hold a credential.
+ *
+ * The value is what has to be found, because by the time a step runs there is
+ * no `${env:TOKEN}` left to recognise — the kernel resolved it, and the plugin
+ * is handed the string. So the token is looked for in what is about to be
+ * written down, which also catches it in the places a key name never would: a
+ * signed URL, a bearer token pasted into a JSON field called `q`.
+ *
+ * Only secret-named variables, and only values long enough to be one. Masking
+ * every environment value would eventually mask `/home/mira` out of a body and
+ * make the log a puzzle.
+ */
+const SECRET_ENV = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_KEY|AUTH)/i
+const SHORTEST_SECRET = 8
+
+function secretName(name: string, extra: Set<string>): boolean {
+  const bare = name.toLowerCase().replace(/[-_\s]/g, '')
+  return SECRET_KEYS.has(bare) || extra.has(bare) || SECRET_HEADERS.has(name.toLowerCase())
+}
+
+/** The values in this process that must never reach a report. */
+function secretValues(): string[] {
+  const found: string[] = []
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value && value.length >= SHORTEST_SECRET && SECRET_ENV.test(name)) found.push(value)
   }
+  // Longest first, so a token that contains another token's prefix is masked
+  // whole rather than leaving a tail behind.
+  return found.sort((a, b) => b.length - a.length)
+}
+
+function maskValues(text: string, secrets: string[]): string {
+  let out = text
+  for (const secret of secrets) out = out.split(secret).join(REDACTED)
   return out
+}
+
+/**
+ * One redactor per step, so the environment is read once rather than per
+ * header, and the extra names come from the project's own config.
+ */
+function redactor(extra: string[] | undefined): {
+  headers(headers: Record<string, string>): Record<string, string>
+  url(url: string): string
+  body(body: string): string
+} {
+  const names = new Set((extra ?? []).map((n) => n.toLowerCase().replace(/[-_\s]/g, '')))
+  const secrets = secretValues()
+
+  const text = (value: string): string => maskValues(value, secrets)
+
+  return {
+    headers(headers) {
+      const out: Record<string, string> = {}
+      for (const [name, value] of Object.entries(headers)) {
+        out[name] = secretName(name, names) ? REDACTED : text(value)
+      }
+      return out
+    },
+
+    url(url) {
+      // Parsed rather than pattern-matched: a query string is the one place a
+      // credential is both common and invisible, and `?token=` needs to be
+      // masked whether it arrived encoded, repeated or last.
+      let parsed: URL
+      try {
+        parsed = new URL(url)
+      } catch {
+        return text(url)
+      }
+      for (const key of [...parsed.searchParams.keys()]) {
+        if (secretName(key, names)) parsed.searchParams.set(key, REDACTED)
+      }
+      return text(parsed.toString())
+    },
+
+    body(body) {
+      // JSON when it is JSON, so `{"password": "…"}` is masked by its key and
+      // the rest of the body stays readable. Anything else is still swept for
+      // the values, which is what catches a form-encoded login.
+      try {
+        const parsed: unknown = JSON.parse(body)
+        return JSON.stringify(maskKeys(parsed, names))
+      } catch {
+        return text(body)
+      }
+    }
+  }
+
+  function maskKeys(value: unknown, names: Set<string>): unknown {
+    if (Array.isArray(value)) return value.map((v) => maskKeys(v, names))
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {}
+      for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+        out[key] = secretName(key, names)
+          ? REDACTED
+          : typeof inner === 'string' ? text(inner) : maskKeys(inner, names)
+      }
+      return out
+    }
+    return typeof value === 'string' ? text(value) : value
+  }
 }
 
 /**

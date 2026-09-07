@@ -361,6 +361,82 @@ describe('the exchange, when the exchange is what is in question', () => {
     expect(JSON.stringify(step.detail)).not.toContain('k-99')
   })
 
+  /**
+   * The header list was the whole of the redaction, and a header is not where
+   * most tokens in a real suite live. `?api_key=` in a query string and
+   * `{"password": …}` in a login body both went into `events.jsonl` in full,
+   * and `events.jsonl` is a CI artifact.
+   */
+  it('masks a credential in the query string, wherever in it that is', async () => {
+    const kit = await withHttp()
+    const step = await kit.step({
+      type: 'http',
+      url: '/orders?page=2&api_key=k-99&sort=asc',
+      assert: [failing]
+    })
+
+    const detail = step.detail as { request: { url: string } }
+    expect(detail.request.url).toContain('page=2')
+    expect(detail.request.url).toContain('sort=asc')
+    expect(detail.request.url).toContain('api_key=%28redacted%29')
+    expect(JSON.stringify(step.detail)).not.toContain('k-99')
+  })
+
+  it('masks a credential by its key in a body, and leaves the rest readable', async () => {
+    const kit = await withHttp()
+    const step = await kit.step({
+      type: 'http',
+      method: 'POST',
+      url: '/orders',
+      body: { email: 'mira@example.com', password: 'hunter2-and-then-some' },
+      assert: [failing]
+    })
+
+    const detail = step.detail as { request: { body: string } }
+    // The email stays: a body with everything blacked out is a body nobody can
+    // debug against, and the point is the credential, not the payload.
+    expect(detail.request.body).toContain('mira@example.com')
+    expect(detail.request.body).toContain('(redacted)')
+    expect(detail.request.body).not.toContain('hunter2')
+  })
+
+  it('finds a secret from the environment even where no key names it', async () => {
+    process.env.SPEQ_FIXTURE_API_TOKEN = 'tok-live-abcdef123456'
+    try {
+      const kit = await withHttp()
+      const step = await kit.step({
+        type: 'http',
+        method: 'POST',
+        url: '/orders',
+        // Written into a field called `q`, which no list of key names would
+        // ever catch. The value is what arrives here: by the time a step runs
+        // the kernel has already resolved `${env:SPEQ_FIXTURE_API_TOKEN}`, so
+        // the value is the only thing left to recognise it by.
+        body: { q: 'search?t=tok-live-abcdef123456' },
+        assert: [failing]
+      })
+
+      expect(JSON.stringify(step.detail)).not.toContain('tok-live-abcdef123456')
+      expect(JSON.stringify(step.detail)).toContain('(redacted)')
+    } finally {
+      delete process.env.SPEQ_FIXTURE_API_TOKEN
+    }
+  })
+
+  it('masks what the project says to mask, beside what is always masked', async () => {
+    const kit = await withHttp({ redact: ['x-tenant-signature'] })
+    const step = await kit.step({
+      type: 'http',
+      url: '/orders',
+      headers: { 'x-tenant-signature': 'sig-1234', 'x-request-id': 'req-7' },
+      assert: [failing]
+    })
+
+    const detail = step.detail as { request: { headers: Record<string, string> } }
+    expect(detail.request.headers['x-tenant-signature']).toBe('(redacted)')
+    expect(detail.request.headers['x-request-id']).toBe('req-7')
+  })
+
   it('records what it was trying to do when nothing came back at all', async () => {
     const spare = createServer()
     await new Promise<void>((r) => spare.listen(0, '127.0.0.1', r))
