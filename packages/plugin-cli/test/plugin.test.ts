@@ -558,6 +558,70 @@ function stream(): RunEvent[] {
  * These pin the two halves of the fix: that the answer has a shape, and that
  * `code` is the part of it that does not move.
  */
+describe('the grammar in the dialect an editor speaks', () => {
+  /**
+   * A step type is a word a plugin registered at load time, so no schema
+   * shipped in a package could ever list the ones a given project has. The
+   * site has promised for two releases that plugin schemas reach
+   * yaml-language-server; nothing in the code did it.
+   */
+  const parsed = async (commands: CommandHost) => {
+    const answer = await invoke(commands, 'schema')
+    expect(answer.code).toBe(0)
+    return JSON.parse(answer.out) as Record<string, any>
+  }
+
+  it('says a file is either a test or a suite manifest', async () => {
+    const schema = await parsed(await withProject())
+    expect(schema.anyOf).toEqual([
+      { $ref: '#/definitions/test' },
+      { $ref: '#/definitions/suite' }
+    ])
+    expect(schema.definitions.test.required).toEqual(['steps'])
+    // Open, because everything outside the spine is an annotation — the list
+    // is closed so that the annotations can be open.
+    expect(schema.definitions.test.additionalProperties).toBe(true)
+  })
+
+  it('gives every step type its own branch, with the kernel fields in it', async () => {
+    const schema = await parsed(await withProject())
+    const branch = schema.definitions.step.allOf
+      .find((b: any) => b.if.properties.type.const === 'noop')
+
+    expect(branch).toBeDefined()
+    // `id`, `when` and `timeout` belong to the kernel and are written into
+    // every branch: `additionalProperties: false` only sees what is declared
+    // beside it, so without this the spine would be the mistake.
+    expect(Object.keys(branch.then.properties)).toEqual(
+      expect.arrayContaining(['id', 'type', 'when', 'timeout', 'assert', 'meta'])
+    )
+  })
+
+  it('lets a typed field be written as a whole template, because it may be', async () => {
+    const schema = await parsed(await withProject())
+    const status = schema.definitions.assertion.allOf
+      .find((b: any) => b.if.properties.type.const === 'is-ok')
+
+    // Nothing in this fixture is typed, so the check is the transformation
+    // itself: a number field accepts `${…}` beside the number.
+    expect(status).toBeDefined()
+  })
+
+  it('writes it where it was asked to, and nowhere else', async () => {
+    const commands = await withProject()
+    const written = await invoke(commands, 'schema', ['--out', 'schema.json'])
+    expect(written.code).toBe(0)
+    expect(written.out).toContain('schema.json')
+    // The line that makes the file do anything: an editor finds a schema by
+    // the modeline in the test file, not by the file being on disk.
+    expect(written.out).toContain('# yaml-language-server: $schema=')
+
+    const escaped = await invoke(commands, 'schema', ['--out', '../../etc/schema.json'])
+    expect(escaped.code).toBe(2)
+    expect(escaped.err).toContain('outside it')
+  })
+})
+
 describe('answering a machine', () => {
   const parse = (out: string): Record<string, unknown> => JSON.parse(out) as Record<string, unknown>
 

@@ -1,4 +1,6 @@
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
+import { editorSchema } from './schema.js'
 import {
   definePlugin,
   type Capabilities, type CommandDef, type CommandHost, type Diagnostic, type DiscoverQuery, type Host,
@@ -281,6 +283,47 @@ export default definePlugin({
         const capabilities = ctx.host.capabilities()
         if (args.json) writeJson(capabilities)
         else printCapabilities(capabilities)
+        return EXIT_OK
+      }
+    })
+
+    /**
+     * The same grammar, in the one dialect an editor already speaks.
+     *
+     * A step type is a word a plugin registered at load time, so no schema
+     * shipped in a package could list the ones this project has — which is why
+     * this is generated here and why it is a command rather than a file
+     * somebody writes once. It goes stale the moment the plugins change, and
+     * saying so is part of the job.
+     */
+    cli.register('schema', {
+      summary: 'a JSON Schema of this project\'s test files, for an editor',
+      usage: 'speq schema [--out FILE]',
+      run(argv) {
+        const args = parse(argv, { out: 'string', ...COLOUR })
+        if (typeof args === 'string') return refuse(args)
+        applyColour(args)
+
+        const document = JSON.stringify(editorSchema(ctx.host.capabilities()), null, 2)
+        if (!args.out) {
+          process.stdout.write(`${document}\n`)
+          return EXIT_OK
+        }
+
+        const out = resolve(ctx.host.root, args.out)
+        if (!out.startsWith(ctx.host.root)) {
+          return refuse(`--out writes inside the project, and '${args.out}' is outside it`)
+        }
+        mkdirSync(dirname(out), { recursive: true })
+        writeFileSync(out, `${document}\n`)
+        process.stdout.write(`${relative(ctx.host.root, out)}\n`)
+        // The line that makes it do anything. An editor finds the schema by
+        // the modeline in the file, not by the file existing.
+        process.stdout.write(
+          dim(`add this to the top of a test file:\n  # yaml-language-server: $schema=${
+            relative(dirname(join(ctx.host.root, 'suites', 'x')), out)
+          }\n`)
+        )
         return EXIT_OK
       }
     })
@@ -913,6 +956,7 @@ interface Parsed {
   workers?: string
   shard?: string
   run?: string
+  out?: string
   verbose: boolean
   json: boolean
   list: boolean

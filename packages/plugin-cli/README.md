@@ -14,6 +14,7 @@ speq report [--run <id>] [--list] [--reporter a,b]
 speq validate [--json]
 speq list [--shard i/n] [--json]
 speq capabilities [--json]
+speq schema [--out FILE]
 ```
 
 A flag is written `--test x` or `--test=x`; `--test` and `--suite` may be
@@ -211,6 +212,36 @@ to a model each carried a copy of the vocabulary — one that goes stale the
 moment somebody installs a plugin, and goes stale *silently*, because a suite
 written against the wrong vocabulary looks exactly like a suite with a typo in
 it. Asking the session instead means the answer is true for this project.
+
+### `speq schema` is the same grammar, for an editor
+
+```bash
+speq schema                        # to stdout
+speq schema --out schema.json      # to a file, with the modeline to paste
+```
+
+A JSON Schema of this project's test files: the ten spine fields, and a branch
+per step type and assertion carrying that plugin's own `InputSchema`. Point
+`yaml-language-server` at it and a misspelled `bodyRaw:` is underlined as you
+type, with completion on every word the loaded plugins define.
+
+```yaml
+# yaml-language-server: $schema=../schema.json
+```
+
+It is generated rather than shipped, because a step type is a word a plugin
+registers at load time: no file in a package could list the ones *this* project
+has. Which is also its honest limit — it is a snapshot, and it goes stale when
+the plugins change, so it is a command somebody re-runs and not something
+`speq init` writes once and leaves quietly wrong. And it is not the check:
+references, forward declarations, duplicate ids and each plugin's own
+`validate` are not expressible in JSON Schema. This is completion and a red
+squiggle; the answer is still `speq validate`.
+
+A typed field accepts a whole `${…}` beside its own type, because
+`expected: "${want}"` is a string in the file and an integer by the time the
+assertion sees it — an editor that underlined it would be underlining the
+correct way to write it.
 
 `speq plugins` is the other half of the same question and stays what it is:
 who is loaded, grouped by owner. This one is grouped by kind and carries the

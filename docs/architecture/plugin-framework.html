@@ -597,7 +597,7 @@ assert:
   - type: row_equals
     path: status
     expected: PAID</code></pre>
-        <p class="under"><b>Underneath:</b> plugin schemas are handed to yaml-language-server, so completion for <code>type: sql</code> and its fields appears in the editor on its own, with no change to the extension.</p>
+        <p class="under"><b>Underneath:</b> <code>speq schema</code> writes the loaded plugins' own schemas out as one JSON Schema, so completion for <code>type: sql</code> and its fields appears in the editor with no change to the extension — one modeline in the file, and the file re-generated when the plugins change.</p>
       </div>
     </li>
 
