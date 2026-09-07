@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { definePlugin } from '@speqkit/plugin-api'
+import {
+  definePlugin, type AssertOutcome, type AssertionDef, type PluginContext
+} from '@speqkit/plugin-api'
 
 /**
  * Where values come from.
@@ -83,6 +85,54 @@ export default definePlugin({
           '  - type: http',
           '    method: GET',
           '    url: /orders/${order.value}'
+        ].join('\n')
+      },
+      {
+        title: 'which one of these — said by what is in it',
+        summary:
+          'A row number points at the right element until somebody adds a row. ' +
+          'The clauses are the ordinary assertion words, read against each element.',
+        for: ['pick'],
+        code: [
+          'steps:',
+          '  - id: snap',
+          '    type: http',
+          '    method: GET',
+          '    url: /public/menu/demo/main',
+          '  - id: item',
+          '    type: pick',
+          '    from: ${snap.body.categories[*].items[*]}',
+          '    where:',
+          '      - type: contains',
+          '        path: optionGroups[*].required',
+          '        expected: true',
+          '  - type: http',
+          '    method: GET',
+          '    url: /items/${item.value.id}'
+        ].join('\n')
+      },
+      {
+        title: 'what the total should be, worked out rather than written down',
+        summary:
+          'A constant here would check that the server adds up the way it did last time. ' +
+          'Nested mappings rather than an expression, so the shape is checked before the run.',
+        for: ['calc'],
+        code: [
+          'steps:',
+          '  - id: expected',
+          '    type: calc',
+          '    multiply:',
+          '      - add:',
+          '          - ${item.value.priceMinor}',
+          '          - ${option.value.priceDeltaMinor}',
+          '      - 2',
+          '  - type: http',
+          '    method: POST',
+          '    url: /public/orders',
+          '    assert:',
+          '      - type: equals',
+          '        path: body.totalMinor',
+          '        expected: ${expected.value}'
         ].join('\n')
       },
       {
@@ -271,8 +321,185 @@ export default definePlugin({
       // input before this ran, and the whole of the step is handing it back.
       execute: (_exec, input) => ({ value: input.value })
     })
+
+    definePick(ctx)
+    defineCalc(ctx)
   }
 })
+
+/* ------------------------------------------------------------------ */
+/* pick — which one of these                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The element a test means, said by what is in it rather than by where it sits.
+ *
+ * The suite this was written for orders food, and it needs the menu item that
+ * has a required option group with a paid option in it — because that is the
+ * item whose total is worth checking. What it could write before was
+ * `categories[0].items[0]`, which is not that item: it is a row number that
+ * happens to point at it today, in a fixture that moves for reasons the test
+ * knows nothing about. On the day somebody adds a category, the suite either
+ * fails for no defect or, worse, quietly starts ordering a plain item and
+ * checking a total that no longer exercises options at all.
+ *
+ * The clauses are the ordinary assertion vocabulary — `equals`,
+ * `greater_than`, `exists`, and whatever a plugin somebody published has added
+ * to it. There is no second list of comparison words here, and the reason is
+ * that the second list is always the one missing `at_least`. See
+ * `ExecContext.check`.
+ */
+function definePick(ctx: PluginContext): void {
+  ctx.defineStepType('pick', {
+    summary: 'the first element of a list that satisfies every clause, bound as ${id.value}',
+    schema: {
+      type: 'object',
+      properties: {
+        from: {
+          description:
+            'the list to search — usually a wildcard path, ${snap.body.categories[*].items[*]}'
+        },
+        where: {
+          type: 'array',
+          minItems: 1,
+          description:
+            'clauses every element has to satisfy, written the way an assert: block is; ' +
+            "a clause's `path` reads into the element",
+          items: {
+            type: 'object',
+            required: ['type'],
+            properties: { type: { type: 'string', description: 'an assertion the loaded plugins provide' } }
+          }
+        }
+      },
+      required: ['from', 'where'],
+      additionalProperties: false
+    },
+    async execute(exec, input) {
+      const from = input.from
+      if (!Array.isArray(from)) {
+        throw new Error(
+          `pick searches a list, and 'from' is ${describe(from)}. ` +
+            'A wildcard path is what usually produces one: body.categories[*].items[*].'
+        )
+      }
+      const where = input.where as AssertionDef[]
+
+      // The closest miss, kept as the run goes: a `pick` that matches nothing
+      // is almost always one clause too strict, and "nothing matched" on its
+      // own leaves the author diffing four clauses against sixty elements by
+      // hand. The element that failed fewest is the one they want to look at.
+      let closest: { index: number; failed: (AssertOutcome & { type: string })[] } | undefined
+
+      for (const [index, element] of from.entries()) {
+        const outcomes = await exec.check(where, element)
+        const failed = outcomes.filter((o) => !o.passed)
+        if (failed.length === 0) return { value: element, index }
+        if (!closest || failed.length < closest.failed.length) closest = { index, failed }
+      }
+
+      throw new Error(
+        `no element of the list satisfies every clause; ${from.length} examined` +
+          (closest
+            ? `. The closest was #${closest.index}, and it ${closest.failed[0]!.message}`
+            : '. The list is empty — the path that produced it may be the thing to look at')
+      )
+    }
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/* calc — what the number should be                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Arithmetic over values the test already read, and nothing else.
+ *
+ * The same suite has to say what an order should cost: the item's price plus
+ * the option's delta, times the quantity. Its two other options were both bad
+ * tests. A constant turns *the server adds up correctly* into *the server adds
+ * up the way it did last time*, pinned to a fixture that will move. Reading
+ * the total back off the response and comparing it to itself checks nothing at
+ * all — and is the easier of the two to write by accident.
+ *
+ * Written as nested mappings rather than as `(a + b) * n`, which is longer to
+ * read and is the point: an expression is a string the kernel would have to
+ * parse and `speq validate` could not check past its syntax, and the moment
+ * one exists it grows string functions, dates and a ternary. This is a closed
+ * grammar of three words, checked against a schema before the run like every
+ * other step input.
+ *
+ * There is no `divide`, and that is a decision rather than an omission. Money
+ * here is integer minor units; a division that does not come out exactly is a
+ * rounding rule, rounding rules belong to the server, and a test that invents
+ * its own will agree with the server right up until the half-cent that matters.
+ * A case that genuinely needs it can ask, with the case attached.
+ */
+function defineCalc(ctx: PluginContext): void {
+  const operands = { type: 'array', minItems: 1, description: 'numbers, ${…} that resolve to them, or nested operations' } as const
+  ctx.defineStepType('calc', {
+    summary: 'a number worked out from values the test already has, bound as ${id.value}',
+    schema: {
+      type: 'object',
+      properties: { add: operands, subtract: operands, multiply: operands },
+      additionalProperties: false,
+      oneOf: [{ required: ['add'] }, { required: ['subtract'] }, { required: ['multiply'] }]
+    },
+    // Nothing is reached for and nothing is called: the kernel resolved every
+    // ${…} in the input, and what is left is addition.
+    execute: (_exec, input) => ({ value: evaluate(input) })
+  })
+}
+
+const OPERATIONS = ['add', 'subtract', 'multiply'] as const
+type Operation = (typeof OPERATIONS)[number]
+
+function evaluate(node: unknown): number {
+  if (typeof node === 'number' && Number.isFinite(node)) return node
+  if (node !== null && typeof node === 'object' && !Array.isArray(node)) {
+    const present = OPERATIONS.filter((op) => Object.hasOwn(node as object, op))
+    const op = present[0]
+    if (present.length === 1 && op !== undefined) return apply(op, (node as Record<string, unknown>)[op])
+    throw new Error(
+      present.length === 0
+        ? `calc knows ${OPERATIONS.join(', ')}, and this operation is none of them: ${Object.keys(node as object).join(', ') || '(no keys)'}`
+        : `an operation is one of ${OPERATIONS.join(', ')}, and this has ${present.length}: ${present.join(' and ')}`
+    )
+  }
+  throw new Error(
+    `calc works on numbers, and this operand is ${describe(node)}. ` +
+      'A ${…} that reads a string from a response is the usual cause — the field may be quoted.'
+  )
+}
+
+/**
+ * An operand that is a list contributes its elements, one level deep, so a
+ * wildcard path is a sum: `add: ["${order.body.lines[*].totalMinor}"]`. It is
+ * the one place a list is not a mistake, and it is why `add` takes one operand
+ * as happily as five.
+ */
+function apply(op: Operation, raw: unknown): number {
+  const list = Array.isArray(raw) ? raw : [raw]
+  const values = list.flatMap((item) => (Array.isArray(item) ? item : [item])).map(evaluate)
+
+  if (values.length === 0) throw new Error(`'${op}' needs something to work on, and the list is empty`)
+  if (op === 'subtract' && values.length !== 2) {
+    throw new Error(`'subtract' takes exactly two operands — what to take from, then what to take — and has ${values.length}`)
+  }
+  switch (op) {
+    case 'add': return values.reduce((a, b) => a + b, 0)
+    case 'subtract': return values[0]! - values[1]!
+    case 'multiply': return values.reduce((a, b) => a * b, 1)
+  }
+}
+
+function describe(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'not there'
+  if (Array.isArray(value)) return `a list of ${value.length}`
+  if (typeof value === 'string') return `the string ${JSON.stringify(value)}`
+  return `a ${typeof value}`
+}
 
 /**
  * Bytes that depend on the seed, the test, the generator and how many times

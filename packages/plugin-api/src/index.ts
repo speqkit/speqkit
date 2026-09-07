@@ -433,6 +433,34 @@ export interface ExecContext {
    */
   runSteps(steps: StepDef[], options?: RunStepsOptions): Promise<StepRecord[]>
 
+  /**
+   * Ask the loaded assertion vocabulary whether a value satisfies some
+   * clauses — and get the answers back instead of recording them.
+   *
+   * This exists because `pick` needed to say *the menu item with a required
+   * option group*, and the alternative was a second vocabulary of comparison
+   * words living in `@speqkit/plugin-data`. Two lists of the same words
+   * diverge — one of them gets `at_least` and the other does not — and the
+   * author then has to know which of the two they are writing in. There is one
+   * list, `defineAssertionType` is how it grows, and a check somebody else
+   * published works as a filter clause the day it is installed without either
+   * plugin knowing about the other.
+   *
+   * A `path:` in a clause reads into `subject`, exactly as it reads into the
+   * last step's result in an `assert:` block.
+   *
+   * Three things it is not. It records nothing and emits no
+   * `assertion.evaluated`: a predicate is a question the step asked itself,
+   * and a report full of the sixty elements `pick` looked at and rejected is
+   * noise over the one it chose. It does not resolve `${…}` — the clauses came
+   * in as part of the step's input and the kernel resolved them already, once,
+   * in the pass that resolved everything else. And it throws on a clause whose
+   * `type` no loaded plugin provides, rather than answering `passed: false`,
+   * because a filter that silently matches nothing is the failure mode this
+   * whole framework is against.
+   */
+  check(assertions: AssertionDef[], subject: unknown): Promise<(AssertOutcome & { type: string })[]>
+
   /** Acquire a resource declared by any loaded plugin. Cached per scope. */
   resource<T = unknown>(name: string): Promise<T>
 
@@ -471,6 +499,141 @@ export interface ExecContext {
   readonly signal: AbortSignal
 
   readonly vars: Readonly<Record<string, unknown>>
+}
+
+/* ------------------------------------------------------------------ */
+/* The path language — one reader, so `path:` means one thing          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `body.items[0].sku`, and now `body.categories[*].items[*].sku`.
+ *
+ * This lives on the contract rather than in the kernel because a path is not
+ * the kernel's private business: `${…}` reads one, every `path:` an assertion
+ * offers reads one, and a plugin of your own that takes a `path:` field should
+ * read the same one. It was two implementations before this — the kernel's and
+ * `@speqkit/plugin-assert`'s — and they had already drifted: one trimmed
+ * whitespace around a segment and the other did not, which is the beginning of
+ * a path meaning two things depending on who was asked.
+ *
+ * The grammar is four rules and stays that size:
+ *
+ * | | |
+ * | --- | --- |
+ * | `a.b` | the field `b` of `a` |
+ * | `a[0]` | by position |
+ * | `a[*]` | every element, and the rest of the path applies to each |
+ * | | a missing node is skipped; `[*]` on something that is not a list is a mistake |
+ *
+ * `[*]` is a wildcard and not an expression: it says *each of these*, it takes
+ * no condition, and there is deliberately nowhere in it to put one. A test
+ * that has to say *which* of these asks `pick` — a step, with the clauses
+ * written out in YAML and checked before the run — and the reason the wildcard
+ * stops here is that the moment a path can carry a predicate, the path is a
+ * language and `speq validate` is reading a string it cannot check.
+ */
+export interface PathRead {
+  /**
+   * False when the path stopped somewhere. A field that simply is not set is
+   * *not* this: `a.b` over `{a:{}}` reads as `undefined` and found, the way it
+   * always has, because "absent" is an answer `missing` and `empty` are asking
+   * for.
+   */
+  found: boolean
+  value: unknown
+  /**
+   * The walk stopped, as opposed to ending on a field that is simply absent.
+   * The difference is the caller's to act on: the kernel throws on the first
+   * and hands back `undefined` for the second.
+   */
+  stopped?: boolean
+  /**
+   * What it stopped on — the segment that could not be descended into, or, for
+   * a wildcard, the one holding the value that is not a list. Absent when that
+   * value is the root, which only the caller can name.
+   */
+  missing?: string
+  /** Set when it stopped because `[*]` was applied to something that is not a list. */
+  notAList?: boolean
+}
+
+const WILDCARD = '*'
+
+/** `a.b[0].c` and `a.b[*].c` into `['a','b','0','c']` and `['a','b','*','c']`. */
+export function pathSegments(path: string): string[] {
+  return path
+    .replace(/\[(\d+)\]/g, '.$1')
+    .replace(/\[\*\]/g, `.${WILDCARD}`)
+    .split('.')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Read already-split segments out of a value.
+ *
+ * Before the first `[*]` this walks a single value, which is what it has
+ * always done. At a `[*]` it becomes a list of nodes and stays one: a later
+ * plain segment maps over the list and drops the nodes that do not have it, a
+ * later `[0]` takes that position from each, and a later `[*]` flattens one
+ * more level. So `categories[*].items` is a list of lists — one per category,
+ * which is what was asked for — and `categories[*].items[*]` is the items.
+ */
+export function readSegments(from: unknown, segments: string[]): PathRead {
+  let nodes: unknown[] = [from]
+  let wide = false
+  // What the last plain segment was called, so a wildcard can name the thing
+  // it was asked to take each of rather than naming itself.
+  let holder: string | undefined
+
+  for (const segment of segments) {
+    if (segment === WILDCARD) {
+      const next: unknown[] = []
+      for (const node of nodes) {
+        if (node === null || node === undefined) continue
+        // A node that is present and is not a list is the author's mistake,
+        // not sparse data: `[*]` says "each of these" about a thing that has
+        // no each. Saying so beats quietly reading an empty list, which is a
+        // suite that passes over nothing.
+        if (!Array.isArray(node)) {
+          return { found: false, value: undefined, stopped: true, notAList: true, ...(holder ? { missing: holder } : {}) }
+        }
+        next.push(...node)
+      }
+      nodes = next
+      wide = true
+      continue
+    }
+
+    if (!wide) {
+      const node = nodes[0]
+      if (node === null || node === undefined) {
+        return { found: false, value: undefined, stopped: true, missing: segment }
+      }
+      nodes = [(node as Record<string, unknown>)[segment]]
+      holder = segment
+      continue
+    }
+
+    holder = segment
+
+    const next: unknown[] = []
+    for (const node of nodes) {
+      if (node === null || node === undefined) continue
+      const value = (node as Record<string, unknown>)[segment]
+      if (value !== undefined) next.push(value)
+    }
+    nodes = next
+  }
+
+  // A wide read is a list, and an empty one is a real answer — no item matched
+  // the shape the path described. Only a walk that stopped is `found: false`.
+  return wide ? { found: true, value: nodes } : { found: nodes[0] !== undefined, value: nodes[0] }
+}
+
+/** `readSegments`, from the written form. */
+export function readPath(from: unknown, path: string): PathRead {
+  return readSegments(from, pathSegments(path))
 }
 
 /* ------------------------------------------------------------------ */

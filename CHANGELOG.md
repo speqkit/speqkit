@@ -14,6 +14,92 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.8.0] — 2026-09-08
+
+The first release M12 asked for. Every hole this project has found in its own
+contract until now was found by writing a plugin against it — four for four.
+These two were found by a suite: a real product's ordering test, written by
+people who cannot bend the system under test to suit the framework, stopped
+twice in the same file. A test could read what the server said and could not
+say anything about it.
+
+Both are answered declaratively, which keeps the promise 0.7.0 made when it
+closed `when:` with the words *there is no expression language and there will
+not be one*. Three step types with closed schemas, checked by `speq validate`
+before the run, instead of a string the kernel would have to parse.
+
+### Added
+
+- **`[*]` in a path — every element, and the rest applies to each of them.**
+  `body.items[*].sku` is the skus; `body.categories[*].items[*]` is the items
+  across every category, one level flattened per wildcard, which leaves
+  `body.categories[*].items` as the list of lists it reads like. It is a
+  wildcard and takes no condition: a path that can carry a predicate is a
+  language, and `speq validate` would be reading a string it cannot check.
+  A `[*]` over something present that is not a list is refused —
+  *`[*]` means every element, and `restaurant` is not a list* — rather than
+  read as an empty one, because a check that passes over nothing is the fault
+  this framework exists to remove.
+- **`pick` (`@speqkit/plugin-data`) — which element, said by what is in it.**
+  Binds `${id.value}` and `${id.index}`. Its clauses are **the assertion
+  vocabulary**, evaluated through the new `ExecContext.check`: `equals`,
+  `contains`, `greater_than`, and every word a plugin somebody else published
+  has added, working as a filter the day it is installed. There is deliberately
+  no list of comparison words inside `plugin-data`, because two lists of the
+  same words drift and the author then has to know which one they are writing
+  in. When nothing matches it says how many elements it examined and what the
+  closest one failed on; a clause no loaded plugin can answer throws rather
+  than quietly matching nothing.
+- **`calc` (`@speqkit/plugin-data`) — what the number should be.** `add`,
+  `subtract`, `multiply`, nested as mappings, over values the test already
+  read. A list operand is its elements, so a wildcard path is a sum. There is
+  no `divide`: money here is integer minor units, a division that does not come
+  out exactly is a rounding rule, rounding rules belong to the server, and a
+  test that invents its own agrees with the server until the half-cent where it
+  matters.
+
+### Changed
+
+- **The path language moved onto the contract** — `pathSegments`,
+  `readSegments`, `readPath` and `PathRead` in `@speqkit/plugin-api`, which the
+  kernel and `@speqkit/plugin-assert` now both read from. It had been written
+  out twice, and the two copies had already drifted over whether a segment may
+  carry surrounding whitespace. `${created.body.items[0].sku}` in a step and
+  `path: body.items[0].sku` in the assertion below it have to mean the same
+  thing.
+
+### Why this is a whole minor across nineteen packages
+
+The contract moved: `@speqkit/plugin-api` 0.13.0 → 0.14.0, two additions and
+`PLUGIN_API_VERSION` still `1`, so every published plugin loads unchanged. But
+a caret on `0.x` pins the minor, so a plugin left behind would keep asking npm
+for `^0.13.0` and a fresh `speq install` would fetch a second copy of the
+contract to satisfy it. `@speqkit/installer` stays at 0.2.0, the one package
+with no range on the contract.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.8.0 |
+| `@speqkit/plugin-api` | 0.14.0 |
+| `@speqkit/plugin-cli` | 0.8.0 |
+| `@speqkit/plugin-yaml` | 0.7.0 |
+| `@speqkit/plugin-http` | 0.7.0 |
+| `@speqkit/plugin-loop` | 0.7.0 |
+| `@speqkit/plugin-junit` | 0.7.0 |
+| `@speqkit/plugin-playwright` | 0.7.0 |
+| `@speqkit/plugin-use` | 0.6.0 |
+| `@speqkit/plugin-data` | 0.6.0 |
+| `@speqkit/plugin-assert` | 0.6.0 |
+| `@speqkit/plugin-json` | 0.6.0 |
+| `@speqkit/plugin-gate` | 0.4.0 |
+| `@speqkit/plugin-allure` | 0.3.0 |
+| `@speqkit/plugin-html` | 0.3.0 |
+| `@speqkit/plugin-ui` | 0.3.0 |
+| `@speqkit/test-kit` | 0.7.0 |
+| `create-speqkit-plugin` | 0.7.0 |
+
 ## [0.7.0] — 2026-09-07
 
 The rest of the review that produced 0.6.0, and three defects the work itself

@@ -25,7 +25,9 @@ ready to be taken.
 The dependency in one sentence: **M5 unblocked M6, and both unblock most of
 M4** — nested suites, parametrization and a device farm were all the same
 missing thing, which is scopes that survive being entered twice at once. The
-first two have landed; what is left in M4 is the ecosystem itself.
+first two have landed; what is left in M4 is the ecosystem itself, and the one
+part of it that cannot be worked at — freezing the contract — waits on M12,
+which supplies evidence rather than code.
 
 ---
 
@@ -918,6 +920,99 @@ eighth and ninth of that kind found in this repository.
 held exactly where M10 left them. Each is a guess about how somebody works, and
 the framework has still not carried a real project's suite.
 
+## M12 — Carried by a real project — blocks 1.0
+
+Every hole found in the contract so far was found the same way: by writing a
+plugin against it. `attach` taking bytes and dropping them, the empty
+`AssertContext.results`, the dead `defineReporter`, `tags` from `plugin-gate` —
+four for four, which is why M4 calls a fifth the base rate rather than a risk.
+This milestone changes the instrument. A plugin author knows what the kernel can
+do and stops there; a product's suite does not, because it is written against a
+system nobody here can bend to suit the framework.
+
+It found two holes before it was a milestone. The project is private, so this
+file describes rather than links: a restaurant ordering product — a Wasp core
+serving a public HTTP contour, a Next.js menu in front of it, a demo restaurant
+in the seed. Its first two suites went in without a complaint. The third — a
+guest ordering food at a table — needed the menu item that has a required
+option group with a paid option, and then the total that follows from it. Both
+stopped at the same wall, and it is the one M4 has open under **decide the
+escape hatch into code**: a test can read what the server said, and it cannot
+say anything about it.
+
+**The rule that makes any of this evidence.** A limitation found there becomes
+an issue here, and never a workaround there. The second reason is the one that
+matters: a workaround is a silent decision not to fix our own product, and a
+suite that routes around a gap counts zero. The point of running the framework
+on something real is to count what is missing, and a count taken through a
+workaround is a count of nothing.
+
+Nine checks currently live in a 160-line script over there that nobody remembers
+to run. They move into suites line by line, and the script is deleted rather
+than kept — two systems of checks diverge, and from the day they do, a red one
+reads as "the old one is lying again" and stops meaning anything.
+
+- [ ] **The suite is the gate, locally and in CI**
+  - *Done when:* `speq run` decides every pull request in that repository and
+    runs again over production after a deploy — the same command and the same
+    config as on a laptop, differing by `--env` and nothing else — and a red
+    suite in the author's own zone is what stops a merge.
+  - *Why the gate and not the coverage:* a suite that runs when somebody
+    remembers it proves exactly as much as it is remembered. `--frozen`,
+    `--env`, `--tags`, `--reporter` and `plugin-gate` were all built for this,
+    and not one of them has ever decided anything.
+- [ ] **The script it replaces is deleted**
+  - *Done when:* each of its nine checks is a test with an id of its own, and
+    the file goes in the same pull request as the last check that leaves it.
+- [ ] **Every wall is an issue here, with a *Done when***
+  - *Done when:* each is closed, or answered with a written no, and the product
+    repository holds no workaround for any of them. An issue opened from that
+    side has to stand on its own: the repository it came from is private, so
+    "see the other tracker" is not available and the scenario gets written out
+    here.
+
+### Found already, before this was a milestone — and answered in 0.8.0
+
+- **A test cannot say which item it means**
+  ([#12](https://github.com/speqkit/speqkit/issues/12)). `path` indexed with
+  `[n]` and nothing else, so "the item with a required option group" was a
+  fixed index that the next change to the seed quietly invalidated. Answered by
+  `[*]` in a path and `pick` in `@speqkit/plugin-data`, whose clauses are the
+  assertion vocabulary rather than a second list of the same words.
+- **A test cannot say what the total should be**
+  ([#13](https://github.com/speqkit/speqkit/issues/13)).
+  `(price + option delta) × quantity` had nowhere to live: `set` binds a value
+  the test already holds, and there was no arithmetic anywhere, by design.
+  Writing the number as a constant turns *the server adds up correctly* into
+  *the server adds up the way it did last time* — the check this framework
+  exists to remove. Answered by `calc`.
+
+One question wearing two hats, and it was M4's open decision about the escape
+hatch into code. M11 had answered it with the word no on the strength of taste;
+0.8.0 answers it with the word no and two step types, which is the same answer
+with the bill paid. **The contract moved to do it** — `ExecContext.check` and
+the path language, `@speqkit/plugin-api` 0.13.0 → 0.14.0 — which is the fifth
+and sixth holes this project has found in its own contract, and the first two
+found by a suite rather than by a plugin.
+
+### Why it blocks 1.0
+
+Nothing in this milestone moves the contract by itself. What it does is produce
+the only evidence M4's freeze accepts — **the contract stops moving while a
+real project's suite rides on it** — and it will move the contract on the way
+there, which is a minor now and a major later. Both walls above are additive at
+worst; after 1.0 neither would be.
+
+### Not in this milestone, and on purpose
+
+No browser. `plugin-playwright` exists, and the product's three worst
+regressions to date were a CORS preflight, a stray CSS rule and an empty tile —
+none of which the suites being written would have caught. The product picks HTTP
+anyway and this milestone agrees: a contour that costs flake triage and selector
+maintenance is not the one to prove first, because if the cheap one does not
+run, nothing will. What that leaves uncovered is written down rather than worked
+around.
+
 ## M4 — The ecosystem — continues
 
 - [x] **The reports a team already has a process around** — `@speqkit/plugin-allure`
@@ -965,23 +1060,35 @@ the framework has still not carried a real project's suite.
     know first: `acquire` caches one value per name, so a plugin that wants a
     pool of devices builds it itself; and `ArtifactStore.put` writes the whole
     buffer at once, which is fine for a screenshot and not for a video.
-- [ ] **Decide the escape hatch into code**
+- [x] **Decide the escape hatch into code** — it stays shut, and the two things
+  a real suite actually wanted are step types. 0.8.0.
   - *Done when:* either `plugin-ts` exists as a loader, or the README says
     plainly that there are no expressions and the answer is to write a step.
-  - *Why it is a decision and not a task:* "stability without a codebase" holds
-    exactly as long as the hatch stays shut. Silence reads as an unfinished
-    feature either way.
+    `packages/plugin-data/README.md` now says it, under `calc`, with the reason
+    beside it.
+  - *What forced it, and what it cost.* M12 walked into the question twice in
+    one file — an item that has to be picked by what is in it, and a total that
+    has to be added up — which turned "silence reads as an unfinished feature"
+    into a bill. The answer is `pick` and `calc`: closed schemas, checked by
+    `speq validate` before the run, and longer to read than `(a + b) * n` on
+    purpose. An expression is a string the kernel would have to parse, and a
+    misspelled field inside one survives until the run, which is the whole
+    class of mistake this project exists to catch earlier than that.
+  - *The part that is still a claim.* "Stability without a codebase" now holds
+    against one real suite. It is worth re-reading this line the third time a
+    project asks for something these three verbs cannot say.
 - [ ] **Freeze `@speqkit/plugin-api` at 1.0**
   - *Done when:* the Stability section of `packages/plugin-api/README.md` says
     the freeze is in effect, and the twelve month window on the previous
     contract starts counting from that sentence.
-  - *Why it is last, and why no milestone blocks it any more.* Nothing on this
-    roadmap is marked **blocks 1.0** and still open — M5 and M6 closed the two
-    that were. What is missing is not a feature but evidence. Every hole found
+  - *Why it is last, and what blocks it.* M12 is the one thing on this roadmap
+    marked **blocks 1.0** and still open — M5 and M6 closed the two that came
+    before it — and it is not a feature, it is the evidence. Every hole found
     in the contract so far was found by writing a plugin against it: `attach`,
     the empty `AssertContext.results`, the dead `defineReporter`, and then
-    `tags`, from `plugin-gate`. Four for four. A fifth is not a risk somebody
-    imagined, it is the base rate.
+    `tags`, from `plugin-gate`. Four for four. A fifth was not a risk somebody
+    imagined, it was the base rate: M12 found the fifth and the sixth before it
+    had finished its third suite.
   - *So the condition is use, not a date:* **the framework carries a real
     project's suite for long enough that the contract stops moving.** 0.11.0
     moved `RunEvent` three times in one milestone, and the last of the three

@@ -120,6 +120,36 @@ describe('the selector', () => {
     expect(outcome.message).toContain('craeted.body.name is not there')
     expect(outcome.message).toContain("'craeted' is not one of the steps so far: created")
   })
+
+  /**
+   * `[*]` is the contract's, not this plugin's — the same four rules the
+   * kernel resolves `${…}` by. What is pinned here is that a `path:` and a
+   * `${…}` written the same way mean the same thing, which is the reason the
+   * reader was moved onto the contract in the first place.
+   */
+  it('reads every element of a list, and keeps reading past it', async () => {
+    await given()
+
+    expect((await check({ type: 'equals', path: 'body.items[*].sku', expected: ['ABC-1', 'ABC-2'] })).passed).toBe(true)
+    expect((await check({ type: 'contains', path: 'body.items[*].sku', expected: 'ABC-2' })).passed).toBe(true)
+    expect((await check({ type: 'length', path: 'body.items[*].sku', expected: 2 })).passed).toBe(true)
+  })
+
+  it('flattens one level per wildcard, so a list of lists is a choice', async () => {
+    await given({ body: { groups: [{ items: [1, 2] }, { items: [3] }] } })
+
+    expect((await check({ type: 'equals', path: 'body.groups[*].items', expected: [[1, 2], [3]] })).passed).toBe(true)
+    expect((await check({ type: 'equals', path: 'body.groups[*].items[*]', expected: [1, 2, 3] })).passed).toBe(true)
+  })
+
+  it('is not there when the wildcard is over something that has no elements', async () => {
+    await given()
+
+    // `restaurant` is an object. Reading it as a list would quietly answer
+    // "no elements", and a suite that passes over nothing is the thing this
+    // framework exists to remove.
+    expect((await check({ type: 'equals', path: 'body.restaurant[*].id', expected: [] })).passed).toBe(false)
+  })
 })
 
 describe('equality and order', () => {

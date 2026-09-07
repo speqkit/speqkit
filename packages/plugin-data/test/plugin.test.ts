@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { definePlugin, type TestDef } from '@speqkit/plugin-api'
 import { harness, type Harness } from '@speqkit/test-kit'
 import data from '@speqkit/plugin-data'
+import assert from '@speqkit/plugin-assert'
 
 /**
  * Written through `@speqkit/test-kit`, against the real kernel.
@@ -321,5 +322,177 @@ describe('generated values under concurrency', () => {
     // And the two tests are not each other, which is the half that matters
     // most: a suite proving two tenants stay apart must not be given one.
     expect(concurrent.a).not.toBe(concurrent.b)
+  })
+})
+
+/**
+ * The menu snapshot these two describe blocks work over, cut down from the
+ * project M12 is being run against: two categories, and exactly one item with
+ * a required option group in it. Which item that is cannot be written as a row
+ * number, and that is the whole point.
+ */
+const menu = {
+  categories: [
+    {
+      name: 'Drinks',
+      items: [
+        { id: 'water', priceMinor: 15000, optionGroups: [] },
+        { id: 'tea', priceMinor: 25000, optionGroups: [{ required: false, options: [{ id: 'lemon', priceDeltaMinor: 5000 }] }] }
+      ]
+    },
+    {
+      name: 'Mains',
+      items: [
+        { id: 'soup', priceMinor: 39000, optionGroups: [{ required: false, options: [{ id: 'bread', priceDeltaMinor: 0 }] }] },
+        {
+          id: 'burger',
+          priceMinor: 45000,
+          optionGroups: [
+            { required: true, options: [{ id: 'plain', priceDeltaMinor: 0 }, { id: 'bacon', priceDeltaMinor: 9000 }] }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+/** The two steps every one of these starts with: bind the snapshot, choose from it. */
+const choosing = (where: unknown[], from = '${menu.value.categories[*].items[*]}'): unknown[] => [
+  { id: 'menu', type: 'set', value: '${snapshot}' },
+  { id: 'chosen', type: 'pick', from, where }
+]
+
+describe('pick', () => {
+  it('finds the element by what is in it, not by where it sits', async () => {
+    kit = await harness(data, { with: [assert] })
+    const [, chosen] = await kit.steps(
+      choosing([{ type: 'contains', path: 'optionGroups[*].required', expected: true }]) as never,
+      { snapshot: menu }
+    )
+
+    expect(chosen!.status).toBe('passed')
+    expect((chosen!.result.value as { id: string }).id).toBe('burger')
+    // The row number the suite would otherwise have written. It is 3 today.
+    expect(chosen!.result.index).toBe(3)
+  })
+
+  /**
+   * Narrowing is composed rather than combined: a clause reads a wildcard path
+   * as the list it is, so "the option that costs extra" is a second `pick`
+   * over the first one's result, where the subject is a single option and
+   * `greater_than` has a number to compare.
+   */
+  it('narrows again over what it just chose', async () => {
+    kit = await harness(data, { with: [assert] })
+    const [, , option] = await kit.steps(
+      [
+        ...choosing([{ type: 'contains', path: 'optionGroups[*].required', expected: true }]),
+        {
+          id: 'option',
+          type: 'pick',
+          from: '${chosen.value.optionGroups[*].options[*]}',
+          where: [{ type: 'greater_than', path: 'priceDeltaMinor', expected: 0 }]
+        }
+      ] as never,
+      { snapshot: menu }
+    )
+
+    expect((option!.result.value as { id: string }).id).toBe('bacon')
+  })
+
+  /**
+   * The failure that matters. A filter matching nothing must not read like a
+   * filter that matched, and it has to name the clause that did the excluding
+   * — otherwise the author diffs every clause against every element by hand.
+   */
+  it('says how many it looked at, and what the closest one failed on', async () => {
+    kit = await harness(data, { with: [assert] })
+    const [, chosen] = await kit.steps(
+      choosing([
+        { type: 'equals', path: 'id', expected: 'burger' },
+        { type: 'equals', path: 'priceMinor', expected: 1 }
+      ]) as never,
+      { snapshot: menu }
+    )
+
+    expect(chosen!.status).toBe('error')
+    expect(chosen!.message).toContain('4 examined')
+    expect(chosen!.message).toContain('priceMinor')
+  })
+
+  it('refuses a clause no loaded plugin can answer, rather than matching nothing', async () => {
+    kit = await harness(data, { with: [assert] })
+    const [, chosen] = await kit.steps(choosing([{ type: 'approximately', expected: 1 }]) as never, {
+      snapshot: menu
+    })
+
+    expect(chosen!.status).toBe('error')
+    expect(chosen!.message).toContain("unknown assertion 'approximately'")
+  })
+
+  it('says so when `from` is not a list at all', async () => {
+    kit = await harness(data, { with: [assert] })
+    const [, chosen] = await kit.steps(
+      choosing([{ type: 'exists', path: 'id' }], '${menu.value.categories}') as never,
+      { snapshot: { categories: { first: 'not a list' } } }
+    )
+
+    expect(chosen!.status).toBe('error')
+    expect(chosen!.message).toContain('pick searches a list')
+  })
+})
+
+describe('calc', () => {
+  const value = (record: { result: Record<string, unknown> }) => record.result.value
+
+  it('works the total out of what the test read, so no constant stands in for it', async () => {
+    kit = await harness(data, { with: [assert] })
+    const records = await kit.steps(
+      [
+        ...choosing([{ type: 'contains', path: 'optionGroups[*].required', expected: true }]),
+        {
+          id: 'option',
+          type: 'pick',
+          from: '${chosen.value.optionGroups[*].options[*]}',
+          where: [{ type: 'greater_than', path: 'priceDeltaMinor', expected: 0 }]
+        },
+        {
+          id: 'total',
+          type: 'calc',
+          multiply: [{ add: ['${chosen.value.priceMinor}', '${option.value.priceDeltaMinor}'] }, 2]
+        }
+      ] as never,
+      { snapshot: menu }
+    )
+
+    expect(records.every((r) => r.status === 'passed')).toBe(true)
+    expect(value(records.at(-1)!)).toBe((45000 + 9000) * 2)
+  })
+
+  it('sums a wildcard path, because a list operand is its elements', async () => {
+    kit = await harness(data)
+    const [total] = await kit.steps([{ id: 'total', type: 'calc', add: ['${lines[*].amount}'] }] as never, {
+      lines: [{ amount: 100 }, { amount: 250 }, { amount: 7 }]
+    })
+
+    expect(value(total!)).toBe(357)
+  })
+
+  it('refuses an operand that is not a number, and says what it was instead', async () => {
+    kit = await harness(data)
+    const [total] = await kit.steps([{ id: 'total', type: 'calc', add: ['${amount}', 1] }] as never, {
+      amount: '450.00'
+    })
+
+    expect(total!.status).toBe('error')
+    expect(total!.message).toContain('"450.00"')
+  })
+
+  it('takes exactly two operands from subtract, and complains about a third', async () => {
+    kit = await harness(data)
+    const [total] = await kit.steps([{ id: 'total', type: 'calc', subtract: [10, 3, 1] }] as never)
+
+    expect(total!.status).toBe('error')
+    expect(total!.message).toContain('exactly two operands')
   })
 })

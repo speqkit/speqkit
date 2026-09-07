@@ -42,7 +42,7 @@ steps:
 
 | | |
 | --- | --- |
-| `path:` | a dotted path into the step's result, with `[n]` indexing |
+| `path:` | a dotted path into the step's result, with `[n]` indexing and `[*]` for every element |
 | `value:` | an explicit value, usually a template |
 | neither | the whole result |
 
@@ -52,6 +52,24 @@ so a check on the payload is written `path: body.items[0].sku`. That extra word
 is what the plugin is for: the same `at_least` reads a SQL row, a file's
 contents and a browser's page state, because nothing here believes it is
 looking at a response.
+
+`[*]` reads every element, and the rest of the path applies to each of them,
+so `body.items[*].sku` is the skus and `body.categories[*].items[*]` is the
+items across all the categories — one level flattened per wildcard, which makes
+`body.categories[*].items` a list of lists and the line after it a list of
+items. It is a wildcard and not an expression: it says *each of these*, it
+takes no condition, and there is nowhere in it to put one. A test that has to
+say *which* of these asks `pick`, in `@speqkit/plugin-data`, where the clauses
+are written out in YAML and checked before the run.
+
+A `[*]` over something that is present and is not a list is reported rather
+than read as an empty one — *`[*]` means every element, and `restaurant` is not
+a list*. The alternative is a check that quietly passes over nothing.
+
+The path language itself lives on the contract, in `@speqkit/plugin-api`, and
+this plugin reads it from there. That is not tidiness: `${created.body.items[0].sku}`
+in a step and `path: body.items[0].sku` in the assertion below it have to mean
+the same thing, and for a while they very nearly did not.
 
 `value:` is for the checks that are not about the last step — comparing two
 earlier ones, or a step result against a given:

@@ -74,9 +74,34 @@ build anything you cannot afford to rewrite.
 ## Changes
 
 Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`, `0.12.0`,
-`0.13.0`. Everything below `0.4.0` was a change to the contract in this
-repository before anything was published from it, and the entry it landed under
-is kept as written.
+`0.13.0`, `0.14.0`. Everything below `0.4.0` was a change to the contract in
+this repository before anything was published from it, and the entry it landed
+under is kept as written.
+
+**0.14.0** — two additions, both of them found by a suite rather than by
+reading this file. `PLUGIN_API_VERSION` stays at `1`.
+
+- **The path language: `pathSegments`, `readSegments`, `readPath` and
+  `PathRead`** — the first runtime this package has offered beyond
+  `definePlugin`, and it is here because a path is not any one plugin's
+  business. `${…}` reads one, every `path:` an assertion offers reads one, and
+  a plugin of your own taking a `path:` field should read the same one. It was
+  written out twice before this — the kernel's copy and
+  `@speqkit/plugin-assert`'s — and the two had already drifted over whether a
+  segment may carry whitespace, which is a path meaning two things depending on
+  who was asked. The grammar gains `[*]`, every element, with the rest of the
+  path applying to each; it is a wildcard and takes no condition, because a
+  path that can carry a predicate is a language `speq validate` cannot check.
+- **`ExecContext.check`** — a step asks the loaded assertion vocabulary whether
+  a value satisfies some clauses, and gets the answers instead of recording
+  them. `pick` in `@speqkit/plugin-data` needed to say *the item with a
+  required option group*, and the alternative was a second list of comparison
+  words living in that plugin. Two lists of the same words diverge — one of
+  them gets `at_least` and the other does not. There is one list,
+  `defineAssertionType` is how it grows, and a check somebody else published
+  works as a filter clause the day it is installed. It records nothing, emits
+  no `assertion.evaluated`, does not resolve `${…}` a second time, and throws
+  on a clause type nothing provides rather than answering `passed: false`.
 
 **0.13.0** — six additions, all optional, and every one of them a thing a
 caller could previously only get at by reading prose or keeping state of its

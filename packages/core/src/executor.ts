@@ -512,6 +512,22 @@ export class Executor {
         children.push(...records)
         return records
       },
+      check: async (assertions, subject) => {
+        const out: (AssertOutcome & { type: string })[] = []
+        for (const assertion of assertions) {
+          const entry = self.#registry.assertions.get(assertion.type)
+          if (!entry) throw unknownAssertionType(assertion.type, [...self.#registry.assertions.keys()])
+          // Not resolved again: these clauses arrived as part of the step's
+          // input and went through the one pass that resolved it. Resolving
+          // here would ask every value provider a second time — and `${gen:…}`
+          // answers a second time with a different value.
+          out.push({
+            type: assertion.type,
+            ...(await entry.def.evaluate(self.#assertContext(subject as StepResult), withoutMeta(assertion)))
+          })
+        }
+        return out
+      },
       resource: <T>(name: string) =>
         self.#resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>,
       config: <T>() => self.#registry.configFor(owner) as T,
@@ -572,6 +588,20 @@ function concurrentRunSteps(stepType: string): Error {
 
 function isMeta(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0
+}
+
+/**
+ * A filter clause nobody can answer.
+ *
+ * `#assert` reports the same situation as a failed assertion, because there
+ * the block is the test and a test that cannot run its check has failed. Here
+ * the clause is a question a step asked while choosing between elements, and
+ * answering "no element matched" would be a lie about the data: nothing was
+ * compared at all.
+ */
+function unknownAssertionType(type: string, loaded: string[]): Error {
+  const known = loaded.sort().join(', ') || '(none)'
+  return new Error(`unknown assertion '${type}' in a filter clause; loaded plugins provide: ${known}`)
 }
 
 /** An assertion's annotations are the kernel's, exactly as a step's are. */

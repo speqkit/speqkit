@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-data",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Where values come from: generated test data, the environment, and project variables.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*",
+    "@speqkit/plugin-assert": "workspace:*",
     "@speqkit/test-kit": "workspace:*",
     "speqkit": "workspace:*"
   },

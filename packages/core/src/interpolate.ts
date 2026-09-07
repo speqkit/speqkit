@@ -16,6 +16,8 @@
  * by hand would have had to become async for a provider it never uses.
  */
 
+import { pathSegments, readSegments } from '@speqkit/plugin-api'
+
 export type ValueProviderFn = (key: string) => unknown | Promise<unknown>
 
 export interface ResolveScope {
@@ -44,13 +46,16 @@ export function lookupPath(scope: ResolveScope, path: string): unknown {
     }
   }
 
-  const segments = splitPath(path)
+  const segments = pathSegments(path)
   const head = segments[0]
   if (head === undefined) return undefined
 
   for (const frame of scope.frames) {
     if (Object.prototype.hasOwnProperty.call(frame, head)) {
-      return walk(frame[head], segments.slice(1), path)
+      const read = readSegments(frame[head], segments.slice(1))
+      // `head` is what the reader could not name: it only ever saw the value.
+      if (read.stopped) throw new UnresolvedError(path, read.missing ?? head, undefined, read.notAList)
+      return read.value
     }
   }
 
@@ -94,10 +99,19 @@ export class UnresolvedError extends Error {
     readonly path: string,
     readonly missing: string,
     /** Set when what is missing is a value provider rather than a name. */
-    readonly provider?: { prefix: string; known: string[] }
+    readonly provider?: { prefix: string; known: string[] },
+    /**
+     * Set when the walk stopped at a `[*]` over something that is not a list.
+     * A different sentence, because nothing is missing: the path is asking for
+     * each of a thing that has no each, and "is not defined" would send the
+     * reader looking for a typo in a name that is spelled correctly.
+     */
+    readonly notAList?: boolean
   ) {
     super(
-      provider
+      notAList
+        ? `cannot resolve \${${path}}: '[*]' means every element, and '${missing}' is not a list`
+        : provider
         ? `cannot resolve \${${path}}: no value provider is loaded for '${provider.prefix}'` +
             (provider.known.length ? ` — loaded: ${provider.known.sort().join(', ')}` : ' — none is loaded') +
             (BUILT_IN_PREFIXES.has(provider.prefix) ? `; '${provider.prefix}:' comes from @speqkit/plugin-data` : '')
@@ -114,26 +128,6 @@ export class UnresolvedError extends Error {
  * plugin rather than knowledge of one.
  */
 const BUILT_IN_PREFIXES = new Set(['env', 'gen', 'vars'])
-
-function splitPath(path: string): string[] {
-  // a.b[0].c -> ['a','b','0','c']
-  return path
-    .replace(/\[(\d+)\]/g, '.$1')
-    .split('.')
-    .map((s) => s.trim())
-    .filter(Boolean)
-}
-
-function walk(value: unknown, rest: string[], full: string): unknown {
-  let current = value
-  for (const segment of rest) {
-    if (current === null || current === undefined) {
-      throw new UnresolvedError(full, segment)
-    }
-    current = (current as Record<string, unknown>)[segment]
-  }
-  return current
-}
 
 /** A string that is exactly one template keeps the resolved value's type. */
 export function resolveString(scope: ResolveScope, input: string): unknown {

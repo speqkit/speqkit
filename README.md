@@ -23,10 +23,28 @@ kernel, [writing declarative tests](https://speqkit.github.io/speqkit/writing-te
 
 ## Status
 
-M0, M1, M2 and the architecture gate are done; M4 has started. Fifteen
-packages — the kernel as `speqkit`, the contract and eleven plugins under
-`@speqkit`, plus the test kit and the scaffolder — so `npm i -g speqkit`
-installs the `speq` binary from the registry rather than from this checkout.
+M0, M1, M2 and the architecture gate are done; M4 has started, and M12 has
+started with it. Fifteen packages — the kernel as `speqkit`, the contract and
+eleven plugins under `@speqkit`, plus the test kit and the scaffolder — so
+`npm i -g speqkit` installs the `speq` binary from the registry rather than from
+this checkout.
+
+M12 is a different kind of milestone from the eleven before it: no feature of
+its own, and the one thing still marked **blocks 1.0**. A real product's suite
+is riding on the framework, and what stops that suite becomes an issue here
+rather than a workaround there — because the point is to count what is missing,
+and a count taken through a workaround is a count of nothing.
+
+It has found two so far, and both were the same question: a test could read
+what the server said and could not say anything about it — which item of a
+menu it meant, or what an order should come to. 0.8.0 answers them with `[*]`
+in a path and two step types, `pick` and `calc`, and in doing so closes the
+decision the roadmap had held open since M4. **The escape hatch into code
+stays shut**: there are no expressions, and the answer to a suite that needs
+one is a step type with a closed schema that `speq validate` can check before
+the run. Answering it moved the contract twice, which is the fifth and sixth
+hole found in it — and the first two found by a suite rather than by somebody
+writing a plugin.
 
 What is next, in the order it has to happen — and which of it is cheap now and
 expensive after 1.0 — is in [ROADMAP.md](ROADMAP.md).

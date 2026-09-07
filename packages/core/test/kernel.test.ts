@@ -149,6 +149,74 @@ describe('an assertion can see what the steps produced', () => {
   })
 })
 
+describe('a path says which elements it means, and stops when there are none', () => {
+  /**
+   * The wildcard is on the contract, so this is the kernel's half of it: what
+   * `${…}` does with `[*]`, and what it says when the thing it was told to
+   * take each of is not a list. The other half — the same four rules inside an
+   * assertion's `path:` — is pinned in `@speqkit/plugin-assert`, against the
+   * same reader.
+   */
+  const snapshot = {
+    categories: [
+      { items: [{ sku: 'a' }, { sku: 'b' }] },
+      { items: [{ sku: 'c' }] }
+    ],
+    restaurant: { id: 'r-1' }
+  }
+
+  it('reads every element, and flattens one level for each wildcard', async () => {
+    const registry = await registryWith(echo)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        variables: { snapshot },
+        steps: [
+          { id: 'flat', type: 'echo', value: '${snapshot.categories[*].items[*].sku}' },
+          { id: 'nested', type: 'echo', value: '${snapshot.categories[*].items}' }
+        ]
+      }
+    ])
+
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps[0]!.result.value).toEqual(['a', 'b', 'c'])
+    expect((outcome.tests[0]!.steps[1]!.result.value as unknown[]).length).toBe(2)
+  })
+
+  it('refuses to read a wildcard over something that is not a list', async () => {
+    const registry = await registryWith(echo)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        variables: { snapshot },
+        steps: [{ id: 'oops', type: 'echo', value: '${snapshot.restaurant[*].id}' }]
+      }
+    ])
+
+    // `error`, not `failed`: a reference that cannot be read is the suite
+    // being wrong about itself, not the system under test being wrong.
+    expect(outcome.status).toBe('error')
+    // And not "is not defined": nothing is misspelled, and sending the author
+    // looking for a typo in a name that is right is the worse of the two.
+    expect(outcome.tests[0]!.steps[0]!.message).toContain("'[*]' means every element")
+    expect(outcome.tests[0]!.steps[0]!.message).toContain("'restaurant' is not a list")
+  })
+
+  it('answers an empty list where nothing has the field, which is an answer', async () => {
+    const registry = await registryWith(echo)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        variables: { snapshot: { categories: [] } },
+        steps: [{ id: 'none', type: 'echo', value: '${snapshot.categories[*].items[*].sku}' }]
+      }
+    ])
+
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps[0]!.result.value).toEqual([])
+  })
+})
+
 describe('resources close in reverse order when their scope ends', () => {
   it('opens a run-scoped resource once and a test-scoped one per test', async () => {
     const log: string[] = []

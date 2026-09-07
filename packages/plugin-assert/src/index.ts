@@ -3,7 +3,8 @@ import { isAbsolute, join } from 'node:path'
 import { Ajv, type ValidateFunction } from 'ajv'
 import formats from 'ajv-formats'
 import {
-  definePlugin, type AssertContext, type AssertOutcome, type AssertionDef, type PluginContext,
+  definePlugin, pathSegments, readSegments as readSharedSegments,
+  type AssertContext, type AssertOutcome, type AssertionDef, type PluginContext,
   type ValidationProblem
 } from '@speqkit/plugin-api'
 
@@ -227,17 +228,26 @@ function whereLooked(ctx: AssertContext, head: string | undefined): string {
   return parts.join(' ')
 }
 
+/**
+ * The path language is the contract's, not this plugin's — see `readSegments`
+ * in `@speqkit/plugin-api`. It used to be written out twice, here and in the
+ * kernel, and the two had already drifted over whether a segment may carry
+ * whitespace. What a `path:` means has to be one answer, because a suite reads
+ * `body.items[0].sku` in an assertion and `${created.body.items[0].sku}` in
+ * the step above it and is entitled to assume they mean the same thing.
+ *
+ * A read that stopped and a field that is absent are the same thing here —
+ * both `undefined`, which the selector reports as *is not there* — because an
+ * assertion has no use for the difference. The kernel does: it has to say
+ * whether to throw.
+ */
 function segmentsOf(path: string): string[] {
-  return path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)
+  return pathSegments(path)
 }
 
 function readSegments(from: unknown, segments: string[]): unknown {
-  let current = from
-  for (const segment of segments) {
-    if (current === null || current === undefined) return undefined
-    current = (current as Record<string, unknown>)[segment]
-  }
-  return current
+  const read = readSharedSegments(from, segments)
+  return read.found ? read.value : undefined
 }
 
 function readPath(from: unknown, path: string): unknown {

@@ -336,6 +336,50 @@
     off the screen, and a single failing test re-run on its own sees exactly
     what it saw inside the suite.
   </p>
+
+  <h3>Which one of these, and what it should come to</h3>
+  <p>
+    Two more step types from the same plugin, and between them they are the
+    answer to "there are no expressions". <code>pick</code> chooses an element
+    of a list by what is in it. <code>calc</code> works a number out of values
+    the test already read.
+  </p>
+<pre class="code"><code><span class="k">- id:</span> item
+  <span class="k">type:</span> pick
+  <span class="k">from:</span> <span class="s">"${snap.body.categories[*].items[*]}"</span>
+  <span class="k">where:</span>
+    <span class="k">- type:</span> contains          <span class="c"># the assertion words, as a filter</span>
+      <span class="k">path:</span> optionGroups[*].required
+      <span class="k">expected:</span> true
+
+<span class="k">- id:</span> expected
+  <span class="k">type:</span> calc
+  <span class="k">multiply:</span>
+    <span class="k">- add:</span>
+        <span class="k">-</span> <span class="s">"${item.value.priceMinor}"</span>
+        <span class="k">-</span> <span class="s">"${option.value.priceDeltaMinor}"</span>
+    <span class="k">-</span> 2</code></pre>
+  <p class="under">
+    <b>Why not a row number, and why not a constant.</b>
+    <code>categories[0].items[0]</code> points at the right item until somebody
+    adds a category, and then the suite either fails with no defect behind it
+    or quietly starts ordering a plain item and checking a total that no longer
+    exercises an option. <code>expected: 108000</code> turns <em>the server
+    adds up correctly</em> into <em>the server adds up the way it did last
+    time</em>. Both are a green tick over a test that stopped proving anything,
+    which is the fault this framework exists to remove.
+  </p>
+  <p class="under">
+    <b>Its clauses are the assertion vocabulary, not a second one.</b>
+    Everything on the list below works in a <code>where:</code>, including a
+    word a plugin somebody else published has added, the day it is installed.
+    Two lists of the same comparison words would drift, and the author would
+    then have to know which of the two they were writing in. Narrowing is
+    composed rather than combined: a second <code>pick</code> over the first
+    one's result is how "the option that costs extra" gets said, and there is
+    no <code>and</code>/<code>or</code> here for the same reason there is none
+    in an <code>assert:</code> block.
+  </p>
 </section>
 
 <hr class="rule">
@@ -356,12 +400,27 @@
   <table>
     <thead><tr><th>Selector</th><th>Means</th></tr></thead>
     <tbody>
-      <tr><td><code>path:</code></td><td>a dotted path into the step's whole result, with <code>[n]</code> indexing</td></tr>
+      <tr><td><code>path:</code></td><td>a dotted path into the step's whole result, with <code>[n]</code> indexing and <code>[*]</code> for every element</td></tr>
       <tr><td><code>value:</code></td><td>an explicit value, usually a template — for checks that are not about the last step</td></tr>
       <tr><td>neither</td><td>the whole result</td></tr>
     </tbody>
   </table>
   </div>
+
+  <p class="under">
+    <b><code>[*]</code> is every element, not a query.</b> The rest of the path
+    applies to each of them, so <code>body.items[*].sku</code> is the skus and
+    <code>body.categories[*].items[*]</code> is the items across every
+    category — one level flattened per wildcard, which leaves
+    <code>body.categories[*].items</code> as the list of lists it reads like.
+    It takes no condition, and there is deliberately nowhere in it to put one:
+    the moment a path can carry a predicate it is a language, and
+    <code>speq validate</code> is reading a string it cannot check. A test that
+    has to say <em>which</em> of these asks <code>pick</code>. A
+    <code>[*]</code> over something that is present and is not a list is
+    refused rather than read as an empty one, because a check that passes over
+    nothing is the thing this whole framework is against.
+  </p>
 
   <p class="under">
     <b>Why <code>body.</code> and not just the field.</b> <code>path</code>
