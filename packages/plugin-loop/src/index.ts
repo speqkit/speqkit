@@ -123,7 +123,25 @@ export default definePlugin({
             label: `${alias}=${short(item)}`
           })
           iterations.push(records)
-          if (records.some((r) => r.status === 'error' || r.status === 'failed')) break
+
+          // A failing iteration is a failing test, and until this line it was
+          // not: the loop stopped, reported `completed: false`, and the run
+          // came back green unless somebody had thought to assert on that
+          // field. A green tick over a test that proved nothing is the exact
+          // thing this framework exists to remove, and it was here.
+          //
+          // Thrown rather than reported, because a step type has no way to say
+          // `failed` — the same boundary `use` writes down. What is lost is
+          // "the system was wrong" against "we could not ask"; what is kept is
+          // that somebody is told.
+          const broken = records.find((r) => r.status === 'error' || r.status === 'failed')
+          if (broken) {
+            throw new Error(
+              `${alias}=${short(item)} (${index + 1} of ${items.length}): ` +
+                `step ${broken.id ? `'${broken.id}' ` : ''}(${broken.type}) ${broken.status}` +
+                (broken.message ? ` — ${broken.message}` : '')
+            )
+          }
         }
 
         return {

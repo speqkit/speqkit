@@ -71,14 +71,32 @@ describe('loop', () => {
     expect(step.result.iterations).toBe(2)
   })
 
-  it('stops at the first iteration that fails, and says it did not finish', async () => {
+  it('stops at the first iteration that fails, and takes the test down with it', async () => {
     kit = await harness(loop, { with: [body] })
     const step = await kit.step({
       type: 'loop', over: [1, 2, 3], steps: [{ type: 'nope' }]
     })
 
-    expect(step.result.iterations).toBe(1)
-    expect(step.result.completed).toBe(false)
+    // It used to stop and report `completed: false`, and the run came back
+    // green unless somebody had thought to assert on that field — a green tick
+    // over a test that proved nothing, which is the thing this framework
+    // exists to remove.
+    expect(step.status).toBe('error')
+    expect(step.message).toContain('item=1 (1 of 3)')
+    expect(step.message).toContain('unknown step type')
+  })
+
+  it('does not read a skipped step inside the body as a failing iteration', async () => {
+    kit = await harness(loop, { with: [body] })
+    const step = await kit.step({
+      type: 'loop',
+      over: [1, 2],
+      steps: [{ type: 'echo', value: '${item}', when: false }]
+    })
+
+    expect(step.status).toBe('passed')
+    expect(step.result.iterations).toBe(2)
+    expect(step.result.completed).toBe(true)
   })
 
   it('refuses a non-list `over` rather than iterating its characters', async () => {

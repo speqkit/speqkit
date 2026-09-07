@@ -297,13 +297,20 @@ export class Executor {
     // hand the parent whatever its last child wrote.
     const detail: { value: unknown } = { value: undefined }
 
+    // What this step ran underneath itself, in the order it ran them. The
+    // field has been on `StepRecord` since the first commit and nothing ever
+    // filled it, so a failure inside a loop existed in the event stream and
+    // nowhere in the outcome — which is what `run --json` and every caller
+    // that reads a `TestOutcome` are handed.
+    const children: StepRecord[] = []
+
     let record: StepRecord
     try {
       // Under the same timeout as the step itself: a value provider that
       // answers over the network can hang, and a hang before the step is
       // still the step taking too long.
       const input = await withTimeout(this.#prepareInput(step), controller.signal)
-      const ctx = this.#execContext(controller.signal, entry.owner, step.type, detail)
+      const ctx = this.#execContext(controller.signal, entry.owner, step.type, detail, children)
       const result = await withTimeout(entry.def.execute(ctx, input), controller.signal)
       const bound = (result ?? {}) as StepResult
 
@@ -320,6 +327,7 @@ export class Executor {
         result: bound,
         ...(failure ? { message: failure.message, code: 'assertion-failed' as const } : {}),
         ...(assertions.length ? { assertions } : {}),
+        ...(children.length ? { children } : {}),
         ...recorded(failure ? 'failed' : 'passed', detail.value),
         ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
@@ -346,6 +354,9 @@ export class Executor {
         result: {},
         message,
         code,
+        // Kept on the failure too: a loop that threw on its third iteration
+        // did the first two, and what they did is most of what a reader needs.
+        ...(children.length ? { children } : {}),
         // Whatever the step managed to record before it threw. This is the
         // case the buffered design exists for: a request that never came back
         // has no result to describe it, and the step said what it was doing
@@ -474,7 +485,8 @@ export class Executor {
     signal: AbortSignal,
     owner: string,
     stepType: string,
-    detail: { value: unknown }
+    detail: { value: unknown },
+    children: StepRecord[]
   ): ExecContext {
     const self = this
     // The depth this step is executing at. A nested `runSteps` returns here
@@ -483,9 +495,14 @@ export class Executor {
     return {
       resolve: <T>(template: string) => resolveString(self.scope(), template) as T,
       resolveDeep: <T>(value: T) => resolveDeep(self.scope(), value),
-      runSteps: (steps, options) => {
+      runSteps: async (steps, options) => {
         if (self.#depth !== at) throw concurrentRunSteps(stepType)
-        return self.runSteps(steps, options)
+        const records = await self.runSteps(steps, options)
+        // Every call, not the last one: a loop calls this once per item, and
+        // the first two iterations are most of what a reader needs about the
+        // third.
+        children.push(...records)
+        return records
       },
       resource: <T>(name: string) =>
         self.#resources.acquire(name, (p) => self.#registry.configFor(p)) as Promise<T>,

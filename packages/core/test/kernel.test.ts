@@ -295,6 +295,50 @@ describe('a resource frame belongs to whoever opened it', () => {
   })
 })
 
+describe('what a step ran underneath itself is part of what it reports', () => {
+  /**
+   * `StepRecord.children` was on the contract from the first commit and
+   * nothing ever filled it. A step that failed inside a loop was in the event
+   * stream and nowhere in the `TestOutcome` — which is what `run --json`
+   * hands a caller, and what a repair loop reads. The seventh dead mechanism
+   * of the same kind, after `defineReporter`, `attach`, `AssertContext.results`,
+   * `tags`, `configSchema` and the schema keywords.
+   */
+  it('carries the nested records, iteration by iteration', async () => {
+    const registry = await registryWith(echo, looper)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        steps: [{ id: 'l', type: 'loop', over: [1, 2], steps: [{ id: 'in', type: 'echo', value: '${item}' }] }]
+      }
+    ])
+
+    const loop = outcome.tests[0]!.steps[0]!
+    expect(loop.children?.map((c) => c.result)).toEqual([{ value: 1 }, { value: 2 }])
+  })
+
+  it('keeps them on a step that threw, because what it did first is the evidence', async () => {
+    const thrower = definePlugin({
+      name: 'thrower',
+      setup(ctx) {
+        ctx.defineStepType('half', {
+          async execute(exec, input) {
+            await exec.runSteps(input.steps as StepDef[])
+            throw new Error('and then it went wrong')
+          }
+        })
+      }
+    })
+    const registry = await registryWith(echo, thrower)
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'half', steps: [{ id: 'in', type: 'echo', value: 'done' }] }] }
+    ])
+
+    expect(outcome.tests[0]!.steps[0]!.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.children?.map((c) => c.status)).toEqual(['passed'])
+  })
+})
+
 describe('a test is the atomic unit', () => {
   const branching = definePlugin({
     name: 'branching',

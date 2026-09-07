@@ -452,7 +452,9 @@ async function runBlock(
   const body = returns ? [...steps, { id: CAPTURE, type: CAPTURE, values: returns }] : steps
 
   const records = await exec.runSteps(body, { vars, label })
-  const broken = records.find((r) => r.status !== 'passed')
+  // `skipped` is not broken: a step inside the block with a `when:` that came
+  // out false is the block saying this environment does not need it.
+  const broken = records.find((r) => r.status === 'error' || r.status === 'failed')
   if (broken) {
     // A step type has no way to report `failed`, so an inner failure surfaces
     // as this step erroring. The message carries the inner one, which is what
