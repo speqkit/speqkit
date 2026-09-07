@@ -126,11 +126,15 @@ export default definePlugin({
         }
 
         const diagnostics = ctx.host.validate(tests)
-        if (diagnostics.length > 0) {
+        // A warning is legal-but-probably-not-meant, so it is said and the run
+        // goes ahead. Refusing to run over one would make the whole level
+        // useless: nobody adds a warning to a tool that treats it as an error.
+        if (diagnostics.some(fatal)) {
           if (asJson) writeJson({ status: 'invalid', diagnostics })
           else printDiagnostics(diagnostics)
           return EXIT_CONFIG
         }
+        if (diagnostics.length > 0 && !asJson) printDiagnostics(diagnostics)
 
         if (ctx.host.env && !asJson) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
 
@@ -207,7 +211,7 @@ export default definePlugin({
         // second spelling of it here would be a second thing to keep in step.
         if (args.json) {
           writeJson({ checked: tests.length, diagnostics })
-          return diagnostics.length === 0 ? EXIT_OK : EXIT_CONFIG
+          return diagnostics.some(fatal) ? EXIT_CONFIG : EXIT_OK
         }
 
         if (diagnostics.length === 0) {
@@ -215,7 +219,9 @@ export default definePlugin({
           return EXIT_OK
         }
         printDiagnostics(diagnostics)
-        return EXIT_CONFIG
+        if (diagnostics.some(fatal)) return EXIT_CONFIG
+        process.stdout.write(`${tests.length} test(s) valid\n`)
+        return EXIT_OK
       }
     })
 
@@ -529,11 +535,25 @@ function clip(lines: string[]): string[] {
   return [...lines.slice(0, DIFF_LINE_BUDGET), dim(`… ${rest} more line(s); the full values are in the report`)]
 }
 
+/** Absent means error, which is what every diagnostic was before levels. */
+function fatal(diagnostic: Diagnostic): boolean {
+  return diagnostic.level !== 'warn'
+}
+
 function printDiagnostics(diagnostics: Diagnostic[]): void {
   for (const d of diagnostics) {
-    process.stderr.write(`${d.file}  ${d.path}\n  ${d.message}${d.hint ? ` — ${d.hint}` : ''}\n`)
+    const mark = fatal(d) ? '' : dim(' (warning)')
+    process.stderr.write(`${d.file}  ${d.path}${mark}\n  ${d.message}${d.hint ? ` — ${d.hint}` : ''}\n`)
   }
-  process.stderr.write(`\n${diagnostics.length} problem(s)\n`)
+  const problems = diagnostics.filter(fatal).length
+  const warnings = diagnostics.length - problems
+  // Counted apart, because the two are different news: one stopped the run
+  // and the other is something to read when there is a minute.
+  const said = [
+    problems > 0 ? `${problems} problem(s)` : '',
+    warnings > 0 ? `${warnings} warning(s)` : ''
+  ].filter(Boolean).join(', ')
+  process.stderr.write(`\n${said}\n`)
 }
 
 /* ------------------------------------------------------------------ */

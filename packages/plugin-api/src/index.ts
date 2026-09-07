@@ -104,6 +104,24 @@ export interface TestDef {
    */
   pending?: string
   /**
+   * The longest this test may take, in milliseconds or as `30s` / `2m`.
+   *
+   * A field of the spine, because it changes what happens. It was the clearest
+   * case of the trap `meta` sets: `timeout: 5000` on a test read as an
+   * annotation, was carried and never read, and `1 test(s) valid` said so —
+   * while the number that actually applied was the step's. A key that looks
+   * like behaviour and is filed as a label is worse than a refusal.
+   *
+   * The budget covers the givens, `setup` and the body. `cleanup` is given a
+   * fresh one: a test that ran out of time is exactly the test that has left
+   * something behind, and taking the teardown down with it is the one outcome
+   * nobody wants. A step already running when the budget is spent is aborted
+   * where it stands, and reports `test-timeout` rather than `step-timeout`,
+   * because whose budget ran out is the difference between raising this number
+   * and looking at the step.
+   */
+  timeout?: number | string
+  /**
    * The test's givens, resolved once before anything runs and addressable as
    * `${name}` from setup, steps, assertions and cleanup alike.
    *
@@ -297,6 +315,11 @@ export const STEP_CODES = [
   'unresolved-reference',
   /** The step's own timeout budget was spent. */
   'step-timeout',
+  /**
+   * The *test's* budget was spent while this step was running — a different
+   * number to raise, and a different thing to look at, from `step-timeout`.
+   */
+  'test-timeout',
   /** `execute()` threw. */
   'plugin-threw',
   /** The step ran, and its own `assert` block said no. */
@@ -339,7 +362,9 @@ export const TEST_CODES = [
   /** The test ran; its `cleanup` did not complete. */
   'cleanup-failed',
   /** The suite's `setup` did not complete, so nothing below it ran. */
-  'suite-setup-failed'
+  'suite-setup-failed',
+  /** The test's own `timeout` was spent while it was still running. */
+  'test-timeout'
 ] as const
 
 export type TestCode = (typeof TEST_CODES)[number]
@@ -886,6 +911,21 @@ export interface Diagnostic {
   code: string
   message: string
   hint?: string
+  /**
+   * How much it matters. Absent means `error`, which is what every diagnostic
+   * was before this existed and what every one of the kernel's own still is.
+   *
+   * A `warn` is for something legal that is probably not what was meant, and
+   * there is exactly one shape of that: a key filed under `meta` whose name
+   * reads like behaviour. `meta` is carried and never read — deliberately,
+   * because a label a plugin invents must not need the kernel's permission —
+   * and the cost of that design is that `retries: 3` at the top of a test is
+   * accepted in silence and does nothing. Refusing it would break every
+   * project that annotates in good faith; saying nothing is how the same
+   * afternoon gets lost twice. So: said, and not fatal. `speq validate` exits
+   * 0 with warnings and non-zero with errors.
+   */
+  level?: 'error' | 'warn'
 }
 
 export interface ArtifactRecord {

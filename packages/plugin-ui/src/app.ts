@@ -160,6 +160,8 @@ details.fold > summary { cursor: pointer; color: var(--dim); font-size: 12px; ma
 
 .problem { border-left: 2px solid var(--failed); padding: 2px 0 2px 10px; margin: 8px 0; }
 .problem .code { color: var(--failed); font-size: 12px; }
+.problem.warn { border-left-color: var(--skipped); }
+.problem.warn .code { color: var(--skipped); }
 .note { border-left: 2px solid var(--error); padding-left: 10px; margin: 8px 0; font-size: 13px; }
 .empty { color: var(--dim); padding: 40px 0; }
 .shots { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -450,7 +452,9 @@ const SCRIPT = `
   }
 
   function problem(d) {
-    return el('div', { class: 'problem' }, [
+    // A warning is legal and probably not meant, and painting it the colour of
+    // something that stops a run would teach a reader to ignore the colour.
+    return el('div', { class: d.level === 'warn' ? 'problem warn' : 'problem' }, [
       el('div', {}, [
         el('span', { class: 'code', text: d.code }),
         document.createTextNode('  ' + d.file + ' · ' + d.path)
@@ -463,7 +467,11 @@ const SCRIPT = `
   function diagnostics() {
     var list = data.project.diagnostics;
     if (!list.length) return el('p', { class: 'lead', text: 'Every test validates against the loaded plugins.' });
-    var box = el('div', {}, [el('h2', { class: 'section', text: list.length + ' problem(s) a run would refuse to start on' })]);
+    var stopping = list.filter(function (d) { return d.level !== 'warn'; }).length;
+    var said = stopping
+      ? stopping + ' problem(s) a run would refuse to start on'
+      : list.length + ' warning(s) — a run would still start';
+    var box = el('div', {}, [el('h2', { class: 'section', text: said })]);
     list.forEach(function (d) { box.appendChild(problem(d)); });
     return box;
   }

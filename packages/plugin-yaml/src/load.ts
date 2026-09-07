@@ -13,8 +13,8 @@ import type { SuiteDef, TestDef } from '@speqkit/plugin-api'
  * exchange for labels in a report.
  */
 const SPINE = new Set([
-  'id', 'title', 'name', 'tags', 'pending', 'variables', 'cases', 'setup', 'steps', 'assert',
-  'cleanup', 'meta'
+  'id', 'title', 'name', 'tags', 'pending', 'timeout', 'variables', 'cases', 'setup', 'steps',
+  'assert', 'cleanup', 'meta'
 ])
 
 /** The same list for a suite manifest, which declares no steps of its own body. */
@@ -45,6 +45,7 @@ export function loadTests(file: string, content: string): TestDef[] {
       name,
       ...(str(value.title) ? { title: str(value.title)! } : {}),
       ...(value.pending !== undefined ? { pending: value.pending as string } : {}),
+      ...(value.timeout !== undefined ? { timeout: value.timeout as TestDef['timeout'] } : {}),
       tags: (value.tags as string[] | undefined) ?? [],
       ...(value.variables ? { variables: value.variables as Record<string, unknown> } : {}),
       ...(value.cases ? { cases: value.cases as TestDef['cases'] } : {}),

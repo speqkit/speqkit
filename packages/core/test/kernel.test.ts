@@ -1065,6 +1065,112 @@ describe('a step can be written and not run', () => {
   })
 })
 
+describe('a test says how long it may take, and the teardown is not part of it', () => {
+  /**
+   * `timeout` was the clearest case of the trap `meta` sets: written at the
+   * top of a test it read as an annotation, was carried and never read, and
+   * `1 test(s) valid` said so — while the number that actually applied was
+   * the step's. A key that looks like behaviour and is filed as a label is
+   * worse than a refusal.
+   */
+  const slow = definePlugin({
+    name: 'slow',
+    setup(ctx) {
+      ctx.defineStepType('slow', {
+        timeoutMs: 10_000,
+        execute: (exec, input) => new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve({ slept: input.ms }), Number(input.ms))
+          exec.signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(exec.signal.reason)
+          }, { once: true })
+        })
+      })
+      ctx.defineStepType('note', { execute: (_e, input) => ({ value: input.value }) })
+    }
+  })
+
+  const cleaned: unknown[] = []
+  const recorder = definePlugin({
+    name: 'recorder',
+    setup(ctx) {
+      ctx.defineStepType('remember', {
+        execute: (_e, input) => { cleaned.push(input.value); return {} }
+      })
+    }
+  })
+
+  it('stops the test where it stands, and says whose budget it was', async () => {
+    const registry = await registryWith(slow, recorder)
+    const outcome = await runTests(registry, [
+      { name: 't', timeout: 40, steps: [{ type: 'slow', ms: 5_000 }, { type: 'note', value: 1 }] }
+    ])
+
+    expect(outcome.status).toBe('error')
+    // The step's own budget was ten seconds and was not the one that ran out.
+    // Which of the two it was is the difference between raising a number and
+    // going to look at the step.
+    expect(outcome.tests[0]!.steps[0]!.code).toBe('test-timeout')
+    expect(outcome.tests[0]!.code).toBe('test-timeout')
+    // The step after it never started: there was no time left to start it in.
+    expect(outcome.tests[0]!.steps).toHaveLength(1)
+  })
+
+  it('still runs the cleanup, which is the whole reason the budget is not a race', async () => {
+    cleaned.length = 0
+    const registry = await registryWith(slow, recorder)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        timeout: 40,
+        steps: [{ id: 'made', type: 'slow', ms: 5_000 }],
+        cleanup: [{ type: 'remember', value: 'deleted the tenant' }]
+      }
+    ])
+
+    expect(outcome.status).toBe('error')
+    expect(cleaned).toEqual(['deleted the tenant'])
+  })
+
+  it('takes a duration the way a step does', async () => {
+    const registry = await registryWith(slow, recorder)
+    const outcome = await runTests(registry, [
+      { name: 'fine', timeout: '30s', steps: [{ type: 'note', value: 1 }] }
+    ])
+    expect(outcome.status).toBe('passed')
+  })
+
+  it('refuses a budget that is not one, before the run', async () => {
+    const registry = await registryWith(slow, recorder)
+    const diagnostics = validateTests(registry, [
+      { name: 't', source: 't.yaml', timeout: 'soon', steps: [{ type: 'note', value: 1 }] }
+    ] as unknown as Parameters<typeof validateTests>[1])
+
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([['invalid-value', 'timeout']])
+  })
+
+  it('warns about a word under meta that reads like behaviour, and does not refuse it', async () => {
+    const registry = await registryWith(slow, recorder)
+    const diagnostics = validateTests(registry, [
+      {
+        name: 't',
+        source: 't.yaml',
+        steps: [{ type: 'note', value: 1 }],
+        meta: { retries: 3, owner: 'mira' }
+      }
+    ] as unknown as Parameters<typeof validateTests>[1])
+
+    // `owner` is exactly what meta is for and is not mentioned. `retries` is
+    // a promise the file does not keep, so it is said — and said as a warning,
+    // because refusing it would break every project that annotates in good
+    // faith, and saying nothing is how the same afternoon gets lost twice.
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]!.code).toBe('meta-looks-like-behaviour')
+    expect(diagnostics[0]!.level).toBe('warn')
+    expect(diagnostics[0]!.hint).toContain("'retry' step")
+  })
+})
+
 describe('a failure that already happened says why in a word a program can read', () => {
   /**
    * The same removal `Diagnostic.code` made for what `validate` says, one
@@ -1173,6 +1279,7 @@ describe('a failure that already happened says why in a word a program can read'
       'unknown-step-type',
       'unresolved-reference',
       'step-timeout',
+      'test-timeout',
       'plugin-threw',
       'assertion-failed',
       'when-false'
@@ -1182,7 +1289,8 @@ describe('a failure that already happened says why in a word a program can read'
       'variables-unresolved',
       'setup-failed',
       'cleanup-failed',
-      'suite-setup-failed'
+      'suite-setup-failed',
+      'test-timeout'
     ])
   })
 })

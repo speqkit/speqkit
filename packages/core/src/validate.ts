@@ -4,6 +4,7 @@ import type {
 } from '@speqkit/plugin-api'
 import { shortName, type Registry, type Registered } from './registry.js'
 import { checkAgainstSchema, distance } from './schema.js'
+import { readTimeout } from './executor.js'
 
 export type { Diagnostic }
 
@@ -93,6 +94,34 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
         code: 'pending-needs-reason',
         message: 'pending must say why',
         hint: 'a test parked without a reason is a test being deleted slowly — write the gap it records'
+      })
+    }
+
+    if (test.timeout !== undefined && readTimeout(test.timeout) === undefined) {
+      diagnostics.push({
+        file,
+        path: 'timeout',
+        code: 'invalid-value',
+        message: `timeout must be a number of milliseconds or a duration like '30s', not ${JSON.stringify(test.timeout)}`
+      })
+    }
+
+    // The safety net under `meta`. The design is right — a label a plugin
+    // invents must not need the kernel's permission — and its cost is that a
+    // key which changes nothing is accepted in silence. `timeout:` was the
+    // proof: it read as an annotation, was carried and never read, and
+    // `1 test(s) valid` said so. It is a field of the spine now; the rest of
+    // this list is every word somebody reaches for next.
+    for (const key of Object.keys(test.meta ?? {})) {
+      const instead = BEHAVIOURAL[key.toLowerCase()]
+      if (!instead) continue
+      diagnostics.push({
+        file,
+        path: `meta.${key}`,
+        level: 'warn',
+        code: 'meta-looks-like-behaviour',
+        message: `'${key}' is an annotation here, which means it is carried and never read`,
+        hint: instead
       })
     }
 
@@ -582,6 +611,26 @@ function walkSteps(steps: StepDef[], path: string, visit: (s: StepDef, p: string
 }
 
 /** What the kernel owns on a step, whatever the step type's schema says. */
+/**
+ * Words that read as behaviour, and where the behaviour actually is.
+ *
+ * Not a list of everything anybody might annotate with — that is the whole
+ * point of `meta` — but of the handful whose *name* is a promise the file does
+ * not keep. Each one names what to write instead, because a warning that only
+ * says "this does nothing" leaves the reader exactly where they were.
+ */
+const BEHAVIOURAL: Record<string, string> = {
+  timeout: "write it on the test itself: 'timeout: 30s' is a field of the spine",
+  retries: "there is no test-level retry — wrap the steps in a 'retry' step (@speqkit/plugin-loop)",
+  retry: "there is no test-level retry — wrap the steps in a 'retry' step (@speqkit/plugin-loop)",
+  skip: "write 'pending:' with the reason, which is checked and reported as skipped",
+  only: "there is no 'only' — select with 'speq run --name' or '--tags' so nothing is left focused in a commit",
+  before: "write the steps under 'setup:', or in the suite's manifest for all of them",
+  after: "write the steps under 'cleanup:', which runs whatever happened above it",
+  depends: 'there is no ordering between tests — a test that needs a world builds it in its own setup',
+  when: "'when:' is a field of a step, not of a test — write it on the steps it applies to"
+}
+
 const STEP_RESERVED = ['id', 'type', 'timeout', 'when', 'steps', 'assert', 'meta'] as const
 /** And on an assertion, which has neither an id nor children. */
 const ASSERTION_RESERVED = ['type', 'meta'] as const

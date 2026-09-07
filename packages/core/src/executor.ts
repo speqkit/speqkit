@@ -46,6 +46,17 @@ export interface ExecutorOptions {
   /** The test's annotations, answered as `${meta:…}` and carried on events. */
   meta?: Record<string, unknown>
   defaultTimeoutMs?: number
+  /**
+   * The instant the whole test's budget runs out, when it declared one.
+   *
+   * Held here rather than raced against from outside, because a race can only
+   * stop *waiting* for the test — the step would run on, holding a connection
+   * and writing rows, in a run that has already reported it as over. Every
+   * step's own budget is capped by whatever is left of this, so the abort a
+   * test-level timeout produces is the abort a step-level one produces, on the
+   * path the plugin already handles.
+   */
+  deadline?: number
   attach(name: string, body: string | Uint8Array, contentType: string): void
 }
 
@@ -70,6 +81,7 @@ export class Executor {
   readonly #resources: ResourceFrame
   readonly #meta: Record<string, unknown>
   readonly #defaultTimeoutMs: number
+  #deadline: number | undefined
   readonly #attach: ExecutorOptions['attach']
 
   /** Innermost first. Step results and variables share one namespace. */
@@ -85,7 +97,23 @@ export class Executor {
     this.#resources = options.resources
     this.#meta = options.meta ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
+    this.#deadline = options.deadline
     this.#attach = options.attach
+  }
+
+  /**
+   * Give up the test's budget, before the teardown runs.
+   *
+   * `cleanup` is not part of what the test was given time for, and this is the
+   * one place the distinction is load-bearing: a test that ran out of time is
+   * exactly the one that created something and did not delete it. It is a
+   * method on the executor rather than a second executor for the teardown
+   * because cleanup reads what the body bound — `${created.body.id}` is the
+   * whole reason the block exists — and a fresh executor would have an empty
+   * frame stack.
+   */
+  releaseDeadline(): void {
+    this.#deadline = undefined
   }
 
   /** Whichever of the two this executor's events belong to. Exactly one is set. */
@@ -239,12 +267,27 @@ export class Executor {
       )
     }
 
+    // Before the step is announced: a test whose budget is already spent has
+    // not started this step, and a `step.started` with no work behind it is a
+    // step a reader goes looking for.
+    const left = this.#deadline === undefined ? undefined : this.#deadline - Date.now()
+    if (left !== undefined && left <= 0) {
+      return this.#finish(base, started, 'error', 'the test ran out of time before this step', 'test-timeout')
+    }
+
     this.#registry.events.emit({ type: 'step.started', ...base })
     await this.#registry.runHooks('step:before', { ...this.#owner(), suite: this.#suite, step })
 
-    const timeoutMs = readTimeout(step.timeout) ?? entry.def.timeoutMs ?? this.#defaultTimeoutMs
+    const own = readTimeout(step.timeout) ?? entry.def.timeoutMs ?? this.#defaultTimeoutMs
+    // Whichever budget runs out first is the one that stops the step, and
+    // which of the two it was is the difference between raising a number and
+    // going to look at the step.
+    const byTest = left !== undefined && left < own
+    const timeoutMs = byTest ? left : own
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(new Error(`step timed out after ${timeoutMs}ms`)), timeoutMs)
+    const timer = setTimeout(() => controller.abort(new Error(
+      byTest ? `the test ran out of time after ${timeoutMs}ms of this step` : `step timed out after ${timeoutMs}ms`
+    )), timeoutMs)
 
     const previousParent = this.#parentId
     this.#parentId = step.id ?? previousParent
@@ -293,7 +336,9 @@ export class Executor {
       // A crash inside a plugin is `error`, not `failed`: the test did not
       // prove the system wrong, the harness failed to ask the question.
       const message = err instanceof Error ? err.message : String(err)
-      const code = codeOf(err, controller.signal)
+      const code = byTest && controller.signal.aborted && err === controller.signal.reason
+        ? 'test-timeout'
+        : codeOf(err, controller.signal)
       record = {
         id: step.id,
         type: step.type,
@@ -548,7 +593,11 @@ function truthy(value: unknown): boolean {
   return true
 }
 
-function readTimeout(value: unknown): number | undefined {
+/**
+ * `5000`, `'30s'`, `'2m'` — the same spelling wherever a budget is written,
+ * on a step or on a test.
+ */
+export function readTimeout(value: unknown): number | undefined {
   if (typeof value === 'number') return value
   if (typeof value !== 'string') return undefined
   const match = /^(\d+)(ms|s|m)?$/.exec(value.trim())

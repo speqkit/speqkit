@@ -95,6 +95,25 @@ describe('the selection flags', () => {
     expect(one).toMatchObject({ code: 0 })
     expect(one.out).toBe('1 test(s) valid\n')
 
+    // A warning is said and is not a refusal. `meta` is open on purpose, so a
+    // project that annotates in good faith cannot be stopped by one — and a
+    // level nobody can pass a build with is a level nobody adds.
+    kit.file(
+      'suites/annotated.yaml',
+      'name: annotated\nretries: 3\nsteps:\n  - type: noop\n'
+    )
+    const warned = await invoke(commands, 'validate', ['--test', 'suites/annotated.yaml'])
+    expect(warned.code).toBe(0)
+    expect(warned.err).toContain('meta.retries')
+    expect(warned.err).toContain('1 warning(s)')
+    expect(warned.out).toBe('1 test(s) valid\n')
+
+    const asJson = await invoke(commands, 'validate', ['--test', 'suites/annotated.yaml', '--json'])
+    expect(asJson.code).toBe(0)
+    expect(JSON.parse(asJson.out).diagnostics).toMatchObject([
+      { code: 'meta-looks-like-behaviour', level: 'warn' }
+    ])
+
     const all = await invoke(commands, 'validate')
     expect(all.code).toBe(2)
     expect(all.err).toMatch(/unknown step type 'nooop'/)

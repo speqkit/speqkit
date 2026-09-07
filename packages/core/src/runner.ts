@@ -4,7 +4,7 @@ import type {
   TestOutcome
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
-import { Executor } from './executor.js'
+import { Executor, readTimeout } from './executor.js'
 import type { ResourceFrame } from './resources.js'
 import { ArtifactStore, type ArtifactRecord } from './artifacts.js'
 import { RunLog } from './run-log.js'
@@ -485,11 +485,16 @@ async function runOne(
   await registry.runHooks('test:before', { test: test.name, suite })
 
   const testFrame = suiteFrame.open('test')
+  // The budget covers the givens, the setup and the body. `cleanup` gets an
+  // executor without one below, because a test that ran out of time is
+  // precisely the test that has left something behind.
+  const budget = readTimeout(test.timeout)
   const executor = new Executor({
     registry,
     test: test.name,
     suite,
     resources: testFrame,
+    ...(budget !== undefined ? { deadline: startedAt + budget } : {}),
     ...(meta ? { meta } : {}),
     attach: (name, body, contentType) => {
       const record = artifacts.put(test.name, name, body, contentType)
@@ -581,8 +586,10 @@ async function runOne(
       }
     }
   } finally {
-    // Whatever happened above, including a setup that never finished: the rows
-    // a half-built test created are exactly the ones nobody else will delete.
+    // Whatever happened above, including a setup that never finished, and
+    // including a budget that ran out: the rows a half-built test created are
+    // exactly the ones nobody else will delete.
+    executor.releaseDeadline()
     cleanup = !ungiven && test.cleanup?.length ? await executor.runPhase(test.cleanup, 'cleanup') : []
     await testFrame.close(configFor)
   }
@@ -600,9 +607,11 @@ async function runOne(
   // true.
   let code: TestCode | undefined = ungiven
     ? 'variables-unresolved'
-    : setup.some(brokeIt)
-      ? 'setup-failed'
-      : undefined
+    : ran.some((s) => s.code === 'test-timeout')
+      ? 'test-timeout'
+      : setup.some(brokeIt)
+        ? 'setup-failed'
+        : undefined
 
   // A test that answered its question and then failed to put the world back is
   // not a passing test: the next run inherits whatever it left behind. It does

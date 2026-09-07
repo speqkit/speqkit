@@ -65,7 +65,7 @@
 <!-- ============================================================== -->
 <section id="shape">
   <span class="sect-label">The shape</span>
-  <h2>Nine fields, and the list is closed</h2>
+  <h2>Ten fields, and the list is closed</h2>
 
   <p>
     One file, one test — or several, separated by <code>---</code>. Everything
@@ -116,6 +116,7 @@
     <li><span class="name">assert</span><span class="what">checks over the whole test, after the last step</span></li>
     <li><span class="name">cleanup</span><span class="what">what runs afterwards, whatever happened</span></li>
     <li><span class="name">cases</span><span class="what">a table of inputs — one test per row, <a href="#cases">below</a></span></li>
+    <li><span class="name">timeout</span><span class="what">the longest the whole test may take — <code>5000</code>, or <code>30s</code>. Covers the givens, the setup and the body; <code>cleanup</code> gets a fresh budget, because a test that ran out of time is the one that left something behind</span></li>
   </ul>
 
   <div class="note">
@@ -629,6 +630,21 @@
     belongs to the plugin that owns the step's <code>type</code> — the kernel
     lifts it out before the schema is checked.
   </p>
+
+  <div class="note">
+    <span class="tag">A word that reads like behaviour</span>
+    <p>
+      The cost of an open annotation space is that <code>retries: 3</code> at
+      the top of a test is accepted in silence and does nothing. So a handful of
+      names — <code>retries</code>, <code>skip</code>, <code>only</code>,
+      <code>before</code>, <code>after</code>, <code>depends</code>,
+      <code>when</code>, and <code>timeout</code> before it became a field —
+      come back from <code>speq validate</code> as a <b>warning</b> naming what
+      to write instead. A warning, not a refusal: <code>meta</code> is open on
+      purpose and a project that annotates in good faith must not be broken by
+      this. <code>speq validate</code> still exits 0.
+    </p>
+  </div>
 
   <p>
     It reaches <code>test.started</code> and both step events, so a reporter

@@ -217,11 +217,15 @@ export default definePlugin({
         }
 
         const diagnostics = ctx.host.validate(tests)
-        if (diagnostics.length > 0) {
+        // A warning is said and the gate goes on: `meta` is open on purpose,
+        // and a smoke gate that refuses to run because somebody annotated a
+        // test is a gate that gets taken out of the pipeline.
+        if (diagnostics.some((d) => d.level !== 'warn')) {
           if (asJson) writeJson({ status: 'invalid', key: found.key, diagnostics })
           else printDiagnostics(diagnostics)
           return EXIT_CONFIG
         }
+        if (diagnostics.length > 0 && !asJson) printDiagnostics(diagnostics)
 
         const workers = Number(flag(argv, '--workers') ?? 1)
         const outcome = await ctx.host.run(tests, {
@@ -412,7 +416,8 @@ function writeJson(value: unknown): void {
 
 function printDiagnostics(diagnostics: Diagnostic[]): void {
   for (const problem of diagnostics) {
-    process.stderr.write(`${problem.file}: ${problem.path}: ${problem.code}: ${problem.message}\n`)
+    const level = problem.level === 'warn' ? 'warning: ' : ''
+    process.stderr.write(`${problem.file}: ${problem.path}: ${level}${problem.code}: ${problem.message}\n`)
     if (problem.hint) process.stderr.write(`  ${problem.hint}\n`)
   }
 }
