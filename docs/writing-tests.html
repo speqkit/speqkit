@@ -258,11 +258,36 @@
 
   <h3>Control flow is a plugin</h3>
   <p>
-    <code>loop</code>, <code>repeat</code> and <code>retry</code> come from
-    <code>@speqkit/plugin-loop</code> and the kernel contains none of them. The
-    plugin calls back into the executor through <code>ctx.runSteps</code> with
-    its own child variable scope, which is also why <code>${category}</code>
-    inside the loop does not exist outside it.
+    <code>loop</code>, <code>repeat</code>, <code>retry</code> and
+    <code>wait</code> come from <code>@speqkit/plugin-loop</code> and the
+    kernel contains none of them. The plugin calls back into the executor
+    through <code>ctx.runSteps</code> with its own child variable scope, which
+    is also why <code>${category}</code> inside the loop does not exist outside
+    it.
+  </p>
+
+  <h3><code>when:</code> — a step that only sometimes applies</h3>
+  <p>
+    One field of the spine, on any step: the step runs if it is true and is
+    <code>skipped</code> if it is not. A skipped step is not a failure and
+    does not stop the test — and in <code>setup:</code> it is not a setup that
+    broke, which is the phase people want it in most.
+  </p>
+<pre class="code"><code><span class="k">- type:</span> http
+  <span class="k">method:</span> DELETE
+  <span class="k">url:</span> <span class="s">"/drafts/${created.body.id}"</span>
+  <span class="k">when:</span> <span class="s">"${created.body.draft}"</span></code></pre>
+  <p class="under">
+    <b>There is no expression language, and there will not be one.</b>
+    <code>when</code> takes a template or a literal <code>true</code>/<code>false</code>,
+    and what counts as false is deliberately dull: <code>false</code>,
+    <code>0</code>, an empty string, and the strings <code>"false"</code> and
+    <code>"no"</code>. A condition that needs arithmetic is a step type in a
+    plugin, where it can be tested — a dialect invented here would be one more
+    thing for every author, and every generator, to get subtly wrong. It is the
+    kernel's field rather than a plugin's because the decision happens before
+    the step's type is looked up: a step whose plugin is not loaded in this
+    environment can still be switched off.
   </p>
 </section>
 

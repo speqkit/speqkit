@@ -13,7 +13,7 @@ import { comparison, recorded } from './events.js'
 const DEFAULT_TIMEOUT_MS = 30_000
 
 /** Keys the kernel owns; a step type never receives them as input. */
-const RESERVED_INPUT = new Set(['id', 'type', 'timeout', 'assert', 'meta'])
+const RESERVED_INPUT = new Set(['id', 'type', 'timeout', 'when', 'assert', 'meta'])
 
 export interface ExecutorOptions {
   registry: Registry
@@ -209,9 +209,30 @@ export class Executor {
       ...(isMeta(step.meta) ? { meta: this.#label(step.meta) } : {})
     } as const
 
+    // Asked before the type is looked up, and that order is the point: a step
+    // switched off should not fail because the plugin that owns it is not
+    // loaded in this environment. An unknown type is still reported — by
+    // `speq validate`, which reads every step whatever its condition says.
+    if (step.when !== undefined) {
+      let go: boolean
+      try {
+        go = truthy(await resolveDeepAsync(this.scope(), step.when))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return this.#finish(base, started, 'error', `when: ${message}`, codeOf(err))
+      }
+      if (!go) {
+        return this.#finish(
+          base, started, 'skipped',
+          `skipped: when ${JSON.stringify(step.when)} was false`,
+          'when-false'
+        )
+      }
+    }
+
     if (!entry) {
       const known = [...this.#registry.stepTypes.keys()].sort().join(', ') || '(none)'
-      return this.#fail(
+      return this.#finish(
         base, started, 'error',
         `unknown step type '${step.type}'; loaded plugins provide: ${known}`,
         'unknown-step-type'
@@ -434,7 +455,12 @@ export class Executor {
     }
   }
 
-  #fail(
+  /**
+   * A step that is over before it began: no plugin was called, so there is
+   * nothing to time and nothing to record. One event, one record, whichever
+   * of the three reasons it was.
+   */
+  #finish(
     base: {
       test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string
       depth: number; meta?: Record<string, unknown>
@@ -492,10 +518,34 @@ function withoutMeta(assertion: AssertionDef): Record<string, unknown> {
  * with, and a plugin that throws a sentence containing the words "timed out"
  * is not a timeout — it is a plugin throwing, which is a different fix.
  */
-function codeOf(err: unknown, signal: AbortSignal): StepCode {
-  if (signal.aborted && err === signal.reason) return 'step-timeout'
+function codeOf(err: unknown, signal?: AbortSignal): StepCode {
+  if (signal?.aborted && err === signal.reason) return 'step-timeout'
   if (err instanceof UnresolvedError) return 'unresolved-reference'
   return 'plugin-threw'
+}
+
+/**
+ * What `when:` counts as true, and it is deliberately dull.
+ *
+ * No expression language, now or later: `${count} > 0` is not a thing this
+ * reads, because the moment it does, every author has to know which dialect
+ * and every generated test has a new way to be subtly wrong. A condition that
+ * needs arithmetic belongs in a step type, where it can be tested.
+ *
+ * The two strings are here because YAML makes them easy to arrive at by
+ * accident — a quoted `"false"`, or a `${flag}` whose provider answers with
+ * text — and a condition that is true because it is the *word* false is the
+ * least useful thing this could do.
+ */
+function truthy(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (value === null || value === undefined) return false
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase()
+    return text !== '' && text !== 'false' && text !== 'no' && text !== '0'
+  }
+  return true
 }
 
 function readTimeout(value: unknown): number | undefined {

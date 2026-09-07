@@ -237,3 +237,38 @@ describe('vars', () => {
     expect(step.message).toContain('adminApi')
   })
 })
+
+describe('set', () => {
+  it('binds a value the steps below can read, in the order somebody reads', async () => {
+    kit = await harness(data, { with: [echo] })
+    const outcome = await kit.run([
+      {
+        name: 'derives a given from a step',
+        steps: [
+          { id: 'created', type: 'echo', said: 'order-17' },
+          { id: 'order', type: 'set', value: '${created.said}' },
+          { id: 'read', type: 'echo', said: 'GET /orders/${order.value}' }
+        ]
+      }
+    ])
+
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps[2]!.result.said).toBe('GET /orders/order-17')
+  })
+
+  it('keeps whatever shape it was given, not only strings', async () => {
+    kit = await harness(data, { with: [echo] })
+    const step = await kit.step({ type: 'set', value: { id: 7, tags: ['a'] } })
+
+    expect(step.result.value).toEqual({ id: 7, tags: ['a'] })
+  })
+
+  it('is checked before it runs, like anything else with a schema', async () => {
+    kit = await harness(data, { with: [echo] })
+    const diagnostics = kit.validate([
+      { name: 't', source: 't.yaml', steps: [{ type: 'set', values: 1 }] }
+    ] as Parameters<typeof kit.validate>[0])
+
+    expect(diagnostics.map((d) => d.code).sort()).toEqual(['missing-field', 'unknown-field'])
+  })
+})

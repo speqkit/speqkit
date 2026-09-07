@@ -962,6 +962,109 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
   })
 })
 
+describe('a step can be written and not run', () => {
+  /**
+   * `when:` is a field of the spine, and the reason is the same one `assert`
+   * has: a plugin cannot express it. Whether a step runs is decided before its
+   * type is looked up, so a condition owned by a step type would be one every
+   * step type had to implement in its own spelling — and a step whose plugin
+   * is not loaded here could not be switched off at all.
+   */
+  const strict = definePlugin({
+    name: 'strict-input',
+    setup(ctx) {
+      ctx.defineStepType('only-value', {
+        // Closed, so the test fails if `when` is ever handed to a plugin as
+        // input. This is the mistake `meta` had to be lifted out for.
+        schema: {
+          type: 'object',
+          properties: { value: {} },
+          required: ['value'],
+          additionalProperties: false
+        },
+        execute: (_exec, input) => ({ value: input.value })
+      })
+    }
+  })
+
+  const run = async (steps: StepDef[], variables?: Record<string, unknown>) => {
+    const registry = await registryWith(strict)
+    const outcome = await runTests(registry, [
+      { name: 't', ...(variables ? { variables } : {}), steps }
+    ])
+    return outcome
+  }
+
+  it('skips the step, and the test is none the worse for it', async () => {
+    const outcome = await run([
+      { type: 'only-value', value: 1, when: false },
+      { type: 'only-value', value: 2 }
+    ])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps.map((s) => [s.status, s.code])).toEqual([
+      ['skipped', 'when-false'],
+      ['passed', undefined]
+    ])
+  })
+
+  it('reads the dull false values, and nothing cleverer', async () => {
+    const off = ['false', 'no', '0', '  ', 0]
+    for (const value of off) {
+      const outcome = await run([{ type: 'only-value', value: 1, when: '${flag}' }], { flag: value })
+      expect(outcome.tests[0]!.steps[0]!.status, `when: ${JSON.stringify(value)}`).toBe('skipped')
+    }
+    for (const value of ['yes', 'FALSEY', 1, true, 'true']) {
+      const outcome = await run([{ type: 'only-value', value: 1, when: '${flag}' }], { flag: value })
+      expect(outcome.tests[0]!.steps[0]!.status, `when: ${JSON.stringify(value)}`).toBe('passed')
+    }
+  })
+
+  it('never hands the condition to the plugin as input', async () => {
+    const outcome = await run([{ type: 'only-value', value: 1, when: true }])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.steps[0]!.result).toEqual({ value: 1 })
+  })
+
+  it('binds nothing when it did not run, and says so where it is used', async () => {
+    const outcome = await run([
+      { id: 'maybe', type: 'only-value', value: 1, when: false },
+      { type: 'only-value', value: '${maybe.value}' }
+    ])
+    expect(outcome.tests[0]!.steps[1]!.code).toBe('unresolved-reference')
+  })
+
+  it('is a condition, not a place for a name that binds nothing', async () => {
+    const outcome = await run([{ type: 'only-value', value: 1, when: '${nowhere}' }])
+    expect(outcome.tests[0]!.steps[0]!.status).toBe('error')
+    expect(outcome.tests[0]!.steps[0]!.code).toBe('unresolved-reference')
+  })
+
+  it('does not read a skipped setup step as a setup that broke', async () => {
+    const registry = await registryWith(strict)
+    const outcome = await runTests(registry, [
+      {
+        name: 't',
+        setup: [{ type: 'only-value', value: 1, when: false }],
+        steps: [{ type: 'only-value', value: 2 }]
+      }
+    ])
+    expect(outcome.status).toBe('passed')
+    expect(outcome.tests[0]!.code).toBeUndefined()
+  })
+
+  it('refuses a condition that is reaching for an expression language', async () => {
+    const registry = await registryWith(strict)
+    const diagnostics = validateTests(registry, [
+      {
+        name: 't',
+        source: 't.yaml',
+        steps: [{ type: 'only-value', value: 1, when: [1, 2] }]
+      }
+    ] as unknown as Parameters<typeof validateTests>[1])
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([['invalid-value', 'steps[0].when']])
+  })
+})
+
 describe('a failure that already happened says why in a word a program can read', () => {
   /**
    * The same removal `Diagnostic.code` made for what `validate` says, one
@@ -1071,7 +1174,8 @@ describe('a failure that already happened says why in a word a program can read'
       'unresolved-reference',
       'step-timeout',
       'plugin-threw',
-      'assertion-failed'
+      'assertion-failed',
+      'when-false'
     ])
     expect([...ASSERTION_CODES]).toEqual(['unknown-assertion', 'assertion-threw'])
     expect([...TEST_CODES]).toEqual([

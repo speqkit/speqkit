@@ -213,3 +213,36 @@ describe('the two compose, which is the point of both', () => {
     expect(attempts).toHaveLength(3)
   })
 })
+
+describe('wait', () => {
+  it('waits, and says how long it actually took', async () => {
+    kit = await harness(loop, { with: [body] })
+    const started = Date.now()
+    const step = await kit.step({ type: 'wait', ms: 60 })
+
+    expect(step.status).toBe('passed')
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50)
+    expect(Number(step.result.waitedMs)).toBeGreaterThanOrEqual(50)
+  })
+
+  it('refuses a wait that would hit the step timeout, before the run', async () => {
+    kit = await harness(loop, { with: [body] })
+    const diagnostics = kit.validate([
+      { name: 'slow', steps: [{ type: 'wait', ms: 45_000 }] }
+    ])
+
+    // The message names the fix, because the failure it prevents —
+    // `step-timeout` in the middle of a run — reads like the system under
+    // test being slow rather than like the test asking for the impossible.
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]!.message).toContain('timeout: 46000')
+  })
+
+  it('says nothing when the step was given the budget for it', async () => {
+    kit = await harness(loop, { with: [body] })
+    const diagnostics = kit.validate([
+      { name: 'slow', steps: [{ type: 'wait', ms: 45_000, timeout: 60_000 }] }
+    ])
+    expect(diagnostics).toEqual([])
+  })
+})

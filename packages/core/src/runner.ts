@@ -276,7 +276,10 @@ class SuiteTree {
     if (!node.def?.setup?.length) return undefined
 
     const records = await this.#executor(node).runPhase(node.def.setup, 'setup')
-    const broke = records.find((r) => r.status !== 'passed')
+    // `skipped` is not a break: a `when:` that came out false is the suite
+    // saying this environment does not need that step, which is the whole
+    // point of writing one.
+    const broke = records.find((r) => r.status === 'failed' || r.status === 'error')
     if (!broke) return undefined
 
     const reason = `setup did not complete: ${broke.message ?? 'no detail'}`
@@ -528,7 +531,7 @@ async function runOne(
     // Setup runs in the test's own frame, not a nested one, so what it binds
     // is addressable from the body, the assertions and the cleanup alike.
     setup = !ungiven && test.setup?.length ? await executor.runPhase(test.setup, 'setup') : []
-    const setupBroke = ungiven !== undefined || setup.some((s) => s.status !== 'passed')
+    const setupBroke = ungiven !== undefined || setup.some(brokeIt)
     if (setupBroke && !ungiven) {
       registry.events.emit({
         type: 'diagnostic',
@@ -585,7 +588,7 @@ async function runOne(
   }
 
   const ran = [...setup, ...body]
-  let status: StepStatus = ungiven || ran.some((s) => s.status === 'error') || setup.some((s) => s.status !== 'passed')
+  let status: StepStatus = ungiven || ran.some((s) => s.status === 'error') || setup.some(brokeIt)
     ? 'error'
     : assertions.some((a) => !a.passed) || ran.some((s) => s.status === 'failed')
       ? 'failed'
@@ -597,14 +600,14 @@ async function runOne(
   // true.
   let code: TestCode | undefined = ungiven
     ? 'variables-unresolved'
-    : setup.some((s) => s.status !== 'passed')
+    : setup.some(brokeIt)
       ? 'setup-failed'
       : undefined
 
   // A test that answered its question and then failed to put the world back is
   // not a passing test: the next run inherits whatever it left behind. It does
   // not overwrite a verdict already given, because that verdict is the news.
-  const dirty = cleanup.find((s) => s.status !== 'passed')
+  const dirty = cleanup.find(brokeIt)
   if (dirty) {
     registry.events.emit({
       type: 'diagnostic',
@@ -639,6 +642,17 @@ async function runOne(
     assertions,
     artifacts: artifacts.forTest(test.name)
   }
+}
+
+/**
+ * Did this step leave something undone?
+ *
+ * `skipped` does not: a step with a `when:` that came out false is a step the
+ * test said not to run, and reading it as a broken setup would make the
+ * feature unusable in the one phase it is most wanted in.
+ */
+function brokeIt(record: StepRecord): boolean {
+  return record.status === 'failed' || record.status === 'error'
 }
 
 function assertContext(

@@ -146,6 +146,33 @@ being the first plugin that wanted a token out of CI. `${env:…}` inside
 `speq.yaml` itself is a separate thing, expanded by the kernel when the config
 is read — a plugin cannot be asked for a value before it has been loaded.
 
+## `set`
+
+The one step type here, and it acts on nothing: it binds what the test already
+wrote, under the step's id.
+
+```yaml
+steps:
+  - id: created
+    type: http
+    method: POST
+    url: /orders
+  - id: order
+    type: set
+    value: ${created.body.id}
+  - type: http
+    method: GET
+    url: /orders/${order.value}
+```
+
+A given that comes out of a step cannot go in `variables:` — those are resolved
+once, before anything runs. Without `set` the choice was writing the same
+`${created.body.id}` out in four places, or a name at the top of the file that
+is nowhere near the steps that read it.
+
+It binds under the step's id like everything else, so it is `${order.value}`
+and not `${order}`. That is one character worse and one rule fewer.
+
 ## What is deliberately not here
 
 A clock. `${gen:date}` makes up a date; "today", "in three days" and "an hour

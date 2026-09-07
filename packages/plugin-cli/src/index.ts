@@ -390,7 +390,11 @@ function linesFor(event: RunEvent, verbose = false): Line[] {
     }
     case 'step.finished': {
       const indent = '  '.repeat(Math.max(0, event.depth - 1))
-      const mark = event.status === 'passed' ? green('.') : red('x')
+      // A skipped step is neither news nor a fault: a `when:` that came out
+      // false is the test saying so on purpose, and a red x beside it would
+      // read as something to go and fix.
+      const skipped = event.status === 'skipped'
+      const mark = event.status === 'passed' ? green('.') : skipped ? dim('-') : red('x')
       const named = typeof event.meta?.name === 'string' ? event.meta.name : undefined
       const label = named
         ? `${named} ${dim(`(${event.stepType})`)}`
@@ -403,7 +407,9 @@ function linesFor(event: RunEvent, verbose = false): Line[] {
       const lines: Line[] = [
         { text: `  ${indent}${mark} ${label} ${dim(`${event.durationMs}ms`)}${where}\n` }
       ]
-      if (event.message) lines.push({ text: `  ${indent}  ${red(event.message)}\n` })
+      if (event.message) {
+        lines.push({ text: `  ${indent}  ${skipped ? dim(event.message) : red(event.message)}\n` })
+      }
       // What the step recorded about itself — the request and the response,
       // for an HTTP step. It rides only on a step that did not pass, so this
       // prints nothing on a green run however loud the flag is.

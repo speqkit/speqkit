@@ -48,6 +48,23 @@ step throws with the last real message, rather than reporting a bare count.
 The delay honours `exec.signal`, so a test that times out mid-backoff aborts
 instead of sleeping to the end.
 
+## `wait`
+
+`ms`, and nothing else. It does nothing for that long, answering the abort
+signal rather than holding the process — a run being torn down should not have
+to sit out somebody's `ms: 30000`.
+
+`retry` is the right answer nearly every time: it asks again until the answer
+changes and stops the moment it does, where a wait costs its full length on
+every run. This is for the case where there is nothing to ask — a webhook a
+queue will deliver, a token that starts working a second from now, a rate
+limiter that has to be let go of. Before it, the only way to write a pause was
+a plugin of your own, and every project that needed one wrote it.
+
+A wait longer than the step's timeout would abort mid-sleep and report
+`step-timeout`, which reads like the system under test being slow. So it is a
+diagnostic before the run instead, naming the `timeout:` to write beside it.
+
 ## Why this package exists
 
 It was the first half of the architecture gate: the test of whether a plugin

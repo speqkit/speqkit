@@ -17,9 +17,20 @@ import { definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api
 export default definePlugin({
   name: '@speqkit/plugin-loop',
   docs: {
-    summary: 'the two shapes of repetition: once per thing, and again until it works',
+    summary: 'repetition, and its absence: once per thing, again until it works, or simply waiting',
     readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-loop#readme',
     examples: [
+      {
+        title: 'time that has to pass',
+        summary:
+          'For what nothing can be asked about — a queue that delivers, a token that starts working. ' +
+          'When there is something to ask, `retry` is the shorter wait.',
+        for: ['wait'],
+        code: [
+          '- type: wait',
+          '  ms: 500'
+        ].join('\n')
+      },
       {
         title: 'once per item',
         summary: '`as` names the current item; without it the binding is `item`.',
@@ -156,8 +167,72 @@ export default definePlugin({
         throw new Error(`all ${attempts} attempts failed: ${last.find((r) => r.message)?.message ?? 'no detail'}`)
       }
     })
+
+    /**
+     * The third shape of repetition, which is none: waiting.
+     *
+     * `retry` is the right answer nearly every time — it asks again until the
+     * answer changes, and it stops as soon as it does. This is for the case
+     * `retry` cannot express, where there is nothing to ask: a webhook that a
+     * queue delivers, a token that is only valid a second from now, a rate
+     * limiter that has to be let go of. Before it, the only way to write a
+     * pause was a step type in a plugin of one's own, and every project that
+     * needed one wrote it.
+     *
+     * It answers the abort signal rather than holding the process: a run that
+     * is being torn down should not wait out somebody's `ms: 30000`.
+     */
+    ctx.defineStepType('wait', {
+      summary: 'does nothing for `ms` milliseconds — for time that has to pass, not for an answer that has to change',
+      schema: {
+        type: 'object',
+        properties: {
+          ms: {
+            type: 'integer',
+            minimum: 0,
+            description: 'how long to wait, in milliseconds; a wait longer than the step timeout needs `timeout:` beside it'
+          }
+        },
+        required: ['ms'],
+        additionalProperties: false
+      },
+
+      /**
+       * The one mistake this step type can make on somebody's behalf: a wait
+       * longer than the budget the step is given, which arrives as
+       * `step-timeout` in the middle of a run and reads like a bug in the
+       * system under test. The step's own `timeout` is visible here, so it is
+       * a sentence before the run instead.
+       */
+      validate(step) {
+        const ms = typeof step.ms === 'number' ? step.ms : 0
+        if (ms > DEFAULT_STEP_TIMEOUT_MS && step.timeout === undefined) {
+          return [
+            `waiting ${ms}ms will hit the ${DEFAULT_STEP_TIMEOUT_MS}ms step timeout first; ` +
+              `write 'timeout: ${ms + 1000}' beside it, or wait for the thing instead with 'retry'`
+          ]
+        }
+        return []
+      },
+
+      execute: async (exec, input) => {
+        const ms = Number(input.ms)
+        const started = Date.now()
+        await sleep(ms, exec.signal)
+        return { waitedMs: Date.now() - started }
+      }
+    })
   }
 })
+
+/**
+ * The kernel's own default, repeated here because a plugin cannot ask for it.
+ *
+ * Repeating a number is worse than reading it, and the alternative was worse
+ * still: a `defaultTimeoutMs` on `ExecContext` would put a kernel setting on
+ * the contract so that one step type could write a better sentence.
+ */
+const DEFAULT_STEP_TIMEOUT_MS = 30_000
 
 function itemsOf(input: Record<string, unknown>): unknown[] {
   if (Array.isArray(input.over)) return input.over

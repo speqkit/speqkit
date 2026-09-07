@@ -379,6 +379,20 @@ function stepVisitor(
       seen.add(step.id)
     }
 
+    // A condition is a template or a literal boolean. A list or a mapping here
+    // is somebody reaching for an expression language that does not exist, and
+    // it would otherwise be true — because everything that is not one of the
+    // dull false values is.
+    if (step.when !== undefined && typeof step.when !== 'string' && typeof step.when !== 'boolean') {
+      diagnostics.push({
+        file,
+        path: `${path}.when`,
+        code: 'invalid-value',
+        message: `'when' takes a template or true/false, not ${Array.isArray(step.when) ? 'a list' : typeof step.when}`,
+        hint: 'write the condition as a value the test already binds, like ${created.body.draft}'
+      })
+    }
+
     const entry = registry.stepTypes.get(step.type)
     if (!entry) {
       diagnostics.push({
@@ -568,7 +582,7 @@ function walkSteps(steps: StepDef[], path: string, visit: (s: StepDef, p: string
 }
 
 /** What the kernel owns on a step, whatever the step type's schema says. */
-const STEP_RESERVED = ['id', 'type', 'timeout', 'steps', 'assert', 'meta'] as const
+const STEP_RESERVED = ['id', 'type', 'timeout', 'when', 'steps', 'assert', 'meta'] as const
 /** And on an assertion, which has neither an id nor children. */
 const ASSERTION_RESERVED = ['type', 'meta'] as const
 

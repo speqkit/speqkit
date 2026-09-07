@@ -15,6 +15,26 @@ export const PLUGIN_API_VERSION = 1 as const
 export interface StepDef {
   id?: string
   type: string
+  /**
+   * Run this step only if the value is true; otherwise it is `skipped`.
+   *
+   * A field of the spine, like `assert`, and for the same reason: a plugin
+   * cannot express it. Whether a step runs is decided before its type is
+   * looked up, so a condition owned by a step type would be a condition every
+   * step type had to implement, in its own spelling, and a step whose plugin
+   * is not loaded could not be switched off at all.
+   *
+   * It is written as a template — `when: "${created.body.draft}"` — and the
+   * whole string is resolved before the step is considered. What counts as
+   * true is deliberately dull: `false`, `0`, an empty string, `null` and the
+   * strings `"false"` and `"no"` are false, everything else is true. There is
+   * no expression language here and there will not be one; a condition that
+   * needs arithmetic is a step type in a plugin, where it can be tested.
+   *
+   * A skipped step binds nothing, so `${id.…}` below it is an unresolved
+   * reference — which is what it should be: the step did not happen.
+   */
+  when?: string | boolean
   /** Present when a step type nests others (loop, retry, if). */
   steps?: StepDef[]
   /**
@@ -280,7 +300,9 @@ export const STEP_CODES = [
   /** `execute()` threw. */
   'plugin-threw',
   /** The step ran, and its own `assert` block said no. */
-  'assertion-failed'
+  'assertion-failed',
+  /** `when:` resolved to false, so the step never ran. */
+  'when-false'
 ] as const
 
 export type StepCode = (typeof STEP_CODES)[number]

@@ -4,8 +4,8 @@ import { definePlugin } from '@speqkit/plugin-api'
 /**
  * Where values come from.
  *
- * Three providers and no step types: this plugin never does anything, it only
- * answers. `${gen:uuid}` is a tenant slug nobody else will use, `${env:TOKEN}`
+ * Three providers and one step that acts on nothing: this plugin never
+ * touches the system under test, it only answers and binds. `${gen:uuid}` is a tenant slug nobody else will use, `${env:TOKEN}`
  * is what CI put in the environment, `${vars:adminApi}` is the route prefix
  * this project writes in every URL.
  *
@@ -65,6 +65,26 @@ export default definePlugin({
     summary: 'values a test needs but does not care about: generated data, environment, project settings',
     readme: 'https://github.com/speqkit/speqkit/tree/main/packages/plugin-data#readme',
     examples: [
+      {
+        title: 'a value the steps below share',
+        summary:
+          'A given that comes out of a step cannot go in `variables:` — those are resolved before ' +
+          'anything runs. This is where it goes, in the order somebody reads.',
+        for: ['set'],
+        code: [
+          'steps:',
+          '  - id: created',
+          '    type: http',
+          '    method: POST',
+          '    url: /orders',
+          '  - id: order',
+          '    type: set',
+          '    value: ${created.body.id}',
+          '  - type: http',
+          '    method: GET',
+          '    url: /orders/${order.value}'
+        ].join('\n')
+      },
       {
         title: 'data a test does not want to invent',
         summary:
@@ -214,6 +234,36 @@ export default definePlugin({
         }
         return vars[key]
       }
+    })
+
+    /**
+     * The one step here, and it acts on nothing: it binds what the test
+     * already wrote.
+     *
+     * Without it, a value used in four places has to be written out four
+     * times or hidden in a `variables:` block at the top, away from the steps
+     * that read it — and a value derived from a step's own result cannot go in
+     * `variables:` at all, because those are resolved before anything runs.
+     * `set` is where a derived given goes: after the step it comes from, in
+     * the order somebody reads.
+     *
+     * It binds under the step's id like every other step, so it is
+     * `${total.value}` and not `${total}`. That is one character worse and
+     * one rule fewer: everything a step produces is addressed the same way.
+     */
+    ctx.defineStepType('set', {
+      summary: 'binds a value under this step\'s id, addressable below as ${id.value}',
+      schema: {
+        type: 'object',
+        properties: {
+          value: { description: 'anything — a literal, or a ${…} the test has already bound' }
+        },
+        required: ['value'],
+        additionalProperties: false
+      },
+      // Nothing is called, nothing is reached for: the kernel resolved the
+      // input before this ran, and the whole of the step is handing it back.
+      execute: (_exec, input) => ({ value: input.value })
     })
   }
 })
