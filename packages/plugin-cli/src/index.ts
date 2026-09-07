@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { mkdirSync, watch, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { editorSchema } from './schema.js'
 import {
   definePlugin,
@@ -103,7 +103,7 @@ export default definePlugin({
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--verbose] [--json] [--color|--no-color]',
+      usage: 'speq run [--env <name>] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--verbose] [--json] [--color|--no-color]',
       async run(argv) {
         // A malformed flag stays plain text on stderr even here: there is no
         // run to describe, and a caller that wrote `--shard 5/4` has a bug in
@@ -119,37 +119,51 @@ export default definePlugin({
         const shard = readShard(args.shard)
         if (typeof shard === 'string') return refuse(shard)
 
-        const matched = await select(ctx.host, args)
-        const tests = shardOf(matched, shard)
-        if (tests.length === 0) {
-          const said = await nothingMatched(ctx.host, args, matched.length, shard)
-          if (asJson) writeJson({ status: 'no-tests', ...said })
-          else process.stderr.write(`${said.message}\n${said.detail}\n`)
-          return EXIT_CONFIG
+        if (args.watch && asJson) {
+          return refuse('--watch and --json exclude each other: a stream of runs is not a document')
         }
 
-        const diagnostics = ctx.host.validate(tests)
-        // A warning is legal-but-probably-not-meant, so it is said and the run
-        // goes ahead. Refusing to run over one would make the whole level
-        // useless: nobody adds a warning to a tool that treats it as an error.
-        if (diagnostics.some(fatal)) {
-          if (asJson) writeJson({ status: 'invalid', diagnostics })
-          else printDiagnostics(diagnostics)
-          return EXIT_CONFIG
+        // Bound here so the pass below closes over the checked values rather
+        // than the union the flags arrived as.
+        const selection = args
+        const slice = shard
+
+        /** One pass: select, check, run. The same one a watch repeats. */
+        const once = async (): Promise<number> => {
+          const matched = await select(ctx.host, selection)
+          const tests = shardOf(matched, slice)
+          if (tests.length === 0) {
+            const said = await nothingMatched(ctx.host, selection, matched.length, slice)
+            if (asJson) writeJson({ status: 'no-tests', ...said })
+            else process.stderr.write(`${said.message}\n${said.detail}\n`)
+            return EXIT_CONFIG
+          }
+
+          const diagnostics = ctx.host.validate(tests)
+          // A warning is legal-but-probably-not-meant, so it is said and the run
+          // goes ahead. Refusing to run over one would make the whole level
+          // useless: nobody adds a warning to a tool that treats it as an error.
+          if (diagnostics.some(fatal)) {
+            if (asJson) writeJson({ status: 'invalid', diagnostics })
+            else printDiagnostics(diagnostics)
+            return EXIT_CONFIG
+          }
+          if (diagnostics.length > 0 && !asJson) printDiagnostics(diagnostics)
+
+          if (ctx.host.env && !asJson) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
+
+          const outcome = await ctx.host.run(tests, {
+            // `--json` replaces the *default* reporter and not a chosen one:
+            // `--json --reporter junit` still writes the XML, because the
+            // document on stdout and the file on disk answer different callers.
+            reporters: selection.reporter ?? (asJson ? [] : DEFAULT_REPORTERS),
+            concurrency: workers
+          })
+          if (asJson) writeJson(summarise(outcome, ctx.host.reportDir))
+          return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
         }
-        if (diagnostics.length > 0 && !asJson) printDiagnostics(diagnostics)
 
-        if (ctx.host.env && !asJson) process.stdout.write(dim(`environment: ${ctx.host.env}\n`))
-
-        const outcome = await ctx.host.run(tests, {
-          // `--json` replaces the *default* reporter and not a chosen one:
-          // `--json --reporter junit` still writes the XML, because the
-          // document on stdout and the file on disk answer different callers.
-          reporters: args.reporter ?? (asJson ? [] : DEFAULT_REPORTERS),
-          concurrency: workers
-        })
-        if (asJson) writeJson(summarise(outcome, ctx.host.reportDir))
-        return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
+        return args.watch ? watchAndRun(ctx.host, selection, once) : once()
       }
     })
 
@@ -943,7 +957,7 @@ const GLOBAL: FlagSpec = { env: 'string', 'speq-root': 'string' }
 /** The four flags that decide which tests a command is talking about. */
 const SELECTION: FlagSpec = { test: 'list', suite: 'list', tags: 'list', name: 'list' }
 const COLOUR: FlagSpec = { color: 'boolean', 'no-color': 'boolean' }
-const RUN_FLAGS: FlagSpec = { reporter: 'list', workers: 'string', shard: 'string', verbose: 'boolean', json: 'boolean', ...COLOUR }
+const RUN_FLAGS: FlagSpec = { reporter: 'list', workers: 'string', shard: 'string', watch: 'boolean', verbose: 'boolean', json: 'boolean', ...COLOUR }
 
 interface Parsed {
   color: boolean
@@ -957,6 +971,7 @@ interface Parsed {
   shard?: string
   run?: string
   out?: string
+  watch: boolean
   verbose: boolean
   json: boolean
   list: boolean
@@ -971,7 +986,7 @@ interface Parsed {
  */
 function parse(argv: string[], spec: FlagSpec): Parsed | string {
   const known: FlagSpec = { ...GLOBAL, ...spec }
-  const out: Record<string, unknown> = { verbose: false, json: false, list: false, color: false, 'no-color': false, positionals: [] }
+  const out: Record<string, unknown> = { verbose: false, json: false, list: false, watch: false, color: false, 'no-color': false, positionals: [] }
   const usage = `Flags here: ${Object.keys(known).map((k) => `--${k}`).join(', ')}.`
 
   for (let i = 0; i < argv.length; i++) {
@@ -1040,6 +1055,88 @@ function distance(a: string, b: string): number {
  * one star within a path segment, two across segments — `suites/menu/` then
  * `*.yaml`, or two stars then `/smoke-*.yaml`.
  */
+/**
+ * Run once, then again on every change under the project, until Ctrl-C.
+ *
+ * The loop somebody runs by hand between two windows — save the YAML, switch,
+ * press up, press enter — and the reason it is worth a flag is that the pause
+ * in the middle is where the thought goes. Nothing here touches the contract:
+ * it is `discover`, `validate` and `run` in a loop, which is what a watcher
+ * always was.
+ *
+ * Three things it has to get right, and each of them is a way the naive
+ * version misbehaves:
+ *
+ * - **Never watch what the run writes.** Reports and artifacts land under the
+ *   project root, so a watcher that does not exclude them re-runs on its own
+ *   output, forever, on a machine somebody has left alone.
+ * - **Coalesce.** One editor save is several filesystem events, and a `git
+ *   checkout` is hundreds. The debounce is what turns a branch switch into one
+ *   run instead of one per file.
+ * - **Never overlap.** A run in flight against a real system is not something
+ *   to have two of; a change arriving mid-run is remembered and taken up when
+ *   the current one finishes.
+ */
+async function watchAndRun(host: Host, args: Parsed, once: () => Promise<number>): Promise<number> {
+  const ignored = [relative(host.root, host.reportDir).split(sep)[0] ?? 'reports', '.git', 'node_modules']
+
+  let running = false
+  let again = false
+  let last = await once()
+  say()
+
+  const pass = async (): Promise<void> => {
+    if (running) { again = true; return }
+    running = true
+    try {
+      do {
+        again = false
+        process.stdout.write(`\n${dim('— change; running again —')}\n`)
+        last = await once()
+        say()
+      } while (again)
+    } finally {
+      running = false
+    }
+  }
+
+  let timer: NodeJS.Timeout | undefined
+  const watcher = watch(host.root, { recursive: true }, (_event, name) => {
+    if (!name) return
+    const head = String(name).split(sep)[0]
+    if (head && ignored.includes(head)) return
+    clearTimeout(timer)
+    timer = setTimeout(() => { void pass() }, DEBOUNCE_MS)
+  })
+
+  await new Promise<void>((done) => {
+    const stop = (): void => {
+      clearTimeout(timer)
+      watcher.close()
+      // Both taken off, not only the one that fired: this command returns to a
+      // process that goes on to do other things, and a listener left behind on
+      // the other signal would answer for a run that is over.
+      process.off('SIGINT', stop)
+      process.off('SIGTERM', stop)
+      process.stdout.write('\n')
+      done()
+    }
+    process.on('SIGINT', stop)
+    process.on('SIGTERM', stop)
+  })
+  return last
+
+  function say(): void {
+    const what = args.test?.length || args.suite?.length || args.tags?.length || args.name?.length
+      ? 'the selected tests'
+      : 'every test'
+    process.stdout.write(dim(`watching ${host.root} — a change runs ${what} again; ctrl-c to stop\n`))
+  }
+}
+
+/** One editor save is several events, and a branch switch is hundreds. */
+const DEBOUNCE_MS = 120
+
 /**
  * Why nothing matched, which is a different question from the fact that
  * nothing did.

@@ -558,6 +558,31 @@ function stream(): RunEvent[] {
  * These pin the two halves of the fix: that the answer has a shape, and that
  * `code` is the part of it that does not move.
  */
+describe('watching', () => {
+  it('refuses --watch with --json, because a stream of runs is not a document', async () => {
+    const commands = await withProject()
+    const answer = await invoke(commands, 'run', ['--watch', '--json'])
+    expect(answer.code).toBe(2)
+    expect(answer.err).toContain('exclude each other')
+  })
+
+  it('runs once and then keeps going, until it is stopped', async () => {
+    const commands = await withProject()
+    // Started, left to settle, then stopped the way a person stops it. What is
+    // being checked is that the first pass happened and the command did not
+    // return on its own — a watch that exits after one run is a watch that
+    // silently stopped watching.
+    const watching = invoke(commands, 'run', ['--watch', '--test', 'suites/health.yaml', '--reporter', ''])
+    await new Promise((r) => setTimeout(r, 250))
+    process.emit('SIGINT')
+
+    const answer = await watching
+    expect(answer.code).toBe(0)
+    expect(answer.out).toContain('watching')
+    expect(answer.out).toContain('ctrl-c to stop')
+  })
+})
+
 describe('the grammar in the dialect an editor speaks', () => {
   /**
    * A step type is a word a plugin registered at load time, so no schema

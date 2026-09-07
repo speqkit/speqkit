@@ -9,7 +9,7 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--json] [--color|--no-color]
+speq run [--env ci] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--json] [--color|--no-color]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate [--json]
 speq list [--shard i/n] [--json]
@@ -212,6 +212,21 @@ to a model each carried a copy of the vocabulary — one that goes stale the
 moment somebody installs a plugin, and goes stale *silently*, because a suite
 written against the wrong vocabulary looks exactly like a suite with a typo in
 it. Asking the session instead means the answer is true for this project.
+
+### `speq run --watch`
+
+Runs the selection, then runs it again on every change under the project, until
+Ctrl-C. The loop everybody runs by hand between two windows — save, switch,
+press up, press enter — and the pause in the middle is where the thought goes.
+
+It watches the project and not what the run writes: reports and artifacts land
+under the same root, and a watcher that does not exclude them re-runs on its
+own output forever. Filesystem events are coalesced, so one editor save is one
+run and a `git checkout` of two hundred files is also one. A change that
+arrives mid-run is remembered and taken up when that run finishes, because a
+run against a real system is not something to have two of.
+
+`--watch` and `--json` exclude each other: a stream of runs is not a document.
 
 ### `speq schema` is the same grammar, for an editor
 
