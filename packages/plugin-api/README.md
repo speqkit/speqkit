@@ -73,9 +73,37 @@ build anything you cannot afford to rewrite.
 
 ## Changes
 
-Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`, `0.12.0`. Everything below
-`0.4.0` was a change to the contract in this repository before anything was
-published from it, and the entry it landed under is kept as written.
+Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`, `0.12.0`,
+`0.13.0`. Everything below `0.4.0` was a change to the contract in this
+repository before anything was published from it, and the entry it landed under
+is kept as written.
+
+**0.13.0** — six additions, all optional, and every one of them a thing a
+caller could previously only get at by reading prose or keeping state of its
+own. `PLUGIN_API_VERSION` stays at `1`.
+
+- **`STEP_CODES`, `ASSERTION_CODES`, `TEST_CODES`, and a `code` on
+  `StepRecord`, `AssertOutcome`, `TestOutcome` and the events** — why something
+  did not pass, in a word a program may match on. `message` is written for a
+  person and may be reworded in any release; these may not. The kernel sets
+  them and a plugin never does: a vocabulary a plugin could add to is a
+  vocabulary nothing downstream can switch on.
+- **`StepDef.when`** — run this step only if the value is true. A field of the
+  spine because the decision happens before the step's type is looked up, so a
+  plugin could not own it: a step whose plugin is not loaded here can still be
+  switched off. A template or a literal; there is no expression language.
+- **`TestDef.timeout`** — the longest a whole test may take, covering the
+  givens, `setup` and the body. `cleanup` gets a fresh budget, because a test
+  that ran out of time is the one that left something behind.
+- **`Diagnostic.level`** — absent means `error`, which is what every diagnostic
+  was. `warn` is for something legal that is probably not what was meant, and
+  it exists for exactly one shape of that: a key filed under `meta` whose name
+  reads like behaviour.
+- **`ValueContext`, on `ValueProviderDef.resolve`** — which test is asking,
+  said by the kernel at the moment it asks. A provider that had to answer per
+  test kept a "current test" from a `test:before` hook, which is adjacency;
+  under `--workers 4` it held whichever suite started last, and `plugin-data`
+  handed one test another's supposedly unique value.
 
 **0.12.0** — `StepTypeDef` gained an optional `binds(step)`: the names a
 nesting step makes addressable to the steps under it, beyond what is visible

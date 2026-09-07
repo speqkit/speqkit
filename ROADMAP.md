@@ -853,6 +853,71 @@ not yet carried a real project's suite.** Each of the three is a guess about
 how somebody works, and that is precisely the class of guess the freeze item
 below says to stop making without evidence.
 
+## M11 — The rest of the review — any time, after M10 — **done**
+
+M10 closed the gap between what `speq validate` claimed and what it checked.
+This is the rest of the same review: the things that were true of the words and
+not of the run, plus three defects the work itself turned up — each of them a
+mechanism that was written down and not wired up, which is now the seventh,
+eighth and ninth of that kind found in this repository.
+
+- [x] **A failure that already happened says why in a word**
+  - *Done when:* `STEP_CODES`, `ASSERTION_CODES` and `TEST_CODES` are on the
+    contract, every non-passing step, assertion and test carries the one that
+    applies, and the codes ride on the stream so a replayed report reads the
+    same.
+  - *The kernel's alone.* A step type says why it failed in `message` and in
+    what it recorded; a vocabulary a plugin could add to is one nothing
+    downstream can switch on.
+- [x] **A step can be written and not run**
+  - *Done when:* `when:` on any step, resolved before the type is looked up, a
+    false one reported `skipped` and read as neither a failure nor a broken
+    setup.
+  - *And the escape hatch stays shut.* `set` binds a derived given, `wait` is
+    for time that has to pass, and there is no expression language and no
+    JavaScript. The roadmap's open question is closed with the word no.
+- [x] **A test says how long it may take**
+  - *Done when:* `timeout` on the spine, covering the givens, setup and body,
+    with a fresh budget for `cleanup`; a step stopped by it says `test-timeout`
+    and not `step-timeout`.
+  - *And the trap that hid it is covered:* nine words that read like behaviour
+    come back from `validate` as a **warning** naming what to write instead.
+    That needed `Diagnostic.level`, and a warning does not stop a run —
+    `meta` is open on purpose.
+- [x] **The grammar an editor can read** — `speq schema` writes one JSON Schema
+  out of `host.capabilities()`. Completion and a squiggle on a misspelled key;
+  `validate` is still the check. Verified by `ajv` compiling it and judging real
+  files, which found the mistake on the first run.
+- [x] **A credential is taken out of the log wherever it was written** — by
+  header name, by field name at any depth in a query string or a JSON body, and
+  by value for every environment variable whose name says it holds one. That
+  last sweep is the only one that catches a token in a signed URL.
+- [x] **`no tests matched` says what it looked for** — how many exist before
+  any filter, where they were looked for, and what was asked. Four situations
+  had one sentence between them.
+- [x] **`speq run --watch`** — the loop between two windows. Never watches what
+  the run writes, coalesces a branch switch into one run, and never overlaps
+  two runs against a real system.
+
+### Found while doing it, and fixed
+
+- **A failing step inside a `loop` was a passing test.** The loop stopped,
+  reported `completed: false`, and nothing looked at that field. The green tick
+  over a test that proved nothing, inside the framework built to remove it.
+- **`StepRecord.children` was never filled.** On the contract from the first
+  commit; the nested records were in the event stream and absent from every
+  `TestOutcome`, which is what `run --json` hands a caller.
+- **`plugin-data` handed one test another test's generated value under
+  `--workers 4`.** It learned the current test from a `test:before` hook, which
+  is adjacency, and G4 says suites run at once. `ValueContext` moves the
+  question to the kernel, which is the only place the answer is known.
+
+### Still not in this milestone, and still on purpose
+
+`speq context`, `@speqkit/plugin-mcp` and `line`/`column` on `Diagnostic` are
+held exactly where M10 left them. Each is a guess about how somebody works, and
+the framework has still not carried a real project's suite.
+
 ## M4 — The ecosystem — continues
 
 - [x] **The reports a team already has a process around** — `@speqkit/plugin-allure`

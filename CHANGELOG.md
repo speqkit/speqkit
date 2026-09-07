@@ -14,6 +14,165 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.7.0] — 2026-09-07
+
+The rest of the review that produced 0.6.0, and three defects the work itself
+turned up. The theme, if there is one: **things that were written down and not
+wired up.** `StepRecord.children` had been on the contract since the first
+commit and nothing ever filled it. The architecture page promised for two
+releases that plugin schemas reach `yaml-language-server`. A failing step
+inside a `loop` came back green. Each of those is the same fault as the five
+this project has already found — `defineReporter`, `attach`,
+`AssertContext.results`, `tags`, `configSchema` — and finding three more in one
+pass is the argument for keeping a list of them.
+
+### Added
+
+- **A failure that already happened says why in a word.** `Diagnostic.code`
+  removed the obligation to read prose to learn what `validate` objected to;
+  the run itself was still prose. Three lists, because they answer for three
+  different things: `STEP_CODES` (`unknown-step-type`, `unresolved-reference`,
+  `step-timeout`, `test-timeout`, `plugin-threw`, `assertion-failed`,
+  `when-false`), `ASSERTION_CODES` (`unknown-assertion`, `assertion-threw` —
+  the two cases where no assertion actually ran), and `TEST_CODES`
+  (`variables-unresolved`, `setup-failed`, `cleanup-failed`,
+  `suite-setup-failed`, `test-timeout`). A test whose step failed carries none:
+  the step has it, and a copy would be a second place to keep true. The codes
+  ride on `step.finished`, `assertion.evaluated` and `test.finished`, so a
+  report rebuilt by `speq report` reads the same as the one written live. The
+  timeout is told apart by identity, not by reading a message, so a plugin that
+  throws the words "timed out" is `plugin-threw`.
+- **`when:` on a step, and the escape hatch stays shut.** The step runs if the
+  value is true and is `skipped` if it is not — and `skipped` is not a failure,
+  including in `setup:`, which is the phase it is wanted in most. A field of the
+  spine because the decision happens before the type is looked up: a condition
+  owned by a step type would be one every step type had to implement in its own
+  spelling, and a step whose plugin is not loaded here could not be switched off
+  at all.
+  - **There is no expression language and there will not be one.** A template or
+    a literal, and what counts as false is deliberately dull: `false`, `0`, an
+    empty string, `null`, and the strings `"false"` and `"no"`, which are there
+    because YAML makes them easy to arrive at by accident. A condition that
+    needs arithmetic is a step type in a plugin, where it can be tested.
+  - Beside it, the two verbs every project was writing a plugin for: **`set`**
+    (`plugin-data`) binds a derived given under a step's id, which is where a
+    value that comes out of a step has to go — `variables:` are resolved before
+    anything runs; **`wait`** (`plugin-loop`) is for time that has to pass
+    rather than an answer that has to change, and refuses before the run when
+    the wait is longer than the step's budget, because that arrives as
+    `step-timeout` mid-run and reads like a slow system under test.
+- **`timeout` on a test.** Covering the givens, `setup` and the body, spelled
+  the way a step spells it. `cleanup` gets a fresh budget: a test that ran out
+  of time is precisely the one that created something and did not delete it. It
+  is a deadline the executor holds rather than a race outside it — a race can
+  only stop *waiting* for a test, and the step would run on, holding a
+  connection and writing rows, inside a run that had already reported it as
+  over.
+- **`speq schema`.** One JSON Schema of this project's test files, generated
+  from `host.capabilities()`: the spine, and a branch per step type and
+  assertion carrying that plugin's own `InputSchema`. A typed field accepts a
+  whole `${…}` beside its own type, because `expected: "${want}"` is a string in
+  the file and an integer by the time the assertion sees it. It is not the
+  check — references, forward declarations and each plugin's `validate` are not
+  expressible in JSON Schema — and it is a snapshot, which is why it is a
+  command somebody re-runs rather than a file `speq init` leaves quietly wrong.
+  `ajv` compiles it in a test and judges real files with it.
+- **`speq run --watch`.** Runs the selection again on every change under the
+  project. Never watches what the run writes — reports land under the same root
+  and a watcher that does not exclude them re-runs on its own output forever —
+  coalesces a `git checkout` into one run, and never has two runs against a
+  real system at once. Refused with `--json`: a stream of runs is not a
+  document.
+
+### Changed
+
+- **A credential is taken out of the log wherever it was written.** Redaction
+  stopped at seven header names, and a header is not where most tokens in a
+  real suite live: `?api_key=` in a query string and `{"password": …}` in a
+  login body went into `events.jsonl` in full, and `events.jsonl` is a CI
+  artifact. Three sweeps now — by header name, by field name at any depth in a
+  query string or a JSON body, and **by value** for every environment variable
+  whose name says it holds a credential. The last one is the only sweep that
+  catches a token in a signed URL or in a field somebody called `q`: by the time
+  a step runs the kernel has resolved `${env:API_TOKEN}` and there is no
+  template left to recognise. `http.redact: [...]` adds project names to all
+  three, and the rest of the body stays readable.
+- **`no tests matched` says what it looked for.** One sentence had been the
+  answer to four different situations — a typo, a tag nobody uses, a real file
+  outside `suites/`, and a project where discovery finds nothing — which are
+  four different things to do next. It now says how many tests exist before any
+  filter, where they were looked for, and what was asked for. An empty shard
+  keeps its own answer with the number beside it.
+- **A word under `meta` that reads like behaviour is said out loud.** `meta` is
+  open on purpose and the cost is that `retries: 3` at the top of a test is
+  accepted in silence and does nothing. Nine names — `retries`, `retry`,
+  `skip`, `only`, `before`, `after`, `depends`, `when`, and `timeout` before it
+  became a field — come back from `validate` naming what to write instead.
+  That needed `Diagnostic.level`: absent means `error`, `warn` prints and
+  exits 0, and `speq run` and `speq gate` go ahead over one. Refusing would
+  break every project that annotates in good faith, and a level nobody can pass
+  a build with is a level nobody adds.
+
+### Fixed
+
+- **A failing step inside a `loop` was a passing test.** The loop stopped at the
+  failing iteration, reported `completed: false`, and the run came back green
+  unless somebody had thought to assert on that field — and nobody thinks to
+  assert that a loop finished. `loop` throws now, the way `use` already did,
+  naming the item, its position and the inner message. The green tick over a
+  test that proved nothing, inside the framework built to remove it.
+- **`StepRecord.children` was never filled.** On the contract since the first
+  commit, walked by `plugin-cli` this whole time over a field that was always
+  `undefined`: the nested records existed in the event stream and in no
+  `TestOutcome`, which is what `run --json` hands a caller and what a repair
+  loop reads. The executor collects what each step ran underneath itself, every
+  `runSteps` call rather than the last, and keeps them on a step that threw —
+  a loop that broke on its third iteration did the first two.
+- **`plugin-data` handed one test another test's generated value under
+  `--workers 4`.** Every generated value is derived from the seed, the test's
+  name and how many times that test has asked; the plugin learned the name from
+  a `test:before` hook setting a variable, and a variable holding the last test
+  to start is adjacency. Two suites run at once, so it held whichever got there
+  first: run sequentially, `a` and `b` get their own uuids; run four-up, `a` was
+  handed `b`'s. Two tests with the same supposedly unique tenant is the exact
+  failure the seeding exists to prevent. `ValueContext` moves the question to
+  the kernel — an executor is one test, and it is the only thing that knows.
+  `@speqkit/test-kit` gained `concurrency` on `run`, because a plugin's own
+  tests had no way to run two suites at once until now.
+- **`use` read a `skipped` step as a broken one**, which would have made a
+  `when:` inside a shared block unusable.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.7.0 |
+| `@speqkit/plugin-api` | 0.13.0 |
+| `@speqkit/plugin-cli` | 0.7.0 |
+| `@speqkit/plugin-yaml` | 0.6.0 |
+| `@speqkit/plugin-http` | 0.6.0 |
+| `@speqkit/plugin-loop` | 0.6.0 |
+| `@speqkit/plugin-junit` | 0.6.0 |
+| `@speqkit/plugin-playwright` | 0.6.0 |
+| `@speqkit/plugin-use` | 0.5.0 |
+| `@speqkit/plugin-data` | 0.5.0 |
+| `@speqkit/plugin-assert` | 0.5.0 |
+| `@speqkit/plugin-json` | 0.5.0 |
+| `@speqkit/plugin-gate` | 0.3.0 |
+| `@speqkit/plugin-allure` | 0.2.0 |
+| `@speqkit/plugin-html` | 0.2.0 |
+| `@speqkit/plugin-ui` | 0.2.0 |
+| `@speqkit/test-kit` | 0.6.0 |
+| `create-speqkit-plugin` | 0.6.0 |
+
+Eighteen, for the reason 0.6.0 was fifteen and 0.6.1 was five: the contract
+moved. `@speqkit/plugin-api` 0.12.0 → 0.13.0, six optional additions and
+`PLUGIN_API_VERSION` still `1`, so every published plugin loads unchanged — but
+a caret on `0.x` pins the minor, and a plugin left behind would keep asking npm
+for `^0.12.0` and a fresh `speq install` would fetch a second copy of the
+contract to satisfy it. `@speqkit/installer` stays at 0.2.0, the one package
+with no range on the contract.
+
 ## [0.6.1] — 2026-09-07
 
 Reports, and somewhere to look at them. Three plugins, and one hole in the
@@ -823,7 +982,8 @@ hand, before the pipeline existed, which is why there is no `v0.1.0` tag and no
 GitHub release to go with it. There were no executables yet: installing speq
 meant having Node.
 
-[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/speqkit/speqkit/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/speqkit/speqkit/releases/tag/v0.7.0
 [0.6.1]: https://github.com/speqkit/speqkit/releases/tag/v0.6.1
 [0.6.0]: https://github.com/speqkit/speqkit/releases/tag/v0.6.0
 [0.5.0]: https://github.com/speqkit/speqkit/releases/tag/v0.5.0

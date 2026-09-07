@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-assert",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The assertion vocabulary: equality, order, membership, text, presence, size, shape and JSON Schema.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

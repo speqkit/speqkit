@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-gate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Which tests answer for the work in hand, and whose fault it is when they are red.",
   "license": "MIT",
   "author": "Stepan Kaziatko",
