@@ -615,6 +615,14 @@ function printExamples(examples: Example[]): void {
  */
 function checkDocs(entries: PluginEntry[], registry: Registry): number {
   const known = new Set(entries.flatMap((e) => e.contributes.flatMap((c) => [c.name, ...(c.prefix ? [c.prefix] : [])])))
+  // A contributed command counts too. `Capabilities` is the grammar a *suite*
+  // is written in and a command is not part of it, so commands are not in
+  // `contributes` — but a plugin whose whole contribution is a command
+  // (`speq ui`, `speq gate`) could otherwise never name what its examples
+  // demonstrate, and would fail this check for having documentation.
+  for (const name of (registry.service('cli') as CommandHost | undefined)?.commands.keys() ?? []) {
+    known.add(name)
+  }
   const problems: string[] = []
   const notes: string[] = []
 

@@ -1021,7 +1021,9 @@ export interface Example {
   summary?: string
   /**
    * The capabilities it demonstrates: step types, assertions, provider
-   * prefixes, reporter or loader names.
+   * prefixes, reporter or loader names — or the name of a command the plugin
+   * contributes, for a plugin whose contribution is a surface rather than a
+   * word a suite is written in.
    *
    * This is what makes an example findable — `speq docs status` answers
    * because an example says it is about `status` — and what makes it
