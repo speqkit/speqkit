@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
-  TestDef, SuiteDef, StepStatus, StepRecord, AssertContext, AssertOutcome, RunOutcome, TestOutcome
+  TestDef, SuiteDef, StepStatus, StepRecord, AssertContext, AssertOutcome, RunOutcome, TestCode,
+  TestOutcome
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import { Executor } from './executor.js'
@@ -398,7 +399,9 @@ function blockedOutcome(
     source: test.name,
     message: `the suite's ${reason}. The test did not run.`
   })
-  registry.events.emit({ type: 'test.finished', test: test.name, status: 'error', durationMs: 0 })
+  registry.events.emit({
+    type: 'test.finished', test: test.name, status: 'error', durationMs: 0, code: 'suite-setup-failed'
+  })
 
   return {
     name: test.name,
@@ -409,6 +412,7 @@ function blockedOutcome(
     source: test.source,
     suite,
     status: 'error',
+    code: 'suite-setup-failed',
     durationMs: 0,
     steps: [],
     assertions: [],
@@ -587,6 +591,16 @@ async function runOne(
       ? 'failed'
       : 'passed'
 
+  // The reasons no step of this test can state, in the order they happen. A
+  // body step that failed leaves this unset on purpose: the step already
+  // carries its own code, and a copy here would be a second thing to keep
+  // true.
+  let code: TestCode | undefined = ungiven
+    ? 'variables-unresolved'
+    : setup.some((s) => s.status !== 'passed')
+      ? 'setup-failed'
+      : undefined
+
   // A test that answered its question and then failed to put the world back is
   // not a passing test: the next run inherits whatever it left behind. It does
   // not overwrite a verdict already given, because that verdict is the news.
@@ -599,13 +613,16 @@ async function runOne(
       message: `cleanup did not complete: ${dirty.message ?? 'no detail'}. The environment may be left dirty.`
     })
     if (status === 'passed') status = 'error'
+    code ??= 'cleanup-failed'
   }
 
   const steps = [...setup, ...body, ...cleanup]
 
   const durationMs = Date.now() - startedAt
   await registry.runHooks('test:after', { test: test.name, suite })
-  registry.events.emit({ type: 'test.finished', test: test.name, status, durationMs })
+  registry.events.emit({
+    type: 'test.finished', test: test.name, status, durationMs, ...(code ? { code } : {})
+  })
 
   return {
     name: test.name,
@@ -616,6 +633,7 @@ async function runOne(
     source: test.source,
     suite,
     status,
+    ...(code ? { code } : {}),
     durationMs,
     steps,
     assertions,

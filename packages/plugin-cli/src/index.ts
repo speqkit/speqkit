@@ -584,6 +584,13 @@ interface Failure {
   /** The step type, or the assertion type. */
   type: string
   status?: StepStatus
+  /**
+   * Why, in a word rather than in prose — `STEP_CODES` for a step,
+   * `ASSERTION_CODES` or `assertion-failed` for an assertion. `message` says
+   * the same thing to a person and may be reworded; this is what a caller
+   * deciding what to do next branches on.
+   */
+  code?: string
   message?: string
   expected?: unknown
   actual?: unknown
@@ -619,6 +626,12 @@ function summarise(outcome: RunOutcome, reportDir: string): Record<string, unkno
       suite: test.suite,
       source: test.source,
       pending: test.pending,
+      /**
+       * Why the test itself did not pass, when no failure below can say —
+       * givens that never resolved, a setup that meant the body never ran, a
+       * cleanup that left the world dirty. See `TEST_CODES`.
+       */
+      code: test.code,
       // Present and empty on a green test, so the shape of a row does not
       // depend on how the row came out.
       failures: failuresOf(test)
@@ -636,6 +649,9 @@ function failuresOf(test: TestOutcome): Failure[] {
         kind: 'assertion',
         step,
         type: outcome.type,
+        // An assertion that ran and disagreed is the assertion working, and
+        // carries no code of its own; only the kernel's two do.
+        code: outcome.code ?? 'assertion-failed',
         message: outcome.message,
         expected: outcome.expected,
         actual: outcome.actual
@@ -653,6 +669,7 @@ function failuresOf(test: TestOutcome): Failure[] {
           step: record.id,
           type: record.type,
           status: record.status,
+          code: record.code,
           message: record.message,
           // The half a repair loop could not get anywhere else: a caller
           // reading this document has the exchange without opening the log,

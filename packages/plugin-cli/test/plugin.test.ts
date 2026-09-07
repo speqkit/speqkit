@@ -631,7 +631,10 @@ describe('answering a machine', () => {
     const [test] = parse(answer.out).tests as { status: string; failures: unknown[] }[]
     expect(test?.status).toBe('failed')
     expect(test?.failures).toEqual([
-      { kind: 'assertion', type: 'is-ok', message: 'ok is true', expected: false, actual: true }
+      {
+        kind: 'assertion', type: 'is-ok', code: 'assertion-failed',
+        message: 'ok is true', expected: false, actual: true
+      }
     ])
   })
 
@@ -648,6 +651,9 @@ describe('answering a machine', () => {
       step: 'detonate',
       type: 'boom',
       status: 'error',
+      // The word a caller branches on. The sentence beside it is for a person
+      // and may be reworded; this may not.
+      code: 'plugin-threw',
       message: expect.stringContaining('the fixture exploded')
     })
   })

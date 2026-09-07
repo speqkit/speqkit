@@ -1,11 +1,12 @@
 import type {
-  AssertContext, AssertOutcome, AssertionDef, StepDef, StepRecord, StepResult, RunStepsOptions,
-  ExecContext, StepStatus, TestPhase
+  AssertContext, AssertOutcome, AssertionDef, StepCode, StepDef, StepRecord, StepResult,
+  RunStepsOptions, ExecContext, StepStatus, TestPhase
 } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import type { ResourceFrame } from './resources.js'
 import {
-  resolveDeep, resolveDeepAsync, resolveString, type ResolveScope, type ValueProviderFn
+  UnresolvedError, resolveDeep, resolveDeepAsync, resolveString,
+  type ResolveScope, type ValueProviderFn
 } from './interpolate.js'
 import { comparison, recorded } from './events.js'
 
@@ -210,7 +211,11 @@ export class Executor {
 
     if (!entry) {
       const known = [...this.#registry.stepTypes.keys()].sort().join(', ') || '(none)'
-      return this.#fail(base, started, 'error', `unknown step type '${step.type}'; loaded plugins provide: ${known}`)
+      return this.#fail(
+        base, started, 'error',
+        `unknown step type '${step.type}'; loaded plugins provide: ${known}`,
+        'unknown-step-type'
+      )
     }
 
     this.#registry.events.emit({ type: 'step.started', ...base })
@@ -249,7 +254,7 @@ export class Executor {
         type: step.type,
         status: failure ? 'failed' : 'passed',
         result: bound,
-        ...(failure ? { message: failure.message } : {}),
+        ...(failure ? { message: failure.message, code: 'assertion-failed' as const } : {}),
         ...(assertions.length ? { assertions } : {}),
         ...recorded(failure ? 'failed' : 'passed', detail.value),
         ...(this.#phase ? { phase: this.#phase } : {}),
@@ -260,19 +265,21 @@ export class Executor {
         ...base,
         status: record.status,
         durationMs: record.durationMs,
-        ...(failure ? { message: failure.message } : {}),
+        ...(failure ? { message: failure.message, code: 'assertion-failed' as const } : {}),
         ...recorded(record.status, detail.value)
       })
     } catch (err) {
       // A crash inside a plugin is `error`, not `failed`: the test did not
       // prove the system wrong, the harness failed to ask the question.
       const message = err instanceof Error ? err.message : String(err)
+      const code = codeOf(err, controller.signal)
       record = {
         id: step.id,
         type: step.type,
         status: 'error',
         result: {},
         message,
+        code,
         // Whatever the step managed to record before it threw. This is the
         // case the buffered design exists for: a request that never came back
         // has no result to describe it, and the step said what it was doing
@@ -282,7 +289,7 @@ export class Executor {
         durationMs: Date.now() - started
       }
       this.#registry.events.emit({
-        type: 'step.finished', ...base, status: 'error', durationMs: record.durationMs, message,
+        type: 'step.finished', ...base, status: 'error', durationMs: record.durationMs, message, code,
         ...recorded('error', detail.value)
       })
     } finally {
@@ -330,7 +337,8 @@ export class Executor {
         out.push({
           type: assertion.type,
           passed: false,
-          message: `unknown assertion '${assertion.type}'; loaded plugins provide: ${known}`
+          message: `unknown assertion '${assertion.type}'; loaded plugins provide: ${known}`,
+          code: 'unknown-assertion'
         })
       } else {
         const input = (await resolveDeepAsync(this.scope(), withoutMeta(assertion))) as Record<string, unknown>
@@ -340,7 +348,8 @@ export class Executor {
           out.push({
             type: assertion.type,
             passed: false,
-            message: `assertion threw: ${err instanceof Error ? err.message : String(err)}`
+            message: `assertion threw: ${err instanceof Error ? err.message : String(err)}`,
+            code: 'assertion-threw'
           })
         }
       }
@@ -352,6 +361,7 @@ export class Executor {
         assertionType: assertion.type,
         passed: latest.passed,
         message: latest.message,
+        ...(latest.code ? { code: latest.code } : {}),
         ...(step.id ? { stepId: step.id } : {}),
         ...comparison(latest)
       })
@@ -431,11 +441,12 @@ export class Executor {
     },
     started: number,
     status: StepStatus,
-    message: string
+    message: string,
+    code: StepCode
   ): StepRecord {
     const durationMs = Date.now() - started
-    this.#registry.events.emit({ type: 'step.finished', ...base, status, durationMs, message })
-    return { id: base.stepId, type: base.stepType, status, result: {}, message, durationMs }
+    this.#registry.events.emit({ type: 'step.finished', ...base, status, durationMs, message, code })
+    return { id: base.stepId, type: base.stepType, status, result: {}, message, code, durationMs }
   }
 }
 
@@ -471,6 +482,20 @@ function isMeta(value: unknown): value is Record<string, unknown> {
 function withoutMeta(assertion: AssertionDef): Record<string, unknown> {
   const { meta: _meta, ...rest } = assertion
   return rest
+}
+
+/**
+ * Which of the three ways a step can throw this was.
+ *
+ * The abort reason is compared by identity rather than by reading its
+ * message: `withTimeout` rejects with exactly the error the timer aborted
+ * with, and a plugin that throws a sentence containing the words "timed out"
+ * is not a timeout — it is a plugin throwing, which is a different fix.
+ */
+function codeOf(err: unknown, signal: AbortSignal): StepCode {
+  if (signal.aborted && err === signal.reason) return 'step-timeout'
+  if (err instanceof UnresolvedError) return 'unresolved-reference'
+  return 'plugin-threw'
 }
 
 function readTimeout(value: unknown): number | undefined {

@@ -253,12 +253,86 @@ export type StepResult = Record<string, unknown>
 
 export type StepStatus = 'passed' | 'failed' | 'error' | 'skipped'
 
+/**
+ * Why a step did not pass, in a word a program may match on.
+ *
+ * `message` says the same thing in prose written for a person, and prose may
+ * be reworded in any release; this may not. It is the removal `Diagnostic.code`
+ * made for what `validate` says, and `StartupCode` made for a refusal to
+ * start, arriving one layer later — on what happened while the run was
+ * happening. Until it, the only way for a repair loop to tell "the plugin
+ * threw" from "the budget ran out" from "a name in a `${…}` binds nothing"
+ * was to match substrings of a sentence, and each of those three wants a
+ * different fix.
+ *
+ * Every one is the kernel's own reading of the step. A step type never sets
+ * one: a plugin says why it failed in `message` and in what it recorded, and a
+ * vocabulary a plugin could add to is a vocabulary nothing downstream can
+ * switch on.
+ */
+export const STEP_CODES = [
+  /** No loaded plugin defines that `type`. */
+  'unknown-step-type',
+  /** A `${…}` in the step's input names something nothing binds. */
+  'unresolved-reference',
+  /** The step's own timeout budget was spent. */
+  'step-timeout',
+  /** `execute()` threw. */
+  'plugin-threw',
+  /** The step ran, and its own `assert` block said no. */
+  'assertion-failed'
+] as const
+
+export type StepCode = (typeof STEP_CODES)[number]
+
+/**
+ * Why an assertion's outcome is the kernel's rather than a plugin's.
+ *
+ * A failing comparison carries none of these, and that is the point of the
+ * field: `equals` reporting that 3 is not 4 is the assertion *working*, and
+ * the step above it says `assertion-failed`. These two are the cases where no
+ * assertion ran at all — nothing defines the name, or the plugin threw — which
+ * a caller deciding what to do next has to tell apart from an answer it
+ * disagrees with.
+ */
+export const ASSERTION_CODES = ['unknown-assertion', 'assertion-threw'] as const
+
+export type AssertionCode = (typeof ASSERTION_CODES)[number]
+
+/**
+ * Why a test did not pass, when the reason is not one of its steps'.
+ *
+ * A test that failed because a step failed carries no code: the step carries
+ * it, and a copy here would be a second place to keep in step with the first.
+ * What is left is everything that happens around the steps — the givens that
+ * never resolved, the setup that meant the body never ran, the cleanup that
+ * left the world dirty, the suite above that never came up — each of which is
+ * a different thing to do about it and none of which any step can say.
+ */
+export const TEST_CODES = [
+  /** A `variables:` entry did not resolve, so the test never began. */
+  'variables-unresolved',
+  /** The test's own `setup` did not complete, so the body did not run. */
+  'setup-failed',
+  /** The test ran; its `cleanup` did not complete. */
+  'cleanup-failed',
+  /** The suite's `setup` did not complete, so nothing below it ran. */
+  'suite-setup-failed'
+] as const
+
+export type TestCode = (typeof TEST_CODES)[number]
+
 export interface StepRecord {
   id: string | undefined
   type: string
   status: StepStatus
   result: StepResult
   message?: string
+  /**
+   * Why it did not pass, for a reader that is not a person. Absent on a step
+   * that passed, and on nothing else — see `STEP_CODES`.
+   */
+  code?: StepCode
   durationMs: number
   /** Outcomes of this step's own `assert` block, in the order written. */
   assertions?: (AssertOutcome & { type: string })[]
@@ -371,6 +445,12 @@ export interface AssertOutcome {
   message: string
   expected?: unknown
   actual?: unknown
+  /**
+   * Set by the kernel when the outcome is its own — see `ASSERTION_CODES`.
+   * An assertion plugin leaves it alone; what it has to say is `message`,
+   * `expected` and `actual`.
+   */
+  code?: AssertionCode
 }
 
 /* ------------------------------------------------------------------ */
@@ -468,7 +548,7 @@ export type RunEvent =
    * it needs to write the fix rather than a sentence about it. Its shape
    * belongs to the step type that wrote it — see `ExecContext.record`.
    */
-  | { type: 'step.finished'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; detail?: unknown; phase?: TestPhase; meta?: Record<string, unknown> }
+  | { type: 'step.finished'; test?: string; suite?: string; stepId?: string; stepType: string; parentId?: string; depth: number; status: StepStatus; durationMs: number; message?: string; code?: StepCode; detail?: unknown; phase?: TestPhase; meta?: Record<string, unknown> }
   /**
    * `expected` and `actual` are carried only when the assertion failed.
    *
@@ -480,9 +560,9 @@ export type RunEvent =
    * assertion in `events.jsonl` buys nothing, because a diff is a thing you
    * read about a failure.
    */
-  | { type: 'assertion.evaluated'; test?: string; suite?: string; assertionType: string; passed: boolean; message: string; stepId?: string; expected?: unknown; actual?: unknown }
+  | { type: 'assertion.evaluated'; test?: string; suite?: string; assertionType: string; passed: boolean; message: string; stepId?: string; expected?: unknown; actual?: unknown; code?: AssertionCode }
   | { type: 'artifact.attached'; test?: string; suite?: string; name: string; contentType: string; bytes: number; path?: string }
-  | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number }
+  | { type: 'test.finished'; test: string; status: StepStatus; durationMs: number; code?: TestCode }
   | { type: 'suite.finished'; suite: string }
   | { type: 'run.finished'; runId: string; status: StepStatus; passed: number; failed: number; errored: number; skipped: number; durationMs: number }
   | { type: 'diagnostic'; level: 'info' | 'warn' | 'error'; message: string; source?: string }
@@ -814,6 +894,11 @@ export interface TestOutcome {
   source?: string
   suite: string
   status: StepStatus
+  /**
+   * Why it did not pass, when no step of its own can say — see `TEST_CODES`.
+   * A test whose step failed carries none: that step does.
+   */
+  code?: TestCode
   durationMs: number
   steps: StepRecord[]
   assertions: (AssertOutcome & { type: string })[]

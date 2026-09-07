@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { definePlugin, type ResourceScope, type RunEvent, type StepDef } from '@speqkit/plugin-api'
+import {
+  ASSERTION_CODES, STEP_CODES, TEST_CODES, definePlugin,
+  type ResourceScope, type RunEvent, type StepDef
+} from '@speqkit/plugin-api'
 import { Registry, ResourceManager, runTests, validateTests } from 'speqkit'
 
 /**
@@ -955,6 +958,127 @@ describe('every diagnostic says what is wrong in a word a program can read', () 
       'unknown-step-type',
       'unresolved-reference',
       'variable-is-a-step-id'
+    ])
+  })
+})
+
+describe('a failure that already happened says why in a word a program can read', () => {
+  /**
+   * The same removal `Diagnostic.code` made for what `validate` says, one
+   * layer later: on the run itself. A repair loop reading `run --json` had a
+   * status and a sentence, and "the plugin threw", "the budget ran out" and
+   * "a name binds nothing" want three different fixes.
+   */
+  const breaks = definePlugin({
+    name: 'breaks',
+    setup(ctx) {
+      ctx.defineStepType('throws', {
+        execute: () => { throw new Error('the library said no') }
+      })
+      ctx.defineStepType('hangs', {
+        timeoutMs: 20,
+        execute: (exec) => new Promise((_resolve, reject) => {
+          exec.signal.addEventListener('abort', () => reject(exec.signal.reason), { once: true })
+        })
+      })
+      ctx.defineStepType('ok', { execute: (_exec, input) => ({ value: input.value }) })
+      ctx.defineAssertion('no', {
+        evaluate: () => ({ passed: false, message: 'no', expected: 1, actual: 2 })
+      })
+      ctx.defineAssertion('boom', {
+        evaluate: () => { throw new Error('the assertion is the bug') }
+      })
+    }
+  })
+
+  const codesOf = async (steps: StepDef[]) => {
+    const registry = await registryWith(breaks)
+    const outcome = await runTests(registry, [{ name: 't', steps }])
+    return outcome.tests[0]!.steps.map((s) => s.code)
+  }
+
+  it('tells a plugin that threw from a budget that ran out', async () => {
+    expect(await codesOf([{ type: 'throws' }])).toEqual(['plugin-threw'])
+    expect(await codesOf([{ type: 'hangs' }])).toEqual(['step-timeout'])
+  })
+
+  it('names a reference that binds nothing as that, and not as a plugin fault', async () => {
+    expect(await codesOf([{ type: 'ok', value: '${nowhere}' }])).toEqual(['unresolved-reference'])
+  })
+
+  it('says which of the four an unknown name is', async () => {
+    expect(await codesOf([{ type: 'grpc' }])).toEqual(['unknown-step-type'])
+
+    const registry = await registryWith(breaks)
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'ok', value: 1, assert: [{ type: 'nope' }] }] }
+    ])
+    // The step says its assertions disagreed; the assertion says nothing
+    // defines that name. Two different repairs, and the second is not the
+    // step type's fault.
+    expect(outcome.tests[0]!.steps[0]!.code).toBe('assertion-failed')
+    expect(outcome.tests[0]!.steps[0]!.assertions![0]!.code).toBe('unknown-assertion')
+  })
+
+  it('leaves a working assertion that disagreed without a code of its own', async () => {
+    const registry = await registryWith(breaks)
+    const outcome = await runTests(registry, [
+      { name: 't', steps: [{ type: 'ok', value: 1, assert: [{ type: 'no' }, { type: 'boom' }] }] }
+    ])
+    const [disagreed, threw] = outcome.tests[0]!.steps[0]!.assertions!
+    expect(disagreed!.code).toBeUndefined()
+    expect(threw!.code).toBe('assertion-threw')
+    expect(outcome.tests[0]!.steps[0]!.code).toBe('assertion-failed')
+  })
+
+  it('passes without one, because a code is a reason and a green step has none', async () => {
+    expect(await codesOf([{ type: 'ok', value: 1 }])).toEqual([undefined])
+  })
+
+  it('says on the test what no step of it can say', async () => {
+    const registry = await registryWith(breaks)
+    const outcome = await runTests(registry, [
+      { name: 'givens', variables: { a: '${nowhere}' }, steps: [{ type: 'ok', value: 1 }] },
+      { name: 'setup', setup: [{ type: 'throws' }], steps: [{ type: 'ok', value: 1 }] },
+      { name: 'cleanup', steps: [{ type: 'ok', value: 1 }], cleanup: [{ type: 'throws' }] },
+      { name: 'body', steps: [{ type: 'throws' }] }
+    ])
+    expect(outcome.tests.map((t) => [t.name, t.code])).toEqual([
+      ['givens', 'variables-unresolved'],
+      ['setup', 'setup-failed'],
+      ['cleanup', 'cleanup-failed'],
+      // Nothing: the step below it already carries `plugin-threw`, and a copy
+      // here would be a second place to keep true.
+      ['body', undefined]
+    ])
+  })
+
+  it('carries the code on the stream, so a replayed report reads the same', async () => {
+    const registry = await registryWith(breaks)
+    const events: RunEvent[] = []
+    registry.events.subscribe((event) => { events.push(event) })
+    await runTests(registry, [{ name: 't', setup: [{ type: 'throws' }], steps: [{ type: 'ok', value: 1 }] }])
+
+    const step = events.find((e) => e.type === 'step.finished')
+    const test = events.find((e) => e.type === 'test.finished')
+    expect(step && 'code' in step ? step.code : undefined).toBe('plugin-threw')
+    expect(test && 'code' in test ? test.code : undefined).toBe('setup-failed')
+  })
+
+  it('spells them the same way every release', () => {
+    expect([...STEP_CODES]).toEqual([
+      'unknown-step-type',
+      'unresolved-reference',
+      'step-timeout',
+      'plugin-threw',
+      'assertion-failed'
+    ])
+    expect([...ASSERTION_CODES]).toEqual(['unknown-assertion', 'assertion-threw'])
+    expect([...TEST_CODES]).toEqual([
+      'variables-unresolved',
+      'setup-failed',
+      'cleanup-failed',
+      'suite-setup-failed'
     ])
   })
 })
