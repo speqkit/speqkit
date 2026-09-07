@@ -95,6 +95,14 @@ shared stream, which is what makes re-running one failing test out of sixty
 show it what it saw the first time. Running it alone and running it inside the
 suite ask for the same bytes.
 
+Which test is asking comes from the kernel, per call, and that is the whole of
+why it is right under `--workers`. It used to be a variable this plugin set
+from a `test:before` hook — the last test to have started, which is correct in
+every sequential run and wrong the moment two suites run at once: a value
+generated for one test was keyed by another's name, and two tests could be
+handed the same "unique" tenant. There is a test that runs the same two suites
+sequentially and four-up and compares.
+
 Two things follow, and both are the point. Different runs get different data,
 so a suite that registers tenants never collides with yesterday's rows. And a
 run replayed with the same seed produces the *same* rows — against a database

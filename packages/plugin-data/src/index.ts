@@ -168,27 +168,33 @@ export default definePlugin({
     // a library caller stepping the executor by hand. Replaced by the run id
     // the moment a real run starts.
     let seed = config.seed ?? process.env.SPEQ_SEED ?? randomBytes(16).toString('hex')
-    let test = ''
 
     if (!config.seed && !process.env.SPEQ_SEED) {
       ctx.onEvent((event) => {
         if (event.type === 'run.started') seed = event.runId
       })
     }
-    ctx.defineHook('test:before', (payload) => { test = payload.test ?? '' })
-    ctx.defineHook('test:after', () => { test = '' })
 
     // Each `${gen:…}` in a test gets its own value, and gets the same value
     // again on a re-run with the same seed. The counter is what separates the
     // second `${gen:uuid}` of a test from the first; keying it by test as
     // well is what lets one failing test be re-run alone and still see the
-    // data it saw inside the full suite.
+    // data it saw inside the full suite. Which test that is comes from the
+    // kernel, per call — see `resolve` below.
     const counters = new Map<string, number>()
 
     ctx.defineValueProvider('gen', {
       summary: 'a generated value — uuid, string, int, email, date, or one your speq.yaml names',
       prefix: 'gen',
-      resolve(key) {
+      resolve(key, where) {
+        // Which test is asking, said by the kernel at the moment it asks.
+        // This used to be a variable set by a `test:before` hook — the last
+        // test to start — and under `--workers 4` that is whichever suite got
+        // there first: a value generated for one test was keyed by another's
+        // name, and two tests could be handed the same "unique" tenant. That
+        // is the failure the seeding exists to prevent, and it was in the
+        // seeding.
+        const test = where?.test ?? where?.suite ?? ''
         const spec = generators[key]
         if (!spec) {
           const known = Object.keys(generators).sort().join(', ')

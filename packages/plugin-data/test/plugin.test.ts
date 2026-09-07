@@ -17,7 +17,13 @@ let kit: Harness
 const echo = definePlugin({
   name: 'echo',
   setup(ctx) {
-    ctx.defineStepType('echo', { execute: (_exec, input) => ({ said: input.said }) })
+    ctx.defineStepType('echo', {
+      // `pause` is how a test here interleaves two suites deliberately.
+      async execute(_exec, input) {
+        if (input.pause) await new Promise((r) => setTimeout(r, Number(input.pause)))
+        return { said: input.said }
+      }
+    })
   }
 })
 
@@ -270,5 +276,50 @@ describe('set', () => {
     ] as Parameters<typeof kit.validate>[0])
 
     expect(diagnostics.map((d) => d.code).sort()).toEqual(['missing-field', 'unknown-field'])
+  })
+})
+
+describe('generated values under concurrency', () => {
+  /**
+   * The claim the seeding exists to make is that a test re-run alone sees the
+   * data it saw inside the whole suite. It was made by a `test:before` hook
+   * setting a variable to the last test that started — which is adjacency, and
+   * suites run at once. Under `--workers 4` the variable held whichever suite
+   * got there first, so a value generated for one test was keyed by another's
+   * name, and two tests could be handed the same "unique" tenant: the exact
+   * failure the seeding is for.
+   */
+  const suites = [
+    {
+      name: 'a',
+      source: 'suites/one/a.yaml',
+      suite: 'suites/one',
+      variables: { slug: '${gen:uuid}' },
+      steps: [{ type: 'echo', said: '${slug}', pause: 25 }]
+    },
+    {
+      name: 'b',
+      source: 'suites/two/b.yaml',
+      suite: 'suites/two',
+      variables: { slug: '${gen:uuid}' },
+      steps: [{ type: 'echo', said: '${slug}' }]
+    }
+  ]
+
+  const values = (outcome: { tests: { name: string; steps: { result: Record<string, unknown> }[] }[] }) =>
+    Object.fromEntries(outcome.tests.map((t) => [t.name, t.steps[0]!.result.said]))
+
+  it('hands each test the same value whether one suite runs or four', async () => {
+    kit = await harness(data, { with: [echo], config: { data: { seed: 'fixed' } } })
+    const sequential = values(await kit.run(suites as never, [], { concurrency: 1 }))
+    await kit.close()
+
+    kit = await harness(data, { with: [echo], config: { data: { seed: 'fixed' } } })
+    const concurrent = values(await kit.run(suites as never, [], { concurrency: 4 }))
+
+    expect(concurrent).toEqual(sequential)
+    // And the two tests are not each other, which is the half that matters
+    // most: a suite proving two tenants stay apart must not be given one.
+    expect(concurrent.a).not.toBe(concurrent.b)
   })
 })

@@ -881,7 +881,28 @@ export interface ValueProviderDef {
    * template a plugin resolves by hand throws rather than handing back a
    * Promise it would put in a request body unnoticed.
    */
-  resolve(key: string): unknown | Promise<unknown>
+  resolve(key: string, where?: ValueContext): unknown | Promise<unknown>
+}
+
+/**
+ * Which test is asking, said by the kernel at the moment it asks.
+ *
+ * A provider that has to answer *per test* — a generator whose values must be
+ * the same when that test is re-run alone — had no way to find out but a
+ * `test:before` hook and a variable holding the last test to start. That is
+ * adjacency, and suites run at once: with `--workers 4` the variable holds
+ * whichever test started last, so a value generated for one test was keyed by
+ * another's name. Two tests could be handed the same "unique" tenant, which is
+ * the failure the seeding exists to prevent.
+ *
+ * Exactly one of `test` and `suite` describes the work: `test` is absent when
+ * a suite's own setup or cleanup is resolving, which belongs to no test.
+ */
+export interface ValueContext {
+  /** The test being resolved for, absent inside a suite's own setup or cleanup. */
+  test?: string
+  /** The suite that work belongs to. */
+  suite: string
 }
 
 /* ------------------------------------------------------------------ */

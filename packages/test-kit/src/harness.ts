@@ -175,11 +175,23 @@ export class Harness {
    *
    * This opens its own scopes, the way a real run does, so a resource
    * acquired through `resource()` above is not the one a test here sees.
+   *
+   * `concurrency` is here because a plugin that keeps any state per test can
+   * only be wrong about it when two suites run at once, and until this there
+   * was no way for a plugin's own tests to run them that way. The bug that
+   * added it was in `plugin-data`: a "current test" set by a hook, correct in
+   * every sequential test and handing two tests the same generated value under
+   * `--workers 4`.
    */
-  async run(tests: TestDef[], reporters: readonly string[] = []): Promise<RunOutcome> {
+  async run(
+    tests: TestDef[],
+    reporters: readonly string[] = [],
+    options: { concurrency?: number } = {}
+  ): Promise<RunOutcome> {
     return runTests(this.registry, tests, {
       artifactDir: this.#artifactDir,
-      reporters
+      reporters,
+      ...(options.concurrency !== undefined ? { concurrency: options.concurrency } : {})
     })
   }
 

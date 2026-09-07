@@ -135,7 +135,15 @@ export class Executor {
   scope(): ResolveScope {
     const providers = new Map<string, ValueProviderFn>()
     for (const [, { def }] of this.#registry.valueProviders) {
-      providers.set(def.prefix, (key) => def.resolve(key))
+      // Bound to *this* executor's owner, which is the only place the answer
+      // is known: one executor is one test (or one suite's own phase), and a
+      // provider asked from inside it is being asked on that test's behalf. A
+      // provider that kept a "current test" of its own was reading adjacency
+      // and got the wrong name the moment two suites ran at once.
+      providers.set(def.prefix, (key) => def.resolve(key, {
+        ...(this.#test !== undefined ? { test: this.#test } : {}),
+        suite: this.#suite
+      }))
     }
     // `meta` is the kernel's own prefix, refused to plugins at registration.
     // It costs one line here and saves a contribution point: a suite that
