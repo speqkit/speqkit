@@ -74,9 +74,32 @@ build anything you cannot afford to rewrite.
 ## Changes
 
 Numbered by what is **on npm**: `0.4.0`, `0.9.0`, `0.10.0`, `0.11.0`, `0.12.0`,
-`0.13.0`, `0.14.0`. Everything below `0.4.0` was a change to the contract in
-this repository before anything was published from it, and the entry it landed
-under is kept as written.
+`0.13.0`, `0.14.0`, `0.15.0`. Everything below `0.4.0` was a change to the
+contract in this repository before anything was published from it, and the
+entry it landed under is kept as written.
+
+**0.15.0** — one addition, found by a CI log. `PLUGIN_API_VERSION` stays at `1`.
+
+- **`StepFailure` and `isStepFailure`, and `step-failed` in `STEP_CODES`** —
+  how a step type says `failed` rather than `error`. `execute()` returned a
+  value or threw, and a throw has always meant `error`: the harness never got
+  an answer. That is right for a refused connection and wrong for every step
+  that wraps other steps. `loop`, `retry` and `use` all learn that a child
+  failed its assertions and all had to throw to report it, which relabelled
+  "the system was wrong" as "the environment is broken" —
+  `@speqkit/plugin-loop` carried the admission in a comment for two releases.
+
+  The line is not cosmetic. `@speqkit/plugin-gate` routes every red test across
+  it to decide whether to fix the code or the stand, JUnit puts `<failure>` on
+  one side and `<error>` on the other, and a build that reports `errored` sends
+  its reader to look at the network. A plugin with no opinion keeps throwing
+  ordinary errors and keeps getting `error`: claiming the system was wrong is
+  the stronger statement, so it is the one that has to be made deliberately.
+
+  Matched by a marker field rather than `instanceof`, because a plugin that
+  bundled its own copy of this package would otherwise throw something the
+  kernel's class does not recognise — and the failure would silently become an
+  error again, which is the bug the type exists to fix.
 
 **0.14.0** — two additions, both of them found by a suite rather than by
 reading this file. `PLUGIN_API_VERSION` stays at `1`.

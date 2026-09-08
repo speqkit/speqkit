@@ -126,8 +126,18 @@ async function freshGraph(
   emit({ type: 'resolving', specs: presetSpecs.length + pluginSpecs.length })
   const resolved = await resolveGraph([...presetSpecs, ...pluginSpecs], client, { store })
 
+  // Only when it really is absent. This used to fire for every optional peer
+  // of every resolved package, so `ajv-formats can use 'ajv', which is
+  // optional and was not installed` printed four lines above ajv being
+  // installed — a plugin had brought it along. It was the one line of install
+  // output that looked like a problem, it was there every time, and it was
+  // false: a warning like that teaches people to skim past the true one.
+  // Keyed by name, because `resolved.packages` is keyed by name@version and
+  // a peer is named without one.
+  const installed = new Set([...resolved.packages.values()].map((pkg) => pkg.name))
   for (const pkg of resolved.packages.values()) {
     for (const peer of pkg.optionalPeers) {
+      if (installed.has(peer)) continue
       emit({ type: 'warning', message: `${pkg.name} can use '${peer}', which is optional and was not installed` })
     }
   }

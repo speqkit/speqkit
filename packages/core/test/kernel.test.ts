@@ -1394,6 +1394,7 @@ describe('a failure that already happened says why in a word a program can read'
       'test-timeout',
       'plugin-threw',
       'assertion-failed',
+      'step-failed',
       'when-false'
     ])
     expect([...ASSERTION_CODES]).toEqual(['unknown-assertion', 'assertion-threw'])

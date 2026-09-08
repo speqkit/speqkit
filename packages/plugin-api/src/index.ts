@@ -324,11 +324,53 @@ export const STEP_CODES = [
   'plugin-threw',
   /** The step ran, and its own `assert` block said no. */
   'assertion-failed',
+  /** The step type threw a `StepFailure`: the system was wrong, not the harness. */
+  'step-failed',
   /** `when:` resolved to false, so the step never ran. */
   'when-false'
 ] as const
 
 export type StepCode = (typeof STEP_CODES)[number]
+
+/**
+ * How a step type says `failed` rather than `error`.
+ *
+ * `execute()` returns a value or throws, and a throw has always meant `error`:
+ * the harness never got an answer. That is right for a connection refused and
+ * wrong for the whole family of steps that *wrap other steps* — `loop`,
+ * `retry`, `use`. When a child of one of those failed its assertions, the
+ * system under test answered and answered wrongly, and the only way the
+ * wrapper had to report it was to throw, which relabelled it as the
+ * environment being broken. `plugin-loop` has the comment admitting it in the
+ * source: "a step type has no way to say `failed`".
+ *
+ * The distinction is not cosmetic. It is the line between fixing the code and
+ * fixing the stand — `@speqkit/plugin-gate` routes every red test across it,
+ * JUnit puts `<failure>` on one side and `<error>` on the other, and a build
+ * that says "errored" sends the reader to look at the network.
+ *
+ * A plugin that has no opinion keeps throwing ordinary errors and keeps
+ * getting `error`, which stays the safe default: claiming the system was wrong
+ * is the stronger statement, so it is the one that has to be made on purpose.
+ */
+export class StepFailure extends Error {
+  /**
+   * Matched instead of `instanceof`, which is unreliable across package
+   * boundaries: a plugin that bundled its own copy of this module would throw
+   * an object the kernel's class does not recognise, and the failure would
+   * silently become an error again — the exact bug this type exists to fix.
+   */
+  readonly speqStepFailure = true
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'StepFailure'
+  }
+}
+
+export function isStepFailure(err: unknown): err is StepFailure {
+  return err instanceof Error && (err as { speqStepFailure?: unknown }).speqStepFailure === true
+}
 
 /**
  * Why an assertion's outcome is the kernel's rather than a plugin's.

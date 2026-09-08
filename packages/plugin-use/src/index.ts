@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, relative } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import {
-  definePlugin,
+  StepFailure, definePlugin,
   type CommandHost, type StepDef, type StepRecord, type ValidationProblem
 } from '@speqkit/plugin-api'
 
@@ -456,15 +456,15 @@ async function runBlock(
   // out false is the block saying this environment does not need it.
   const broken = records.find((r) => r.status === 'error' || r.status === 'failed')
   if (broken) {
-    // A step type has no way to report `failed`, so an inner failure surfaces
-    // as this step erroring. The message carries the inner one, which is what
-    // a reader needs; the distinction between "the system was wrong" and "we
-    // could not ask" is lost at this boundary, and that is written down rather
-    // than papered over.
-    throw new Error(
+    // The inner verdict is carried out, not flattened. This boundary used to
+    // lose it — a step type had no way to report `failed`, so an assertion
+    // that said no inside a shared block surfaced as the block erroring, and
+    // "the system was wrong" was reported as "we could not ask". `StepFailure`
+    // is how a step type says the first of those.
+    const said =
       `${label}: step ${broken.id ? `'${broken.id}' ` : ''}(${broken.type}) ${broken.status}` +
-        (broken.message ? ` — ${broken.message}` : '')
-    )
+      (broken.message ? ` — ${broken.message}` : '')
+    throw broken.status === 'failed' ? new StepFailure(said) : new Error(said)
   }
 
   if (returns) return (records.at(-1)?.result ?? {}) as Record<string, unknown>

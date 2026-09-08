@@ -947,10 +947,12 @@ suite that routes around a gap counts zero. The point of running the framework
 on something real is to count what is missing, and a count taken through a
 workaround is a count of nothing.
 
-Nine checks currently live in a 160-line script over there that nobody remembers
-to run. They move into suites line by line, and the script is deleted rather
-than kept — two systems of checks diverge, and from the day they do, a red one
-reads as "the old one is lying again" and stops meaning anything.
+Twelve checks lived in a 160-line script over there that nobody remembered to
+run — the milestone said nine, and counting them properly was the first thing
+the port produced. They moved into suites line by line, and the script was
+deleted rather than kept: two systems of checks diverge, and from the day they
+do, a red one reads as "the old one is lying again" and stops meaning
+anything.
 
 - [ ] **The suite is the gate, locally and in CI**
   - *Done when:* `speq run` decides every pull request in that repository and
@@ -961,9 +963,10 @@ reads as "the old one is lying again" and stops meaning anything.
     remembers it proves exactly as much as it is remembered. `--frozen`,
     `--env`, `--tags`, `--reporter` and `plugin-gate` were all built for this,
     and not one of them has ever decided anything.
-- [ ] **The script it replaces is deleted**
+- [x] **The script it replaces is deleted**
   - *Done when:* each of its nine checks is a test with an id of its own, and
     the file goes in the same pull request as the last check that leaves it.
+    Done — twelve of them, not nine, and the file went with the last one.
 - [ ] **Every wall is an issue here, with a *Done when***
   - *Done when:* each is closed, or answered with a written no, and the product
     repository holds no workaround for any of them. An issue opened from that
@@ -994,6 +997,54 @@ with the bill paid. **The contract moved to do it** — `ExecContext.check` and
 the path language, `@speqkit/plugin-api` 0.13.0 → 0.14.0 — which is the fifth
 and sixth holes this project has found in its own contract, and the first two
 found by a suite rather than by a plugin.
+
+### Found since, wiring that suite into a pipeline — answered in 0.9.0
+
+Six, and not one of them from reading the source. The first two suites went in
+clean; the CI job around them did not.
+
+- **A run cannot say which part of it decides the exit code**
+  ([#18](https://github.com/speqkit/speqkit/issues/18)). The gate the product
+  actually wants is *red in the zone this branch touched blocks the merge, red
+  anywhere else is loud and does not*, and nothing here could express it:
+  `--tags` narrows what runs, so a neighbouring regression became invisible
+  rather than advisory. Answered by `speq run --advisory a,b`, which narrows
+  the verdict without narrowing the run.
+- **A failing assertion becomes an error the moment it is wrapped in `retry`**
+  ([#17](https://github.com/speqkit/speqkit/issues/17)). A page that answered
+  `200` twenty times and never carried the value being waited for was reported
+  as `errored` — which sends its reader to look at the network. The cause was
+  older and wider: **a step type had no way to say `failed`**, so `loop`,
+  `retry` and `use` all flattened "the system was wrong" into "we could not
+  ask". Answered by `StepFailure` on the contract, `@speqkit/plugin-api`
+  0.14.0 → 0.15.0 — the seventh hole this project has found in its own
+  contract.
+- **One failing assertion printed 1.6 MB**
+  ([#16](https://github.com/speqkit/speqkit/issues/16)). `actual` was the one
+  line of console output that was not clipped, and a body arrives as one line.
+  In CI it was 79% of the job log, with the `expected` line buried inside it.
+- **`gate --key` takes one key, drops a second in silence, and contradicts
+  itself** ([#19](https://github.com/speqkit/speqkit/issues/19)). A pull
+  request touches two zones routinely; `--key a --key b` used the first without
+  a word and `--key a,b` matched nothing while reporting the tests belonged to
+  other work. `gate plan` also listed the same tests as selected and as "tests
+  no gate would run", because a key somebody typed was checked against the
+  pattern meant for guessing.
+- **A mistyped `--test` gets Node's error where `--suite` gets speq's**
+  ([#14](https://github.com/speqkit/speqkit/issues/14)). `ENOENT … .speq/.speq/
+  suites/order.yaml` — a path nobody typed, from pasting the one `git status`
+  prints.
+- **`speq install` warns that an optional peer is missing, four lines above
+  installing it** ([#15](https://github.com/speqkit/speqkit/issues/15)). The
+  only line of install output that looks like a problem, present every time,
+  and false.
+
+The instrument is doing what it was changed for. Four releases of plugin
+authorship found four contract holes; two afternoons of one product's pipeline
+found six more defects, one of them the seventh contract hole. And all six are
+about **what the tool says rather than what it does** — which is the half of a
+test framework nobody evaluates until they are under time pressure, and by then
+they are not evaluating it, they are suffering it.
 
 ### Why it blocks 1.0
 

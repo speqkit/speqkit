@@ -22,8 +22,8 @@ const DEFAULT_PATTERN = '^[A-Z][A-Z0-9]*-[0-9]+$'
 
 interface GateConfig {
   pattern?: string
-  /** Pins the work, for a project where the branch does not name it. */
-  key?: string
+  /** Pins the work, for a project where the branch does not name it. One key or several. */
+  key?: string | string[]
   /** Read the key out of the current branch name. On unless turned off. */
   branch?: boolean
   /** What `gate diff` compares against. */
@@ -88,7 +88,10 @@ export default definePlugin({
     type: 'object',
     properties: {
       pattern: { type: 'string', description: 'the regular expression a work key matches, in a tag or a branch name; a JIRA-style KEY-123 by default' },
-      key: { type: 'string', description: 'the work key to select on, instead of reading it from the branch' },
+      key: {
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        description: 'the work key, or keys, to select on instead of reading one from the branch'
+      },
       branch: { type: 'boolean', description: 'false to stop reading the key from the branch name; true by default' },
       base: { type: 'string', description: 'what `speq gate diff` compares against; origin/main by default' }
     },
@@ -154,15 +157,23 @@ export default definePlugin({
         const asJson = argv.includes('--json')
         const found = resolveKey(argv, config, ctx.host.root)
         const tests = await ctx.host.discover()
-        const claimed = (test: TestDef) => (test.tags ?? []).filter((tag) => pattern(config).test(tag))
+        const keys = new Set(found?.keys ?? [])
+        // A key somebody typed is a work key, whatever the pattern says. The
+        // pattern describes what a work tag *looks like* when nobody has said;
+        // applying it to a given key made the plan contradict itself — with the
+        // default JIRA-shaped pattern and `--key backend`, the same tests were
+        // listed as selected and as "tests no gate would run", and `--strict`
+        // exited 2 on a project where every test was tagged.
+        const claimed = (test: TestDef) =>
+          (test.tags ?? []).filter((tag) => keys.has(tag) || pattern(config).test(tag))
 
-        const selected = found ? tests.filter((test) => (test.tags ?? []).includes(found.key)) : []
+        const selected = found ? tests.filter((test) => (test.tags ?? []).some((tag) => keys.has(tag))) : []
         const unclaimed = tests.filter((test) => claimed(test).length === 0)
         const elsewhere = tests.length - selected.length - unclaimed.length
 
         if (asJson) {
           writeJson({
-            ...(found ? { key: found.key, from: found.from } : {}),
+            ...(found ? { keys: found.keys, from: found.from } : {}),
             tests: tests.length,
             selected: selected.map(identify),
             unclaimed: unclaimed.map(identify),
@@ -171,7 +182,8 @@ export default definePlugin({
         } else {
           process.stdout.write(
             found
-              ? `key: ${found.key} (${found.from})\n${selected.length} of ${tests.length} test(s) selected\n`
+              ? `${found.keys.length === 1 ? 'key' : 'keys'}: ${found.keys.join(', ')} (${found.from})\n` +
+                `${selected.length} of ${tests.length} test(s) selected\n`
               : `no key: nothing says which work this run is for\n${tests.length} test(s) discovered\n`
           )
           for (const test of selected) process.stdout.write(`  ${test.name}  ${test.source ?? ''}\n`)
@@ -205,13 +217,15 @@ export default definePlugin({
           return EXIT_CONFIG
         }
 
-        session.key = found.key
+        session.key = found.keys.join(', ')
         session.quiet = asJson
 
-        const tests = await ctx.host.discover({ tags: [found.key] })
+        const tests = await ctx.host.discover({ tags: found.keys })
         if (tests.length === 0) {
-          const message = `no test is tagged ${found.key}`
-          if (asJson) writeJson({ status: 'no-tests', key: found.key, message })
+          const message = found.keys.length === 1
+            ? `no test is tagged ${found.keys[0]}`
+            : `no test is tagged any of ${found.keys.join(', ')}`
+          if (asJson) writeJson({ status: 'no-tests', keys: found.keys, message })
           else process.stderr.write(`${message}\n`)
           return EXIT_CONFIG
         }
@@ -221,7 +235,7 @@ export default definePlugin({
         // and a smoke gate that refuses to run because somebody annotated a
         // test is a gate that gets taken out of the pipeline.
         if (diagnostics.some((d) => d.level !== 'warn')) {
-          if (asJson) writeJson({ status: 'invalid', key: found.key, diagnostics })
+          if (asJson) writeJson({ status: 'invalid', keys: found.keys, diagnostics })
           else printDiagnostics(diagnostics)
           return EXIT_CONFIG
         }
@@ -335,7 +349,7 @@ export default definePlugin({
 /* Where the key comes from                                            */
 /* ------------------------------------------------------------------ */
 
-interface FoundKey { key: string; from: string }
+interface FoundKey { keys: string[]; from: string }
 
 /**
  * The flag, then the config, then the branch - in that order, because the
@@ -349,9 +363,16 @@ interface FoundKey { key: string; from: string }
  * three answered.
  */
 function resolveKey(argv: string[], config: GateConfig, root: string): FoundKey | undefined {
-  const asked = flag(argv, '--key')
-  if (asked) return { key: asked, from: 'given with --key' }
-  if (config.key) return { key: config.key, from: 'set in speq.yaml' }
+  // Every `--key`, and every comma inside one. A branch touches two zones as
+  // routinely as it touches one, and this used to take the first occurrence
+  // and drop the rest without a word — while `--key a,b` looked like it had
+  // worked and selected nothing, since no tag is literally `a,b`. Both are
+  // silent wrong answers, and `--tags` in the same CLI has taken a list all
+  // along.
+  const asked = flags(argv, '--key').flatMap((value) => commaList(value) ?? [])
+  if (asked.length > 0) return { keys: asked, from: 'given with --key' }
+  const configured = config.key === undefined ? [] : [config.key].flat()
+  if (configured.length > 0) return { keys: configured, from: 'set in speq.yaml' }
   if (config.branch === false) return undefined
 
   // `symbolic-ref` rather than `rev-parse --abbrev-ref`: it fails on a
@@ -367,7 +388,7 @@ function resolveKey(argv: string[], config: GateConfig, root: string): FoundKey 
   // here and nowhere else.
   const search = new RegExp(pattern(config).source.replace(/^\^/, '').replace(/\$$/, ''))
   const found = search.exec(branch)?.[0]
-  return found ? { key: found, from: `from the branch '${branch}'` } : undefined
+  return found ? { keys: [found], from: `from the branch '${branch}'` } : undefined
 }
 
 function pattern(config: GateConfig): RegExp {
@@ -399,10 +420,21 @@ const identify = (test: TestDef) => ({
 })
 
 function flag(argv: string[], name: string): string | undefined {
-  const at = argv.indexOf(name)
-  if (at < 0) return undefined
-  const value = argv[at + 1]
-  return value && !value.startsWith('--') ? value : undefined
+  return flags(argv, name)[0]
+}
+
+/** Every occurrence, in both spellings: `--key a --key b` and `--key=a`. */
+function flags(argv: string[], name: string): string[] {
+  const out: string[] = []
+  for (const [at, token] of argv.entries()) {
+    if (token === name) {
+      const value = argv[at + 1]
+      if (value && !value.startsWith('--')) out.push(value)
+    } else if (token.startsWith(`${name}=`)) {
+      out.push(token.slice(name.length + 1))
+    }
+  }
+  return out
 }
 
 function commaList(value: string | undefined): string[] | undefined {

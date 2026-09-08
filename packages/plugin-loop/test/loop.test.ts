@@ -26,6 +26,16 @@ const body = definePlugin({
         return { attempt: attempts.length }
       }
     })
+    // So the body can *fail* rather than throw. The two are a different
+    // sentence about the system under test, and the wrappers now carry the
+    // difference out instead of flattening it.
+    ctx.defineAssertion('is', {
+      schema: { type: 'object', properties: { expected: {} }, required: ['expected'] },
+      evaluate(assert, input) {
+        const actual = assert.last?.value
+        return { passed: actual === input.expected, message: `value is ${String(actual)}`, expected: input.expected, actual }
+      }
+    })
   }
 })
 
@@ -84,6 +94,24 @@ describe('loop', () => {
     expect(step.status).toBe('error')
     expect(step.message).toContain('item=1 (1 of 3)')
     expect(step.message).toContain('unknown step type')
+  })
+
+  /**
+   * And the other half of that: an iteration whose assertion said no is the
+   * system being wrong, which is a different thing to go and look at from an
+   * iteration that could not run at all.
+   */
+  it('fails, rather than errors, when an iteration was answered wrongly', async () => {
+    kit = await harness(loop, { with: [body] })
+    const step = await kit.step({
+      type: 'loop',
+      over: ['a', 'b'],
+      steps: [{ type: 'echo', value: 'no', assert: [{ type: 'is', expected: 'yes' }] }]
+    })
+
+    expect(step.status).toBe('failed')
+    expect(step.code).toBe('step-failed')
+    expect(step.message).toContain('item=a (1 of 2)')
   })
 
   it('does not read a skipped step inside the body as a failing iteration', async () => {
@@ -206,6 +234,27 @@ describe('retry', () => {
     expect(step.status).toBe('error')
     expect(step.message).toBe('all 2 attempts failed: not yet')
     expect(attempts).toHaveLength(2)
+  })
+
+  /**
+   * A page that answered 200 twenty times and never carried the new name is
+   * the system being wrong, not the harness failing to ask. Until a step type
+   * could say `failed`, wrapping an assertion in `retry` turned it into an
+   * error — and a build that reports `errored` sends the reader to look at the
+   * network.
+   */
+  it('fails, rather than errors, when the last attempt was answered wrongly', async () => {
+    kit = await harness(loop, { with: [body] })
+    const step = await kit.step({
+      type: 'retry',
+      attempts: 3,
+      delayMs: 0,
+      steps: [{ type: 'echo', value: 'no', assert: [{ type: 'is', expected: 'yes' }] }]
+    })
+
+    expect(step.status).toBe('failed')
+    expect(step.code).toBe('step-failed')
+    expect(step.message).toContain('all 3 attempts failed')
   })
 })
 

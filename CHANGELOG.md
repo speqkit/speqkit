@@ -14,6 +14,110 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.9.0] — 2026-09-08
+
+Six items, and not one of them was found by reading the source. They came out
+of one afternoon of wiring a real product's suite into its pipeline: a CI log
+nobody could read, a build that said the network was broken when the code was,
+a gate that could not answer for a branch touching two zones, and a flag that
+answered with Node's error where the flag beside it answers with speq's.
+
+The theme is the sentence a red build says. A test framework's output is read
+exactly twice — once when it goes red, and once by whoever is deciding whether
+to merge — and both readings were being got wrong for reasons that are obvious
+the moment somebody has to do them for real.
+
+### Added
+
+- **`speq run --advisory a,b` — which part of a run decides the exit code.**
+  Everything selected still runs, still prints, still counts; a test carrying
+  one of these tags does not set the exit code. It is the half of a gate that
+  is not selection: `--tags` narrows what runs, and a zone whose suites are not
+  run has no result to be advisory about. Only the advisory half is named, so a
+  test carrying none of the tags blocks — a zone somebody forgot to list must
+  not become a zone nobody checks. The run says which rule produced its exit
+  code, and `--json` carries the split.
+
+  What it replaces is two runs, the second with `|| true` after it: two run
+  ids, two JUnit files, the list of zones written down twice, and a `|| true`
+  that swallows the binary being missing as readily as a red test.
+- **`StepFailure` (`@speqkit/plugin-api`) — how a step type says `failed`.**
+  `execute()` returned a value or threw, and a throw has always meant `error`:
+  the harness never got an answer. That is right for a refused connection and
+  wrong for every step that wraps other steps. `plugin-loop` had the admission
+  in its own source — *a step type has no way to say `failed`* — and the cost
+  was that an assertion saying no inside a `retry` was reported as the
+  environment being broken. A plugin with no opinion keeps throwing ordinary
+  errors and keeps getting `error`; claiming the system was wrong is the
+  stronger statement, so it is the one made on purpose.
+
+### Changed
+
+- **`retry`, `loop` and `use` carry the inner verdict out.** A page that
+  answered 200 twenty times and never carried the new name now fails; an
+  attempt that could not run at all still errors. This is the line
+  `@speqkit/plugin-gate` routes every red test across and the line JUnit draws
+  between `<failure>` and `<error>`, and all three wrappers were on the wrong
+  side of it.
+- **A failed assertion no longer prints the whole value.** `actual` was the one
+  line of console output that was not clipped, and a body arrives as *one*
+  line — an HTML page is eighty thousand characters once JSON has quoted it. A
+  single failed `contains` over a rendered page cost 1.6 MB of terminal, and
+  four fifths of a CI job's log, with the `expected` line somewhere inside it.
+  The full value is still whole in `events.jsonl`.
+- **`speq gate --key` takes more than one key, and claims what it was given.**
+  A branch touches two zones as readily as one, and both ways of saying so
+  failed quietly: a second `--key` was dropped without a word, and `--key a,b`
+  selected nothing while reporting that the tests belonged to other work. A key
+  somebody typed is now a work key whatever `gate.pattern` says — applying the
+  pattern to it made `gate plan` list the same tests as *selected* and as
+  *tests no gate would run*, and `--strict` exit 2 on a project where every
+  test was tagged. `gate.key` accepts a list, and the `--json` document says
+  `keys`.
+- **A `--test` path that is not there is refused in speq's own words.** It
+  resolves against the speq root, and the speq root is `.speq`, so the path
+  every other tool in a repository hands you is the one that cannot work — and
+  what came back was `ENOENT: … .speq/.speq/suites/order.yaml`, a path nobody
+  typed. The neighbouring `--suite` has answered properly all along.
+- **`speq install` warns about an optional peer only when it is missing.** It
+  fired for every optional peer of every resolved package, so a project was
+  told `ajv-formats can use 'ajv', which is optional and was not installed`
+  four lines above ajv being installed. It was the only line of install output
+  that looked like a problem, it was there every time, and it was false.
+
+### Why this is a whole minor across nineteen packages
+
+The contract moved: `@speqkit/plugin-api` 0.14.0 → 0.15.0, adding `StepFailure`
+and the `step-failed` step code, with `PLUGIN_API_VERSION` still `1` — so every
+published plugin loads unchanged. A caret on `0.x` pins the minor, so a plugin
+left behind would keep asking npm for `^0.14.0` and a fresh `speq install`
+would fetch a second copy of the contract to satisfy it. `@speqkit/installer`
+moves on its own account this time, for the peer warning.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.9.0 |
+| `@speqkit/plugin-api` | 0.15.0 |
+| `@speqkit/plugin-cli` | 0.9.0 |
+| `@speqkit/plugin-yaml` | 0.8.0 |
+| `@speqkit/plugin-http` | 0.8.0 |
+| `@speqkit/plugin-loop` | 0.8.0 |
+| `@speqkit/plugin-junit` | 0.8.0 |
+| `@speqkit/plugin-playwright` | 0.8.0 |
+| `@speqkit/plugin-use` | 0.7.0 |
+| `@speqkit/plugin-data` | 0.7.0 |
+| `@speqkit/plugin-assert` | 0.7.0 |
+| `@speqkit/plugin-json` | 0.7.0 |
+| `@speqkit/plugin-gate` | 0.5.0 |
+| `@speqkit/plugin-allure` | 0.4.0 |
+| `@speqkit/plugin-html` | 0.4.0 |
+| `@speqkit/plugin-ui` | 0.4.0 |
+| `@speqkit/test-kit` | 0.8.0 |
+| `create-speqkit-plugin` | 0.8.0 |
+| `@speqkit/installer` | 0.3.0 |
+
 ## [0.8.0] — 2026-09-08
 
 The first release M12 asked for. Every hole this project has found in its own

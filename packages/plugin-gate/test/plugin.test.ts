@@ -236,7 +236,9 @@ describe('what would run, and why', () => {
 
     const answer = await invoke(commands, ['plan', '--json'])
     const document = JSON.parse(answer.out)
-    expect(document).toMatchObject({ key: 'PAY-114', from: 'set in speq.yaml', tests: 3, elsewhere: 1 })
+    // `keys`, plural, since 0.5.0: one key was never the shape of the question
+    // — a branch touches two zones as readily as one.
+    expect(document).toMatchObject({ keys: ['PAY-114'], from: 'set in speq.yaml', tests: 3, elsewhere: 1 })
     expect(document.selected).toEqual([{ name: 'refunds', source: 'suites/pay.yaml', tags: ['PAY-114'] }])
     expect(document.unclaimed.map((t: { name: string }) => t.name)).toEqual(['nobody owns me'])
   })
@@ -348,5 +350,57 @@ describe('what this branch did to the acceptance tests', () => {
     const answer = await invoke(commands, ['diff', '--base', 'origin/nowhere'])
     expect(answer.code).toBe(2)
     expect(answer.err).toContain("cannot compare against 'origin/nowhere'")
+  })
+})
+
+/**
+ * A branch touches two zones as readily as one, and until 0.5.0 both ways of
+ * saying so failed quietly: a second `--key` was dropped without a word, and
+ * `--key a,b` selected nothing while reporting that the tests belonged to some
+ * other work.
+ */
+describe('more than one key', () => {
+  async function three(config: Record<string, unknown> = {}) {
+    const commands = await project(config)
+    kit.file('suites/pay.yaml', 'name: refunds\ntags: [PAY-114]\nsteps:\n  - type: ok\n')
+    kit.file('suites/other.yaml', 'name: orders\ntags: [ORD-9]\nsteps:\n  - type: ok\n')
+    return commands
+  }
+
+  it('selects tests carrying any of them, written either way', async () => {
+    const commands = await three()
+
+    const repeated = await invoke(commands, ['plan', '--key', 'PAY-114', '--key', 'ORD-9'])
+    expect(repeated.out).toContain('keys: PAY-114, ORD-9')
+    expect(repeated.out).toContain('refunds')
+    expect(repeated.out).toContain('orders')
+
+    const commas = await invoke(commands, ['plan', '--key=PAY-114,ORD-9'])
+    expect(commas.out).toContain('keys: PAY-114, ORD-9')
+    expect(commas.out).toContain('2 of 2 test(s) selected')
+  })
+
+  /**
+   * The pattern says what a work tag looks like when nobody has said. A key
+   * somebody typed *is* what they said, and applying the pattern to it made
+   * the plan list the same tests as selected and as "no gate would run" —
+   * and `--strict` exit 2 on a project where every test was tagged.
+   */
+  it('claims a key the pattern would not have recognised', async () => {
+    const commands = await project()
+    kit.file('suites/api.yaml', 'name: the api\ntags: [backend]\nsteps:\n  - type: ok\n')
+
+    const answer = await invoke(commands, ['plan', '--key', 'backend', '--strict'])
+    expect(answer.out).toContain('1 of 1 test(s) selected')
+    expect(answer.out).not.toContain('no gate would run')
+    expect(answer.code).toBe(0)
+  })
+
+  it('says so as itself when several keys match nothing', async () => {
+    const commands = await three()
+
+    const answer = await invoke(commands, ['--key', 'AAA-1,BBB-2'])
+    expect(answer.code).toBe(2)
+    expect(answer.err).toContain('no test is tagged any of AAA-1, BBB-2')
   })
 })

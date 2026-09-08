@@ -119,6 +119,25 @@ describe('the selection flags', () => {
     expect(all.err).toMatch(/unknown step type 'nooop'/)
   })
 
+  /**
+   * `--test` is relative to the speq root, and the speq root is `.speq`. So the
+   * path every other tool hands you is the one that cannot work, and what came
+   * back was Node's ENOENT naming `.speq/.speq/...`: a path nobody typed, and
+   * no word about why. `--suite` has answered in speq's own words all along.
+   */
+  it('refuse a --test path in speq\'s own words, not Node\'s', async () => {
+    const commands = await withProject()
+
+    await expect(invoke(commands, 'run', ['--test', 'suites/nope.yaml']))
+      .rejects.toThrow(/no test file at 'suites\/nope\.yaml'/)
+    await expect(invoke(commands, 'run', ['--test', 'suites/nope.yaml']))
+      .rejects.not.toThrow(/ENOENT/)
+
+    // The path a person actually pastes: prefixed with the root's own name.
+    await expect(invoke(commands, 'validate', ['--test', '.speq/suites/health.yaml']))
+      .rejects.toThrow(/--test is relative to the speq root; did you mean --test suites\/health\.yaml/)
+  })
+
   it('let validate check one directory', async () => {
     const commands = await withProject()
 
@@ -375,6 +394,37 @@ describe('slicing a run into shards', () => {
 })
 
 describe('the console reporter', () => {
+  /**
+   * A body arrives as one line — an HTML page is eighty thousand characters
+   * with no newline in it once JSON has quoted it — so the line budget never
+   * fired and `actual` printed the page. One failed `contains` over a rendered
+   * page cost 1.6 MB of console in a real suite, and four fifths of a CI log.
+   */
+  it('clips a value too wide to read, and says how wide it was', async () => {
+    kit = await harness(cli)
+    const reporter = kit.registry.reporters.get('console')!
+
+    const page = `<!doctype html>${'x'.repeat(80_000)}`
+    const said: string[] = []
+    const stdout = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((s: string) => { said.push(String(s)); return true }) as typeof process.stdout.write
+    try {
+      reporter.def.on({
+        type: 'assertion.evaluated', test: 't', assertionType: 'contains',
+        passed: false, message: 'expected body to contain "speq-1"',
+        expected: 'speq-1', actual: page
+      })
+    } finally {
+      process.stdout.write = stdout
+    }
+
+    const printed = said.join('')
+    expect(printed).toContain('speq-1')
+    expect(printed).toContain('characters, clipped')
+    expect(printed).not.toContain('x'.repeat(1000))
+    expect(printed.length).toBeLessThan(1000)
+  })
+
   it('prints a failed assertion under the test it belongs to', async () => {
     kit = await harness(cli)
     const commands = kit.registry.service('cli') as CommandHost
@@ -912,5 +962,83 @@ describe('what the step was doing', () => {
     const answer = await invoke(commands, 'run', ['--test', 'suites/health.yaml', '--verbose'])
     expect(answer.code).toBe(0)
     expect(answer.out).not.toContain('tried')
+  })
+})
+
+/**
+ * The half of a gate that is not selection.
+ *
+ * `--tags` narrows what runs; this narrows what the exit code answers for,
+ * without narrowing what runs. The two are easy to confuse and the difference
+ * is the whole point: a zone whose suites are not run has no result to be
+ * advisory about.
+ */
+describe('which part of a run decides the exit code', () => {
+  /** Two zones, one red in each, so both directions have something to prove. */
+  async function withZones(): Promise<CommandHost> {
+    kit = await harness(cli, { with: [yaml, noop] })
+    kit.file('suites/backend-ok.yaml', 'name: backend is fine\ntags: [backend]\nsteps:\n  - type: noop\n')
+    kit.file(
+      'suites/backend-red.yaml',
+      'name: backend is red\ntags: [backend]\nsteps:\n  - type: noop\n    assert:\n      - type: is-ok\n        expected: false\n'
+    )
+    kit.file(
+      'suites/menu-red.yaml',
+      'name: menu is red\ntags: [menu]\nsteps:\n  - type: noop\n    assert:\n      - type: is-ok\n        expected: false\n'
+    )
+    kit.file('suites/untagged.yaml', 'name: untagged\nsteps:\n  - type: noop\n')
+    return kit.registry.service('cli') as CommandHost
+  }
+
+  it('runs everything and lets the named tags out of the verdict', async () => {
+    const commands = await withZones()
+
+    // Without the flag, one red anywhere is exit 1 — unchanged.
+    const plain = await invoke(commands, 'run', ['--reporter', 'console'])
+    expect(plain.code).toBe(1)
+
+    // With it, the red menu test still ran, still printed, still counted in
+    // the totals, and did not decide anything.
+    const gated = await invoke(commands, 'run', ['--tags', 'menu', '--advisory', 'menu', '--reporter', 'console'])
+    const printed = gated.out.replace(/\x1b\[\d+m/g, '')
+    expect(gated.code).toBe(0)
+    expect(printed).toContain('menu is red')
+    expect(printed).toContain('0 passed - 1 failed')
+    expect(printed).toContain('advisory')
+    expect(printed).toContain('exit 0: 1 of them red, and nothing blocking is')
+  })
+
+  it('still fails on a red test the flag did not name', async () => {
+    const commands = await withZones()
+
+    const gated = await invoke(commands, 'run', ['--advisory', 'menu', '--reporter', 'console'])
+    expect(gated.code).toBe(1)
+    expect(gated.out.replace(/\x1b\[\d+m/g, '')).toContain('exit 1: 1 blocking test(s) red')
+  })
+
+  /**
+   * The safe default, and the reason only the advisory half is named. A zone
+   * somebody forgot to add to the list must not become a zone nobody checks.
+   */
+  it('treats a test carrying none of the named tags as blocking', async () => {
+    const commands = await withZones()
+
+    kit.file(
+      'suites/nameless-red.yaml',
+      'name: nameless is red\nsteps:\n  - type: noop\n    assert:\n      - type: is-ok\n        expected: false\n'
+    )
+    const gated = await invoke(commands, 'run', [
+      '--test', 'suites/nameless-red.yaml', '--advisory', 'menu,backend', '--reporter', 'console'
+    ])
+    expect(gated.code).toBe(1)
+  })
+
+  it('puts the split in the document a machine reads', async () => {
+    const commands = await withZones()
+
+    const asJson = await invoke(commands, 'run', ['--advisory', 'menu', '--json'])
+    const document = JSON.parse(asJson.out)
+    expect(asJson.code).toBe(1)
+    expect(document.advisory).toMatchObject({ tags: ['menu'], tests: ['menu is red'], red: ['menu is red'] })
   })
 })

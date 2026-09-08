@@ -1,4 +1,4 @@
-import { definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api'
+import { StepFailure, definePlugin, type StepDef, type StepRecord } from '@speqkit/plugin-api'
 
 /**
  * The proof that a plugin author is not boxed in.
@@ -130,17 +130,18 @@ export default definePlugin({
           // field. A green tick over a test that proved nothing is the exact
           // thing this framework exists to remove, and it was here.
           //
-          // Thrown rather than reported, because a step type has no way to say
-          // `failed` — the same boundary `use` writes down. What is lost is
-          // "the system was wrong" against "we could not ask"; what is kept is
-          // that somebody is told.
+          // The iteration's own verdict is carried out rather than flattened:
+          // a child that *failed* makes this a `StepFailure`, a child that
+          // *errored* makes it an ordinary throw. Until `StepFailure` existed
+          // a step type had no way to say `failed`, and every red loop was
+          // reported as the environment being broken.
           const broken = records.find((r) => r.status === 'error' || r.status === 'failed')
           if (broken) {
-            throw new Error(
+            const said =
               `${alias}=${short(item)} (${index + 1} of ${items.length}): ` +
-                `step ${broken.id ? `'${broken.id}' ` : ''}(${broken.type}) ${broken.status}` +
-                (broken.message ? ` — ${broken.message}` : '')
-            )
+              `step ${broken.id ? `'${broken.id}' ` : ''}(${broken.type}) ${broken.status}` +
+              (broken.message ? ` — ${broken.message}` : '')
+            throw broken.status === 'failed' ? new StepFailure(said) : new Error(said)
           }
         }
 
@@ -182,7 +183,15 @@ export default definePlugin({
           }
           if (attempt < attempts) await sleep(delayMs, exec.signal)
         }
-        throw new Error(`all ${attempts} attempts failed: ${last.find((r) => r.message)?.message ?? 'no detail'}`)
+
+        // How the *last* attempt ended is what this step ended as. A page that
+        // answered 200 twenty times and never carried the new name is the
+        // system being wrong, not the harness failing to ask — and reporting
+        // it as `errored` sends the reader to look at the network. An attempt
+        // that errored still errors: nothing was learned about the system.
+        const said = `all ${attempts} attempts failed: ${last.find((r) => r.message)?.message ?? 'no detail'}`
+        const worst = last.find((r) => r.status === 'error') ?? last.find((r) => r.status === 'failed')
+        throw worst?.status === 'failed' ? new StepFailure(said) : new Error(said)
       }
     })
 

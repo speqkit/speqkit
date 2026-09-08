@@ -44,8 +44,10 @@ const PACKAGES: Record<string, { version: string; files: Record<string, string>;
       type: 'module',
       exports: { '.': './src/plugin.js' },
       dependencies: { 'tiny-dep': '^1.0.0' },
-      peerDependencies: { '@fake/contract': '^1.0.0', 'heavy-driver': '>=1' },
-      peerDependenciesMeta: { 'heavy-driver': { optional: true } }
+      // Two optional peers on purpose: one nothing brings along, one that a
+      // dependency already does. The warning has to tell them apart.
+      peerDependencies: { '@fake/contract': '^1.0.0', 'heavy-driver': '>=1', 'tiny-dep': '^1.0.0' },
+      peerDependenciesMeta: { 'heavy-driver': { optional: true }, 'tiny-dep': { optional: true } }
     },
     files: {
       // Imports a dependency and a peer: both have to be reachable from
@@ -163,6 +165,13 @@ describe('the installer puts plugins on disk without npm', () => {
     // import: a missing peer is a load failure, not a lint warning.
     // An optional one is reported and left alone.
     expect(warnings.join('\n')).toContain("can use 'heavy-driver'")
+
+    // And only when it really is missing. This used to fire for every optional
+    // peer of every package, so a real project was told `ajv-formats can use
+    // 'ajv', which is optional and was not installed` four lines above ajv
+    // being installed. A warning that is always there and never true is how
+    // people learn to skim past the one that is.
+    expect(warnings.join('\n')).not.toContain("can use 'tiny-dep'")
 
     const lock = readLock(project)!
     expect(lock.lockfileVersion).toBe(1)

@@ -9,7 +9,7 @@ plugins:
 ```
 
 ```bash
-speq run [--env ci] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--json] [--color|--no-color]
+speq run [--env ci] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--advisory a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--json] [--color|--no-color]
 speq report [--run <id>] [--list] [--reporter a,b]
 speq validate [--json]
 speq list [--shard i/n] [--json]
@@ -41,6 +41,45 @@ anybody does, and until this flag it meant running the file and watching the
 other nine. All four apply to `run`, `validate` and `list` alike, and the
 files and directories are joined: `--suite suites/orders --test suites/health.yaml`
 is both, with `--tags` and `--name` applied to the lot.
+
+## `--advisory` chooses what the exit code answers for
+
+`--tags` narrows what runs. This narrows what the *verdict* covers, and runs
+everything either way:
+
+```bash
+speq run --env ci --advisory menu,admin,devops
+```
+
+Every selected test still runs, still prints and still counts in the totals. A
+test carrying one of these tags does not set the exit code; every other test
+does. The run then says which rule produced the code it exited with:
+
+```
+7 passed - 1 failed in 2.1s
+2 of 8 test(s) advisory (--advisory menu,admin,devops); exit 0: 1 of them red, and nothing blocking is
+```
+
+The case it exists for is a gate on a pull request. A project that tags its
+suites by zone wants red in the zone this branch touched to block the merge and
+red anywhere else to be loud without blocking — because on the first wave of
+coverage a flake next door otherwise stops delivery, the working rule becomes
+"run it again", and a fortnight later there is no gate at all. The cost is
+named rather than hidden: somebody else's regression can reach `main`, and a
+run after deployment is what catches it.
+
+**Only the advisory half is named**, and a test carrying none of those tags
+blocks. That asymmetry is deliberate: a zone somebody forgot to add to the list
+must not quietly become a zone nobody checks.
+
+**Advisory red is never silent.** It is in the console — the test's header says
+`advisory` before it runs, not after it goes red — in the totals, in the JUnit
+file, and in `--json` under `advisory`. What it does not do is decide.
+
+What this replaces is two runs, one with `|| true` after it. That pays two run
+ids, two JUnit files, the list of zones written down twice — the second copy is
+the one nobody updates when a zone is added — and a `|| true` that swallows the
+binary being missing exactly as readily as a red test.
 
 ## It is a plugin, and that is the point
 

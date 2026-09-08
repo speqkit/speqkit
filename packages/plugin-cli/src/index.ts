@@ -96,14 +96,16 @@ export default definePlugin({
      * between a surface and its own output, not something the kernel arbitrates.
      */
     let verbose = false
+    /** The tags `--advisory` named, for the run in progress. Empty means every test blocks. */
+    let advisory: string[] = []
     ctx.defineReporter('console', {
       summary: 'prints each test as a block when it finishes; --verbose adds what a failed step was doing',
-      ...consoleReporter(() => verbose)
+      ...consoleReporter(() => verbose, () => advisory)
     })
 
     cli.register('run', {
       summary: 'run the tests',
-      usage: 'speq run [--env <name>] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--verbose] [--json] [--color|--no-color]',
+      usage: 'speq run [--env <name>] [--test <file|glob>]... [--suite <dir>]... [--tags a,b] [--name a,b] [--advisory a,b] [--reporter a,b] [--workers N] [--shard i/n] [--watch] [--verbose] [--json] [--color|--no-color]',
       async run(argv) {
         // A malformed flag stays plain text on stderr even here: there is no
         // run to describe, and a caller that wrote `--shard 5/4` has a bug in
@@ -112,6 +114,7 @@ export default definePlugin({
         if (typeof args === 'string') return refuse(args)
         const asJson = args.json
         verbose = args.verbose
+        advisory = args.advisory ?? []
         applyColour(args)
         const workers = readWorkers(args.workers)
         if (typeof workers === 'string') return refuse(workers)
@@ -159,8 +162,10 @@ export default definePlugin({
             reporters: selection.reporter ?? (asJson ? [] : DEFAULT_REPORTERS),
             concurrency: workers
           })
-          if (asJson) writeJson(summarise(outcome, ctx.host.reportDir))
-          return outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED
+          const verdict = decide(outcome, advisory)
+          if (asJson) writeJson({ ...summarise(outcome, ctx.host.reportDir), ...verdict.document })
+          else if (verdict.said) process.stdout.write(`${verdict.said}\n`)
+          return verdict.code
         }
 
         return args.watch ? watchAndRun(ctx.host, selection, once) : once()
@@ -386,7 +391,7 @@ interface Line {
  * the grouping a reader actually needs. Adjacency is what this milestone takes
  * away; a reporter must not put it back.
  */
-function consoleReporter(verbose: () => boolean): ReporterDef {
+function consoleReporter(verbose: () => boolean, advisory: () => string[]): ReporterDef {
   /** Lines held for a test that has not finished yet, by test name. */
   let held = new Map<string, Line[]>()
 
@@ -403,7 +408,7 @@ function consoleReporter(verbose: () => boolean): ReporterDef {
     },
 
     on(event) {
-      const lines = linesFor(event, verbose())
+      const lines = linesFor(event, verbose(), advisory())
       const owner = testOf(event)
       const buffer = owner === undefined ? undefined : held.get(owner)
 
@@ -448,14 +453,22 @@ function testOf(event: RunEvent): string | undefined {
   return undefined
 }
 
-function linesFor(event: RunEvent, verbose = false): Line[] {
+function linesFor(event: RunEvent, verbose = false, advisory: string[] = []): Line[] {
   switch (event.type) {
     case 'test.started': {
       // The title when there is one, because `menu.items-create.creates-item`
       // is an identity and not a sentence; the identity stays visible next to
       // it, since that is what a later report is compared against.
       const headline = event.title ?? event.test
-      const aside = [event.title ? event.test : '', event.source ?? ''].filter(Boolean).join('  ')
+      // Said before the test runs rather than after it goes red: a reader who
+      // learns the result did not count only once it has one has already spent
+      // the attention this line exists to save.
+      const spared = advisory.length > 0 && (event.tags ?? []).some((tag) => advisory.includes(tag))
+      const aside = [
+        event.title ? event.test : '',
+        event.source ?? '',
+        spared ? 'advisory' : ''
+      ].filter(Boolean).join('  ')
       return [{ text: `\n${headline}${aside ? dim(`  ${aside}`) : ''}\n` }]
     }
     case 'step.finished': {
@@ -526,6 +539,7 @@ function linesFor(event: RunEvent, verbose = false): Line[] {
 /* ------------------------------------------------------------------ */
 
 const DIFF_LINE_BUDGET = 40
+const VALUE_WIDTH = 160
 
 /**
  * What a failed assertion compared, when the values are in the event.
@@ -539,8 +553,8 @@ const DIFF_LINE_BUDGET = 40
 function comparison(event: Extract<RunEvent, { type: 'assertion.evaluated' }>): string[] {
   if (event.expected === undefined && event.actual === undefined) return []
 
-  const expected = render(event.expected)
-  const actual = render(event.actual)
+  const expected = render(event.expected).map(cut)
+  const actual = render(event.actual).map(cut)
 
   // Two scalars are a comparison, not a diff. `- 201 / + 500` is diff notation
   // applied to something that has no structure to align.
@@ -590,6 +604,24 @@ function unified(left: string[], right: string[]): string[] {
   while (i < left.length) out.push(green(`- ${left[i++]}`))
   while (j < right.length) out.push(red(`+ ${right[j++]}`))
   return out
+}
+
+/**
+ * One line, cut to a width a terminal can hold.
+ *
+ * The line budget below counts lines, and a value arrives as *one* — an HTML
+ * page is eighty thousand characters with no newline in it once JSON has
+ * quoted it. So the budget never fired, and a single failed `contains` over a
+ * rendered page printed the whole page: 1.6 MB of console for one assertion
+ * in a real suite, and four fifths of a CI job's log, with the `expected` line
+ * somewhere inside it. The full value is in the report, which is where
+ * something that long belongs; the console is for the sentence that says which
+ * of the two to go and read.
+ *
+ * Cut before anything paints it, so a colour code is never sliced in half.
+ */
+function cut(line: string): string {
+  return line.length <= VALUE_WIDTH ? line : `${line.slice(0, VALUE_WIDTH)}… (${line.length} characters, clipped)`
 }
 
 /** A 900-line body is not a diff anybody reads in a terminal. */
@@ -698,6 +730,73 @@ interface Failure {
  * here has to keep in step. This document is what a caller reads to decide
  * what to do next.
  */
+/**
+ * Which part of the run decides the exit code.
+ *
+ * A run's verdict used to be the whole run's: any red, exit 1. That is right
+ * for a suite somebody runs, and wrong for a gate. A project that splits its
+ * suites by zone wants red in the zone this branch touched to block the merge
+ * and red anywhere else to be loud and not block — because on the first wave
+ * of coverage a flake next door otherwise stops delivery, the working rule
+ * becomes "run it again", and after a fortnight of that there is no gate left.
+ *
+ * The alternative it replaces is `--tags` twice: one run that decides and one
+ * run with `|| true` after it. That pays two run ids, two JUnit files, a list
+ * of zones written down twice — the second is the one nobody updates — and a
+ * `|| true` that swallows the binary being missing as readily as a red test.
+ *
+ * Only what does *not* block is named, so a test carrying none of these tags
+ * blocks. Erring towards strictness is the only safe default here: a zone
+ * somebody forgot to name must not quietly become a zone nobody checks.
+ */
+function decide(
+  outcome: RunOutcome,
+  advisory: string[]
+): { code: number; said?: string; document: Record<string, unknown> } {
+  const red = (test: TestOutcome): boolean => test.status === 'failed' || test.status === 'error'
+  if (advisory.length === 0) {
+    return {
+      code: outcome.status === 'passed' ? EXIT_OK : EXIT_FAILED,
+      document: {}
+    }
+  }
+
+  const named = new Set(advisory)
+  const isAdvisory = (test: TestOutcome): boolean => (test.tags ?? []).some((tag) => named.has(tag))
+  const advisoryTests = outcome.tests.filter(isAdvisory)
+  const blockingRed = outcome.tests.filter((test) => !isAdvisory(test) && red(test))
+  const advisoryRed = advisoryTests.filter(red)
+
+  const document = {
+    advisory: {
+      tags: advisory,
+      tests: advisoryTests.map((test) => test.name),
+      red: advisoryRed.map((test) => test.name)
+    }
+  }
+
+  // Said whatever the verdict is. "8 passed" beside exit 0 needs no
+  // explanation; "1 failed" beside exit 0 needs one, and the run that was
+  // green anyway still wants the reader to know which tests were not counted.
+  const scope = `${advisoryTests.length} of ${outcome.tests.length} test(s) advisory (--advisory ${advisory.join(',')})`
+  if (blockingRed.length > 0) {
+    return {
+      code: EXIT_FAILED,
+      said: dim(`${scope}; exit 1: ${blockingRed.length} blocking test(s) red`),
+      document
+    }
+  }
+  return {
+    code: EXIT_OK,
+    said: dim(
+      advisoryRed.length > 0
+        ? `${scope}; exit 0: ${advisoryRed.length} of them red, and nothing blocking is`
+        : `${scope}; exit 0: nothing red`
+    ),
+    document
+  }
+}
+
 function summarise(outcome: RunOutcome, reportDir: string): Record<string, unknown> {
   return {
     status: outcome.status,
@@ -957,7 +1056,7 @@ const GLOBAL: FlagSpec = { env: 'string', 'speq-root': 'string' }
 /** The four flags that decide which tests a command is talking about. */
 const SELECTION: FlagSpec = { test: 'list', suite: 'list', tags: 'list', name: 'list' }
 const COLOUR: FlagSpec = { color: 'boolean', 'no-color': 'boolean' }
-const RUN_FLAGS: FlagSpec = { reporter: 'list', workers: 'string', shard: 'string', watch: 'boolean', verbose: 'boolean', json: 'boolean', ...COLOUR }
+const RUN_FLAGS: FlagSpec = { reporter: 'list', workers: 'string', shard: 'string', advisory: 'list', watch: 'boolean', verbose: 'boolean', json: 'boolean', ...COLOUR }
 
 interface Parsed {
   color: boolean
@@ -969,6 +1068,7 @@ interface Parsed {
   reporter?: string[]
   workers?: string
   shard?: string
+  advisory?: string[]
   run?: string
   out?: string
   watch: boolean

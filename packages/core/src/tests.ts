@@ -14,6 +14,36 @@ export interface DiscoverOptions {
 type Loaders = Map<string, Registered<LoaderDef>>
 
 /**
+ * The one file `--test` named, refused here rather than by `readFileSync`.
+ *
+ * `--test` is relative to the speq root, and the speq root is `.speq`. So the
+ * path every other tool in a repository hands you — `git status`, an editor's
+ * "copy relative path", shell completion — is the one that cannot work, and
+ * what came back was Node's `ENOENT` naming `.speq/.speq/suites/...`: a path
+ * nobody typed, and no word about why. The neighbouring `--suite` has said
+ * this in speq's own words since it existed.
+ */
+function named(root: string, test: string): string {
+  const path = join(root, test)
+  if (existsSync(path)) return path
+
+  // Both spellings of the same mistake: the root's own directory name, and
+  // the `.speq` an in-repo project is always called whatever this checkout
+  // happens to be named.
+  const prefixes = [basename(root), '.speq']
+  const stripped = prefixes
+    .filter((prefix) => test.startsWith(`${prefix}${sep}`) || test.startsWith(`${prefix}/`))
+    .map((prefix) => test.slice(prefix.length + 1))[0]
+
+  throw new Error(
+    `no test file at '${test}' (looked in ${root})\n` +
+      (stripped !== undefined
+        ? `  --test is relative to the speq root; did you mean --test ${stripped}`
+        : "  'speq list' shows every test with the path and the name that address it")
+  )
+}
+
+/**
  * Discovery asks the loaders, not the filesystem, what a test file is.
  * The authoring format is itself a plugin point: YAML is the default, and a
  * TypeScript loader is an ordinary plugin rather than a fork of the kernel.
@@ -36,7 +66,7 @@ export async function discoverTests(registry: Registry, options: DiscoverOptions
 
   const base = options.suite ? join(options.root, options.suite) : join(options.root, 'suites')
   const files = options.test
-    ? [join(options.root, options.test)]
+    ? [named(options.root, options.test)]
     : walk(base).filter((f) => byExtension.has(extname(f)))
 
   const suites = new SuiteReader(byExtension, options.root)

@@ -182,14 +182,18 @@ the v1 way is refused by `speq validate`, with the fix in the hint.
 - two of `ref` / `action` / `fixture` on one step
 - `as:`, which is the v1 spelling for naming a result — write `id:`
 
-## The one thing it cannot say
+## The verdict crosses the boundary
 
-A step type can return a result or throw; the contract gives it no way to
-report `failed`. So when a step *inside* a block fails an assertion, the `use`
-step errors rather than failing, carrying the inner step's id and message. The
-difference between "the system was wrong" and "we could not ask" is lost at
-that boundary. It is written down here rather than papered over — the fix
-belongs in the contract, not in a workaround.
+A step inside a block that fails its assertions makes the `use` step `failed`,
+carrying the inner step's id and message; one that could not run at all makes
+it `error`. The two are a different thing to go and look at, and the difference
+used to be lost here — a step type could return a result or throw, and a throw
+meant `error`, so "the system was wrong" was reported as "we could not ask".
+
+That was written down in this file for four releases rather than papered over,
+with the note that the fix belonged in the contract. It did:
+`@speqkit/plugin-api` 0.15.0 added `StepFailure`, and `loop` and `retry` draw
+the same line for the same reason.
 
 ## Migrating from speq v1
 

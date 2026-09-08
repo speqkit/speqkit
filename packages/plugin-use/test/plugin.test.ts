@@ -118,7 +118,10 @@ steps:
     kit = await harness(use, { with: [api], root })
     const step = await kit.step({ type: 'use', ref: 'breaks' })
 
-    expect(step.status).toBe('error')
+    // `failed`, not `error`: the inner step's assertion said no, so the system
+    // was wrong rather than unreachable, and the block carries that verdict out.
+    expect(step.status).toBe('failed')
+    expect(step.code).toBe('step-failed')
     expect(step.message).toContain("'second'")
     expect(calls).toEqual(['/ok', '/wrong'])
   })

@@ -45,6 +45,16 @@ records of every iteration.
 none of them fails; `${attempt}` is visible inside. If every attempt fails the
 step throws with the last real message, rather than reporting a bare count.
 
+**It ends the way its last attempt ended.** An attempt whose assertions said no
+makes the step `failed`; an attempt that could not run at all — connection
+refused, a step type nothing defines — makes it `error`. The distinction is the
+line between fixing the code and fixing the stand, and it used to be lost here:
+a page that answered `200` twenty times and never carried the value being
+waited for was reported as the environment being broken, which sends the reader
+to look at the network. Saying `failed` at all is `StepFailure`, added to the
+contract in `@speqkit/plugin-api` 0.15.0 for exactly this; `loop` and `use`
+draw the same line.
+
 The delay honours `exec.signal`, so a test that times out mid-backoff aborts
 instead of sleeping to the end.
 

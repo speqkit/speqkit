@@ -35,7 +35,24 @@ it monthly.
 ## Where the key comes from
 
 `--key`, then `gate.key`, then the branch — the outer one is always the one
-somebody typed on purpose. The branch is last and answers nearly every time,
+somebody typed on purpose.
+
+**More than one, when the work is.** A branch touches two zones as readily as
+one, so `--key` may be repeated or given a comma list, and `gate.key` may be a
+list; a test carrying any of them is selected.
+
+```bash
+speq gate --key PAY-114 --key ORD-9
+speq gate --key=PAY-114,ORD-9        # the same thing
+```
+
+**A key you typed is a work key, whatever the pattern says.** The pattern
+describes what a work tag looks like when nobody has said; a key given on the
+command line or in the config *is* somebody saying. Applying the pattern to it
+made `gate plan` print a document that could not be true — with the default
+JIRA-shaped pattern and `--key backend`, the same tests appeared both as
+selected and as "tests no gate would run", and `--strict` exited 2 on a project
+where every test was tagged. The branch is last and answers nearly every time,
 because it is already named after the work:
 
 ```bash

@@ -2,6 +2,7 @@ import type {
   AssertContext, AssertOutcome, AssertionDef, StepCode, StepDef, StepRecord, StepResult,
   RunStepsOptions, ExecContext, StepStatus, TestPhase
 } from '@speqkit/plugin-api'
+import { isStepFailure } from '@speqkit/plugin-api'
 import type { Registry } from './registry.js'
 import type { ResourceFrame } from './resources.js'
 import {
@@ -351,14 +352,24 @@ export class Executor {
     } catch (err) {
       // A crash inside a plugin is `error`, not `failed`: the test did not
       // prove the system wrong, the harness failed to ask the question.
+      //
+      // Unless the plugin says otherwise. A step type that wraps other steps —
+      // `loop`, `retry`, `use` — learns that a child failed its assertions, and
+      // throwing was the only way it had to report it: the system answered
+      // wrongly and the run called it an environment problem. `StepFailure` is
+      // that sentence, and nothing else changes.
+      const failed = isStepFailure(err)
       const message = err instanceof Error ? err.message : String(err)
-      const code = byTest && controller.signal.aborted && err === controller.signal.reason
-        ? 'test-timeout'
-        : codeOf(err, controller.signal)
+      const code = failed
+        ? ('step-failed' as const)
+        : byTest && controller.signal.aborted && err === controller.signal.reason
+          ? 'test-timeout'
+          : codeOf(err, controller.signal)
+      const status = failed ? ('failed' as const) : ('error' as const)
       record = {
         id: step.id,
         type: step.type,
-        status: 'error',
+        status,
         result: {},
         message,
         code,
@@ -369,13 +380,13 @@ export class Executor {
         // case the buffered design exists for: a request that never came back
         // has no result to describe it, and the step said what it was doing
         // before it went quiet.
-        ...recorded('error', detail.value),
+        ...recorded(status, detail.value),
         ...(this.#phase ? { phase: this.#phase } : {}),
         durationMs: Date.now() - started
       }
       this.#registry.events.emit({
-        type: 'step.finished', ...base, status: 'error', durationMs: record.durationMs, message, code,
-        ...recorded('error', detail.value)
+        type: 'step.finished', ...base, status, durationMs: record.durationMs, message, code,
+        ...recorded(status, detail.value)
       })
     } finally {
       clearTimeout(timer)

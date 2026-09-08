@@ -35,16 +35,23 @@ is riding on the framework, and what stops that suite becomes an issue here
 rather than a workaround there — because the point is to count what is missing,
 and a count taken through a workaround is a count of nothing.
 
-It has found two so far, and both were the same question: a test could read
-what the server said and could not say anything about it — which item of a
-menu it meant, or what an order should come to. 0.8.0 answers them with `[*]`
-in a path and two step types, `pick` and `calc`, and in doing so closes the
-decision the roadmap had held open since M4. **The escape hatch into code
-stays shut**: there are no expressions, and the answer to a suite that needs
-one is a step type with a closed schema that `speq validate` can check before
-the run. Answering it moved the contract twice, which is the fifth and sixth
-hole found in it — and the first two found by a suite rather than by somebody
-writing a plugin.
+The first two it found were the same question: a test could read what the
+server said and could not say anything about it — which item of a menu it
+meant, or what an order should come to. 0.8.0 answers them with `[*]` in a path
+and two step types, `pick` and `calc`, and in doing so closes the decision the
+roadmap had held open since M4. **The escape hatch into code stays shut**:
+there are no expressions, and the answer to a suite that needs one is a step
+type with a closed schema that `speq validate` can check before the run.
+
+Then that suite went into a pipeline, and found six more. Not one of them was
+about what the framework can do — all six were about **what it says when
+something is wrong**: a build that reported the network was broken when the
+code was, one failing assertion that printed 1.6 MB and filled four fifths of a
+CI log, a gate that could not answer for a branch touching two zones, a flag
+answering with Node's error where the flag beside it answers with speq's.
+0.9.0 answers them, and the one that reached the contract — a step type had no
+way to say `failed` — is the seventh hole found in it, and the third found by a
+suite rather than by somebody writing a plugin.
 
 What is next, in the order it has to happen — and which of it is cheap now and
 expensive after 1.0 — is in [ROADMAP.md](ROADMAP.md).
