@@ -136,7 +136,7 @@ export function validateTests(registry: Registry, tests: TestDef[]): Diagnostic[
 
     checkAssertions(diagnostics, registry, test.assert, { test, file }, '')
 
-    checkReferences(diagnostics, registry, test, file)
+    checkReferences(diagnostics, registry, test, file, declaredAbove(test))
 
     // A `cases` table that survived discovery unexpanded is a table the kernel
     // could not turn into tests. It is reported here rather than there because
@@ -226,14 +226,30 @@ export function validateFragment(registry: Registry, fragment: Fragment, file: s
  * kernel can see and a shape only the run produces; a wrong `total` is still
  * the run's to find, and the assertion's message says what was there.
  */
+/** Every key the suites above a test hand down, whichever of them declared it. */
+function declaredAbove(test: TestDef): Set<string> {
+  const keys = new Set<string>()
+  for (const suite of test.suites ?? []) {
+    for (const key of Object.keys(suite.returns ?? {})) keys.add(key)
+  }
+  return keys
+}
+
 function checkReferences(
   diagnostics: Diagnostic[],
   registry: Registry,
   subject: Partial<Pick<TestDef, 'variables' | 'setup' | 'steps' | 'assert' | 'cleanup'>>,
-  file: string
+  file: string,
+  /**
+   * What the suites above this subject declared in `returns`, when that is
+   * knowable. A test knows its chain; a suite checking its own steps does not
+   * know what is above it here, and passes nothing rather than guessing.
+   */
+  declared?: Set<string>
 ): void {
   const providers = new Set([...registry.valueProviders.values()].map((p) => p.def.prefix))
   providers.add('meta')
+  providers.add('suite')
   /** Every step id in the subject, and for a nested one the step it is under. */
   const everyId = new Map<string, StepDef | undefined>()
   const collect = (steps: StepDef[] | undefined, under: StepDef | undefined): void => {
@@ -253,6 +269,24 @@ function checkReferences(
     const colon = expression.indexOf(':')
     const prefix = colon > 0 ? expression.slice(0, colon) : undefined
     if (prefix !== undefined && PREFIX.test(prefix)) {
+      // `${suite:key}` is the one prefix whose keys are declared in this
+      // project rather than answered by a plugin, so a typo in one is
+      // checkable before the run — which is the point of declaring them.
+      if (prefix === 'suite' && declared !== undefined) {
+        const key = expression.slice(expression.indexOf(':') + 1).split('.')[0]?.trim()
+        if (key && !declared.has(key)) {
+          diagnostics.push({
+            file,
+            path,
+            code: 'unresolved-reference',
+            message: `\${${expression}}: no suite above this test declares '${key}'`,
+            hint: declared.size > 0
+              ? `the suites above it hand down ${[...declared].sort().join(', ')}`
+              : "a suite hands values down with a `returns:` block in its suite.yaml"
+          })
+        }
+        return
+      }
       if (!providers.has(prefix)) {
         diagnostics.push({
           file,
@@ -367,7 +401,10 @@ function walkTemplates(value: unknown, path: string, on: (path: string, expressi
 }
 
 function providerHint(prefix: string, loaded: Set<string>): string {
-  const known = [...loaded].filter((p) => p !== 'meta').sort()
+  // The kernel's own two are left out: a reader who wrote `${env:HOME}` with
+  // no data plugin loaded is being told which plugins answer, and `meta` and
+  // `suite` answer whatever is installed.
+  const known = [...loaded].filter((p) => p !== 'meta' && p !== 'suite').sort()
   const from = new Set(['env', 'gen', 'vars']).has(prefix) ? `'${prefix}:' comes from @speqkit/plugin-data; ` : ''
   return `${from}loaded: ${known.length ? known.join(', ') : '(none)'}`
 }

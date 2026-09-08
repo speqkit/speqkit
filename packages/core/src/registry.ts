@@ -179,10 +179,10 @@ export class Registry {
         // annotations. A plugin claiming the prefix would shadow it in some
         // projects and not others, and the difference would only ever show up
         // as a header carrying the wrong owner.
-        if (def.prefix === 'meta') {
+        if (def.prefix === 'meta' || def.prefix === 'suite') {
           throw new StartupError(
             'reserved-prefix',
-            `value provider prefix 'meta' is reserved by the kernel; '${pluginName}' cannot claim it`
+            `value provider prefix '${def.prefix}' is reserved by the kernel; '${pluginName}' cannot claim it`
           )
         }
         claim(this.valueProviders, 'value provider', name, def)

@@ -18,7 +18,7 @@ const SPINE = new Set([
 ])
 
 /** The same list for a suite manifest, which declares no steps of its own body. */
-const SUITE_SPINE = new Set(['title', 'tags', 'pending', 'setup', 'cleanup', 'meta'])
+const SUITE_SPINE = new Set(['title', 'tags', 'pending', 'setup', 'cleanup', 'returns', 'meta'])
 
 /**
  * A file by one of these names describes the directory it is in, and is never
@@ -79,6 +79,7 @@ export function loadSuite(file: string, content: string): SuiteDef {
     ...(value.tags ? { tags: value.tags as string[] } : {}),
     ...(value.setup ? { setup: value.setup as SuiteDef['setup'] } : {}),
     ...(value.cleanup ? { cleanup: value.cleanup as SuiteDef['cleanup'] } : {}),
+    ...(value.returns ? { returns: value.returns as SuiteDef['returns'] } : {}),
     ...(Object.keys(meta).length > 0 ? { meta } : {})
   }
 }

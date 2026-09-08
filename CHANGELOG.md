@@ -14,6 +14,89 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.10.0] — 2026-09-08
+
+A suite could build something once and hand it to nobody.
+
+### Added
+
+- **`returns` on a suite, read as `${suite:key}`.** `suite.yaml` has had
+  `setup` and `cleanup` since 0.6.0 — run once before the first test below and
+  once after the last — and no way to tell the tests what they built. The
+  kernel said so on purpose: a test that could reach into the suite's scope
+  would be a different test when run alone, and *what crosses that line is a
+  `suite`-scoped resource, which is declared*. True, and the only way to
+  declare one was `ctx.defineResource` — TypeScript, in a plugin. A project
+  whose tests are YAML had to write and publish a plugin to share a row in a
+  database between two tests in the same directory.
+
+  That is the one fixture pattern every test framework has, and it now costs
+  four lines:
+
+  ```yaml
+  # suites/owner/suite.yaml
+  setup:
+    - id: shop
+      type: http
+      method: POST
+      url: /restaurants
+      body: { name: acceptance }
+  returns:
+    restaurantId: ${shop.body.id}
+  ```
+
+  ```yaml
+  steps:
+    - type: http
+      url: /restaurants/${suite:restaurantId}/orders
+  ```
+
+  Nothing implicit leaks: only what `returns` names, resolved once after the
+  suite's setup, in the scope that setup ran in. The crossing is named by the
+  suite rather than by the shape of its steps, so renaming a setup step does
+  not reach into the tests below — the same reason a `use` block has `returns`.
+  Running one test alone gets the same values, because opening its suite is
+  what produced them. A nearer suite shadows a key of the same name above it,
+  and `speq validate` refuses a key no suite above the test declares, before
+  anything runs.
+
+  `suite` joins `meta` as a prefix the kernel keeps: a plugin claiming it is
+  refused at startup.
+
+### Why this is a whole minor across eighteen packages
+
+`@speqkit/plugin-api` 0.15.0 → 0.16.0 adds `SuiteDef.returns`, with
+`PLUGIN_API_VERSION` still `1` — every published plugin loads unchanged. A
+caret on `0.x` pins the minor, so a package left behind would ask npm for
+`^0.15.0` and a fresh `speq install` would fetch a second copy of the
+contract. `@speqkit/installer` does not depend on the contract and stays where
+it is.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.10.0 |
+| `@speqkit/plugin-api` | 0.16.0 |
+| `@speqkit/plugin-cli` | 0.11.0 |
+| `@speqkit/plugin-yaml` | 0.9.0 |
+| `@speqkit/plugin-http` | 0.9.0 |
+| `@speqkit/plugin-loop` | 0.9.0 |
+| `@speqkit/plugin-junit` | 0.9.0 |
+| `@speqkit/plugin-playwright` | 0.9.0 |
+| `@speqkit/plugin-use` | 0.8.0 |
+| `@speqkit/plugin-data` | 0.8.0 |
+| `@speqkit/plugin-assert` | 0.8.0 |
+| `@speqkit/plugin-json` | 0.8.0 |
+| `@speqkit/plugin-gate` | 0.6.0 |
+| `@speqkit/plugin-allure` | 0.5.0 |
+| `@speqkit/plugin-html` | 0.5.0 |
+| `@speqkit/plugin-ui` | 0.5.0 |
+| `@speqkit/test-kit` | 0.9.0 |
+| `create-speqkit-plugin` | 0.9.0 |
+
+`@speqkit/installer` stays at 0.3.0.
+
 ## [0.9.1] — 2026-09-08
 
 The flag 0.9.0 shipped, wired into the product it was written for, on the same

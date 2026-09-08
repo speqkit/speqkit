@@ -274,3 +274,24 @@ describe('what discovery does with what was loaded', () => {
     expect(outcome.tests[0]!.steps[0]!.result).toEqual({ value: 'hi' })
   })
 })
+
+describe('what a suite hands down', () => {
+  it("reads `returns` as spine, so it does not land in the suite's annotations", async () => {
+    const kit = await kitWithYaml()
+    kit.file('suites/menu/suite.yaml', [
+      'title: menu',
+      'setup:',
+      '  - id: tenant',
+      '    type: echo',
+      '    value: acme',
+      'returns:',
+      '  shop: ${tenant.value}',
+      ''
+    ].join('\n'))
+    kit.file('suites/menu/items.yaml', 'name: items\nsteps: [{type: echo}]\n')
+
+    const suite = (await kit.discover())[0]!.suites!.at(-1)!
+    expect(suite.returns).toEqual({ shop: '${tenant.value}' })
+    expect(suite.meta?.returns).toBeUndefined()
+  })
+})

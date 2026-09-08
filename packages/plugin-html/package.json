@@ -1,6 +1,6 @@
 {
   "name": "@speqkit/plugin-html",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "One self-contained HTML report, opened with a double click and no server.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

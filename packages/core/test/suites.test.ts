@@ -333,3 +333,91 @@ describe('what a suite declares is checked before the run', () => {
     )
   })
 })
+
+/**
+ * The half that makes a suite's setup worth having: what it built, named, and
+ * handed down. Without it a suite could create a tenant once and tell nobody,
+ * and every test in the directory rebuilt the world.
+ */
+describe('what a suite hands down', () => {
+  it('resolves returns once and gives every test the same values', async () => {
+    const { registry, tests } = await project({
+      'suites/suite.json': {
+        setup: [{ id: 'tenant', type: 'note', text: 'acme' }],
+        returns: { shop: '${tenant.text}' }
+      },
+      'suites/a.json': { name: 'a', steps: [{ type: 'note', text: 'a sees ${suite:shop}' }] },
+      'suites/b.json': { name: 'b', steps: [{ type: 'note', text: 'b sees ${suite:shop}' }] }
+    })
+
+    await runTests(registry, tests)
+
+    expect(trace).toEqual(['acme', 'a sees acme', 'b sees acme'])
+  })
+
+  it('gives one test run alone the same value, because its suite opens first', async () => {
+    const { registry, tests } = await project({
+      'suites/suite.json': {
+        setup: [{ id: 'tenant', type: 'note', text: 'acme' }],
+        returns: { shop: '${tenant.text}' }
+      },
+      'suites/a.json': { name: 'a', steps: [{ type: 'note', text: 'alone with ${suite:shop}' }] },
+      'suites/b.json': saying('b')
+    })
+
+    await runTests(registry, tests.filter((test) => test.name === 'a'))
+
+    expect(trace).toEqual(['acme', 'alone with acme'])
+  })
+
+  it('lets the nearer suite shadow the one above it, and keeps the rest', async () => {
+    const { registry, tests } = await project({
+      'suites/suite.json': {
+        setup: [{ id: 'top', type: 'note', text: 'platform' }],
+        returns: { owner: '${top.text}', region: 'eu' }
+      },
+      'suites/menu/suite.json': {
+        setup: [{ id: 'inner', type: 'note', text: 'menu team' }],
+        returns: { owner: '${inner.text}' }
+      },
+      'suites/menu/items.json': {
+        name: 'items',
+        steps: [{ type: 'note', text: '${suite:owner} in ${suite:region}' }]
+      }
+    })
+
+    await runTests(registry, tests)
+
+    expect(trace).toEqual(['platform', 'menu team', 'menu team in eu'])
+  })
+
+  it('keeps the rest of a suite scope to the suite', async () => {
+    const { registry, tests } = await project({
+      'suites/suite.json': {
+        setup: [{ id: 'tenant', type: 'note', text: 'acme' }],
+        returns: { shop: '${tenant.text}' }
+      },
+      // `${tenant.text}` is the suite's step, not the test's: a test that could
+      // read it would be a different test when run alone.
+      'suites/a.json': { name: 'a', steps: [{ type: 'note', text: '${tenant.text}' }] }
+    })
+
+    const outcome = await runTests(registry, tests)
+
+    expect(outcome.tests[0]!.status).toBe('error')
+  })
+
+  it('refuses a key no suite above declares, before anything runs', async () => {
+    const { registry, tests } = await project({
+      'suites/suite.json': { returns: { shop: 'acme' } },
+      'suites/a.json': { name: 'a', steps: [{ type: 'note', text: '${suite:shopp}' }] }
+    })
+
+    const diagnostics = validateTests(registry, tests)
+
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]!.code).toBe('unresolved-reference')
+    expect(diagnostics[0]!.message).toContain("'shopp'")
+    expect(diagnostics[0]!.hint).toContain('shop')
+  })
+})

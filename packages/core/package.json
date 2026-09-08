@@ -1,6 +1,6 @@
 {
   "name": "speqkit",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "The kernel: loads plugins and gets out of the way.",
   "license": "MIT",
   "author": "Stepan Kaziatko",

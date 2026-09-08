@@ -55,6 +55,14 @@ suite rather than by somebody writing a plugin. Wiring the new gate flag into
 that pipeline then found one more the same afternoon, in the flag itself —
 0.9.1 is that fix.
 
+Then the same product moved its suites off a seeded database, so that each one
+builds the data it needs and deletes it afterwards, and found the eighth: a
+suite's `setup` could build something once and hand it to nobody, because the
+only declared way across that line was a plugin written in TypeScript. 0.10.0
+gives a suite a `returns` block and its tests `${suite:key}` — the fixture
+pattern every test framework has, which this one had priced at a published
+npm package.
+
 What is next, in the order it has to happen — and which of it is cheap now and
 expensive after 1.0 — is in [ROADMAP.md](ROADMAP.md).
 

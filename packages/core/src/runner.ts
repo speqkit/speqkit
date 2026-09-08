@@ -97,7 +97,7 @@ export async function runTests(
           // "something broke", which is the opposite of the news.
           outcomes[group.at + i] = blocked !== undefined && test.pending === undefined
             ? blockedOutcome(registry, test, node.id, blocked)
-            : await runOne(registry, test, node.id, artifacts, node.frame!)
+            : await runOne(registry, test, node.id, artifacts, node.frame!, node.shared)
         }
       } finally {
         await tree.release(node)
@@ -188,6 +188,11 @@ interface SuiteNode {
   remaining: number
   frame?: ResourceFrame
   executor?: Executor
+  /**
+   * What this suite and the ones above it declared in `returns`, flattened
+   * with the nearest last — a key here shadows the same key higher up.
+   */
+  shared?: Record<string, unknown>
   /** Memoised, because two workers reach the same parent at the same moment. */
   opening?: Promise<string | undefined>
   /** This suite or one above it says why it is not running. */
@@ -269,18 +274,27 @@ class SuiteTree {
       ...(node.def?.pending ? { pending: node.def.pending } : {})
     })
 
+    // Inherited before anything of this suite's own runs: its setup may read
+    // `${suite:key}` from the suite above it.
+    node.shared = node.parent?.shared
+
     if (blockedAbove !== undefined) return blockedAbove
     if (node.parked) return undefined
 
     await this.#registry.runHooks('suite:before', { suite: node.id })
-    if (!node.def?.setup?.length) return undefined
+    if (!node.def?.setup?.length && !node.def?.returns) return undefined
 
-    const records = await this.#executor(node).runPhase(node.def.setup, 'setup')
+    const records = node.def?.setup?.length
+      ? await this.#executor(node).runPhase(node.def.setup, 'setup')
+      : []
     // `skipped` is not a break: a `when:` that came out false is the suite
     // saying this environment does not need that step, which is the whole
     // point of writing one.
     const broke = records.find((r) => r.status === 'failed' || r.status === 'error')
-    if (!broke) return undefined
+    if (!broke) {
+      await this.#share(node)
+      return undefined
+    }
 
     const reason = `setup did not complete: ${broke.message ?? 'no detail'}`
     this.#registry.events.emit({
@@ -290,6 +304,24 @@ class SuiteTree {
       message: `suite ${reason}. No test in it ran.`
     })
     return reason
+  }
+
+  /**
+   * What the suite hands down, resolved once, in the scope its setup ran in.
+   *
+   * Resolved here rather than read by each test, because `${created.body.id}`
+   * means something only inside the suite's own frame — and because a value
+   * resolved once is the same value for every test below, which is the whole
+   * claim `returns` makes.
+   *
+   * A failing reference is the suite's failure, not the tests': it is
+   * reported the way a broken setup is, and the tests below are blocked
+   * rather than run against half a fixture.
+   */
+  async #share(node: SuiteNode): Promise<void> {
+    if (!node.def?.returns) return
+    const own = await resolveDeepAsync(this.#executor(node).scope(), node.def.returns)
+    node.shared = { ...(node.parent?.shared ?? {}), ...(own as Record<string, unknown>) }
   }
 
   /**
@@ -349,6 +381,10 @@ class SuiteTree {
       registry: this.#registry,
       suite: node.id,
       resources: node.frame!,
+      // What the suites above declared. Its own `returns` are not in here:
+      // they are resolved out of this executor, and a block cannot be its
+      // own input.
+      ...(node.parent?.shared ? { shared: node.parent.shared } : {}),
       ...(meta ? { meta } : {}),
       attach: (name, body, contentType) => {
         const record = this.#artifacts.put(node.id, name, body, contentType)
@@ -428,7 +464,8 @@ async function runOne(
   test: TestDef,
   suite: string,
   artifacts: ArtifactStore,
-  suiteFrame: ResourceFrame
+  suiteFrame: ResourceFrame,
+  shared?: Record<string, unknown>
 ): Promise<TestOutcome> {
   const startedAt = Date.now()
   const configFor = (plugin: string) => registry.configFor(plugin)
@@ -494,6 +531,7 @@ async function runOne(
     test: test.name,
     suite,
     resources: testFrame,
+    ...(shared ? { shared } : {}),
     ...(budget !== undefined ? { deadline: startedAt + budget } : {}),
     ...(meta ? { meta } : {}),
     attach: (name, body, contentType) => {

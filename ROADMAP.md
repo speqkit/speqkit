@@ -998,7 +998,7 @@ the path language, `@speqkit/plugin-api` 0.13.0 → 0.14.0 — which is the fift
 and sixth holes this project has found in its own contract, and the first two
 found by a suite rather than by a plugin.
 
-### Found since, wiring that suite into a pipeline — answered in 0.9.0 and 0.9.1
+### Found since, wiring that suite into a pipeline — answered in 0.9.0, 0.9.1 and 0.10.0
 
 Six, and not one of them from reading the source. The first two suites went in
 clean; the CI job around them did not.
@@ -1050,10 +1050,22 @@ one release after `gate plan` was given the job of preventing exactly that. A
 flag is not proven by its tests; it is proven by the first real thing put
 through it.
 
+And the eighth is not about what it says at all. Moving the product's suites
+off its seeded database — each test builds what it needs and deletes it —
+turned out to need the one thing a suite could not do: hand what its `setup`
+built to the tests below it
+([#21](https://github.com/speqkit/speqkit/issues/21), answered in 0.10.0 by
+`returns` on a suite and `${suite:key}` in a test). The kernel had closed that
+door deliberately and left one way through it — a `suite`-scoped resource —
+which is `ctx.defineResource`, in TypeScript, in a plugin. So a project whose
+tests are YAML had to publish an npm package to share one row between two
+tests in the same directory. Four releases of writing plugins never found it,
+because somebody writing a plugin is already past it.
+
 The instrument is doing what it was changed for. Four releases of plugin
-authorship found four contract holes; two afternoons of one product's pipeline
-found seven more defects, one of them the seventh contract hole. And they are
-about **what the tool says rather than what it does** — which is the half of a
+authorship found four contract holes; three afternoons of one product's
+pipeline found eight more defects, two of them contract holes. Seven of the
+eight are about **what the tool says rather than what it does** — which is the half of a
 test framework nobody evaluates until they are under time pressure, and by then
 they are not evaluating it, they are suffering it.
 

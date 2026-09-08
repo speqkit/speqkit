@@ -113,8 +113,40 @@ than replaced, and `pending` parks every test below with one reason.
 under it, and after the last, whatever happened to them. They run in a scope of
 their own, which the tests below cannot read — a test that could see
 `${tenant.id}` from the suite above it would be a different test when run
-alone, and running one test alone is how a failure gets looked at. What crosses
-that line is a `suite`-scoped resource, which is declared and named.
+alone, and running one test alone is how a failure gets looked at.
+
+What crosses that line is declared. `returns` is the shared half of a fixture,
+built once and named by the suite:
+
+```yaml
+# suites/menu/suite.yaml
+setup:
+  - id: tenant
+    type: http
+    method: POST
+    url: /admin/tenants
+returns:
+  tenantId: ${tenant.body.id}
+```
+
+```yaml
+# suites/menu/items.yaml
+steps:
+  - type: http
+    url: /admin/tenants/${suite:tenantId}/items
+```
+
+It is resolved once, after the suite's setup, in the scope that setup ran in,
+and every test below sees the same values — including a test run on its own,
+because opening its suite is what produced them. The key is the suite's name
+for the thing, not the id of the step that made it, so moving or renaming a
+setup step does not reach into the tests. A nearer suite shadows a key of the
+same name above it, and `speq validate` refuses a key no suite above the test
+declares, before anything runs.
+
+The other way across is a `suite`-scoped resource, which a plugin declares in
+TypeScript: that one is for a thing rather than a value — a browser, a
+connection pool — set up on demand whether the suite's setup ran or not.
 
 The manifest is read from disk rather than from whatever the run happened to
 walk, so `speq run --test suites/menu/items/lists.yaml` sees exactly the suites

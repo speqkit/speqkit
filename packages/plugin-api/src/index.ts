@@ -252,8 +252,9 @@ export interface CaseDef {
  * one surprise this design refuses to import: a test that could read
  * `${tenant.id}` bound by a suite's setup would be a different test when run
  * alone, and running one test alone is how every failure is investigated.
- * What a suite shares with its tests is a `suite`-scoped resource — declared,
- * named, and set up on demand whether the suite's setup ran or not.
+ * What a suite shares with its tests is declared: a `returns` block, read as
+ * `${suite:key}`, or a `suite`-scoped resource, which is set up on demand
+ * whether the suite's setup ran or not.
  */
 export interface SuiteDef {
   /**
@@ -277,6 +278,17 @@ export interface SuiteDef {
   setup?: StepDef[]
   /** Steps run once, after the last test below it, whatever happened to them. */
   cleanup?: StepDef[]
+  /**
+   * What the suite hands to the tests below it, read as `${suite:key}`.
+   *
+   * Resolved once, after `setup`, in the scope its setup ran in — so the
+   * crossing is named by the suite rather than by the shape of its steps, and
+   * renaming a setup step does not reach into the tests. Only what is named
+   * here crosses; the rest of the suite's scope stays the suite's own.
+   *
+   * A suite deeper down shadows a key of the same name above it.
+   */
+  returns?: Record<string, unknown>
   /** Annotations, on the same terms as a test's — carried, never read. */
   meta?: Record<string, unknown>
   /** Set by the kernel: the manifest file this was read from. */

@@ -36,6 +36,14 @@ export interface ExecutorOptions {
    */
   suite: string
   /**
+   * What the suites above have declared they hand down, flattened nearest-last.
+   *
+   * Read as `${suite:key}` and nothing else: a test can see what its suite
+   * named and no more of its scope, so the test that runs alone runs the same
+   * — opening its suite is what produced these values in the first place.
+   */
+  shared?: Record<string, unknown>
+  /**
    * The `test` frame this executor runs inside.
    *
    * Handed in rather than reached for. The resource manager holds no current
@@ -81,6 +89,7 @@ export class Executor {
   readonly #suite: string
   readonly #resources: ResourceFrame
   readonly #meta: Record<string, unknown>
+  readonly #shared: Record<string, unknown>
   readonly #defaultTimeoutMs: number
   #deadline: number | undefined
   readonly #attach: ExecutorOptions['attach']
@@ -97,6 +106,7 @@ export class Executor {
     this.#suite = options.suite
     this.#resources = options.resources
     this.#meta = options.meta ?? {}
+    this.#shared = options.shared ?? {}
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
     this.#deadline = options.deadline
     this.#attach = options.attach
@@ -151,6 +161,11 @@ export class Executor {
     // stamps `x-owner: ${meta:owner}` on every request needs no plugin, and
     // the annotation a report shows is the annotation the request carried.
     providers.set('meta', (key) => this.#meta[key])
+    // `suite` is the kernel's for the same reason, and answers out of what the
+    // suites above declared in `returns`. A key nobody declared resolves to
+    // nothing and is reported as an unresolved reference, exactly like a step
+    // id that is not there.
+    providers.set('suite', (key) => this.#shared[key])
     return { frames: this.#frames, providers }
   }
 
