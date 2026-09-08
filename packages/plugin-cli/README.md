@@ -72,6 +72,25 @@ run after deployment is what catches it.
 blocks. That asymmetry is deliberate: a zone somebody forgot to add to the list
 must not quietly become a zone nobody checks.
 
+**A test is advisory when everything it answers for is advisory.** One tag out
+of two is not enough. A suite tagged `[backend, menu]` — publishing is the
+backend's, "the guest can see it" is the menu app's — answers for the work in
+hand on a branch that touched either, so it blocks on both. The lenient reading
+costs more than it looks: on a branch touching only the menu, that suite is the
+one covering the menu app, and sparing it for its `backend` tag makes the whole
+run advisory and the job green whatever happens.
+
+**The flag takes tags, not zones**, and it cannot tell one kind of tag from
+another. A suite tagged `[backend, readonly]`, where the second says it creates
+nothing and can therefore be run against production, is advisory only when
+`readonly` is named too. So compute the list rather than typing it — *every tag
+carried by the tests that answer for no zone I touched* — which is what a CI
+job with a file-to-zone map does anyway:
+
+```bash
+speq run --env ci --advisory "$(node scripts/gate.mjs advisory-tags)"
+```
+
 **Advisory red is never silent.** It is in the console — the test's header says
 `advisory` before it runs, not after it goes red — in the totals, in the JUnit
 file, and in `--json` under `advisory`. What it does not do is decide.

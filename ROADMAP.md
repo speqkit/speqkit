@@ -998,7 +998,7 @@ the path language, `@speqkit/plugin-api` 0.13.0 → 0.14.0 — which is the fift
 and sixth holes this project has found in its own contract, and the first two
 found by a suite rather than by a plugin.
 
-### Found since, wiring that suite into a pipeline — answered in 0.9.0
+### Found since, wiring that suite into a pipeline — answered in 0.9.0 and 0.9.1
 
 Six, and not one of them from reading the source. The first two suites went in
 clean; the CI job around them did not.
@@ -1039,9 +1039,20 @@ clean; the CI job around them did not.
   only line of install output that looks like a problem, present every time,
   and false.
 
+And then the gate flag went in, and the seventh came out of the flag itself
+([#20](https://github.com/speqkit/speqkit/issues/20), answered in 0.9.1):
+`--advisory` spared a test as soon as *one* of its tags was named, so the first
+suite answering for two zones — publishing done by the core, "the guest can see
+it" checked on the menu app — went advisory on a branch that touched the zone
+it answers for. On a menu branch that suite is the only one covering the menu
+app, and the whole run went advisory with it: a job green whatever happens,
+one release after `gate plan` was given the job of preventing exactly that. A
+flag is not proven by its tests; it is proven by the first real thing put
+through it.
+
 The instrument is doing what it was changed for. Four releases of plugin
 authorship found four contract holes; two afternoons of one product's pipeline
-found six more defects, one of them the seventh contract hole. And all six are
+found seven more defects, one of them the seventh contract hole. And they are
 about **what the tool says rather than what it does** — which is the half of a
 test framework nobody evaluates until they are under time pressure, and by then
 they are not evaluating it, they are suffering it.

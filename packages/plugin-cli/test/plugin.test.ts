@@ -1033,6 +1033,44 @@ describe('which part of a run decides the exit code', () => {
     expect(gated.code).toBe(1)
   })
 
+  /**
+   * The rule over several tags, and the one the first two-zone suite in a real
+   * project got wrong. `[backend, menu]` on a branch that touched the backend
+   * answers for the work in hand; sparing it because one of its tags was named
+   * is how a run comes to be advisory in its entirety and green whatever
+   * happens.
+   */
+  it('blocks on a test that also answers for a zone nobody named', async () => {
+    const commands = await withZones()
+
+    kit.file(
+      'suites/both-red.yaml',
+      'name: both are red\ntags: [backend, menu]\nsteps:\n  - type: noop\n    assert:\n      - type: is-ok\n        expected: false\n'
+    )
+    const gated = await invoke(commands, 'run', [
+      '--test', 'suites/both-red.yaml', '--advisory', 'menu', '--reporter', 'console'
+    ])
+    const printed = gated.out.replace(/\x1b\[\d+m/g, '')
+    expect(gated.code).toBe(1)
+    expect(printed).toContain('exit 1: 1 blocking test(s) red')
+    // The header does not say `advisory` about a test the verdict blocks on.
+    expect(printed).not.toContain('advisory\n')
+  })
+
+  it('spares it once every tag it carries is named', async () => {
+    const commands = await withZones()
+
+    kit.file(
+      'suites/both-red.yaml',
+      'name: both are red\ntags: [backend, menu]\nsteps:\n  - type: noop\n    assert:\n      - type: is-ok\n        expected: false\n'
+    )
+    const gated = await invoke(commands, 'run', [
+      '--test', 'suites/both-red.yaml', '--advisory', 'menu,backend', '--reporter', 'console'
+    ])
+    expect(gated.code).toBe(0)
+    expect(gated.out.replace(/\x1b\[\d+m/g, '')).toContain('exit 0: 1 of them red')
+  })
+
   it('puts the split in the document a machine reads', async () => {
     const commands = await withZones()
 

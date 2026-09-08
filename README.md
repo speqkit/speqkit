@@ -51,7 +51,9 @@ CI log, a gate that could not answer for a branch touching two zones, a flag
 answering with Node's error where the flag beside it answers with speq's.
 0.9.0 answers them, and the one that reached the contract — a step type had no
 way to say `failed` — is the seventh hole found in it, and the third found by a
-suite rather than by somebody writing a plugin.
+suite rather than by somebody writing a plugin. Wiring the new gate flag into
+that pipeline then found one more the same afternoon, in the flag itself —
+0.9.1 is that fix.
 
 What is next, in the order it has to happen — and which of it is cheap now and
 expensive after 1.0 — is in [ROADMAP.md](ROADMAP.md).

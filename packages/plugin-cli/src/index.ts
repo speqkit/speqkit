@@ -463,7 +463,7 @@ function linesFor(event: RunEvent, verbose = false, advisory: string[] = []): Li
       // Said before the test runs rather than after it goes red: a reader who
       // learns the result did not count only once it has one has already spent
       // the attention this line exists to save.
-      const spared = advisory.length > 0 && (event.tags ?? []).some((tag) => advisory.includes(tag))
+      const spared = advisory.length > 0 && spares(event.tags, advisory)
       const aside = [
         event.title ? event.test : '',
         event.source ?? '',
@@ -721,15 +721,16 @@ interface Failure {
 }
 
 /**
- * What `run --json` prints once the run is over.
- *
- * The counts and the status are the whole outcome; per test it carries the
- * identity and the failures and stops there. The alternative was the whole
- * `TestOutcome` — every step, every result, every artifact — but that is the
- * report, and the report is already on disk under `runDir`, in a form nothing
- * here has to keep in step. This document is what a caller reads to decide
- * what to do next.
+ * Whether `--advisory` spares this test: it answers for something, and
+ * everything it answers for was named. The header the console prints and the
+ * exit code the run returns read it from here, because a run that says
+ * `advisory` beside a test and then blocks on it is worse than either.
  */
+function spares(tags: string[] | undefined, advisory: string[]): boolean {
+  const named = new Set(advisory)
+  return (tags ?? []).length > 0 && (tags ?? []).every((tag) => named.has(tag))
+}
+
 /**
  * Which part of the run decides the exit code.
  *
@@ -748,6 +749,20 @@ interface Failure {
  * Only what does *not* block is named, so a test carrying none of these tags
  * blocks. Erring towards strictness is the only safe default here: a zone
  * somebody forgot to name must not quietly become a zone nobody checks.
+ *
+ * Over several tags the same rule reads: a test is advisory when *everything*
+ * it answers for is advisory. One matching tag out of two used to be enough,
+ * and the first suite that answered for two zones showed what that costs — the
+ * one suite covering the menu app was tagged `[backend, menu]`, so a branch
+ * touching the menu ran with `--advisory backend`, and the whole run went
+ * advisory. A job green whatever happens is the failure mode `gate plan`
+ * exists to prevent, arrived at without a plan to inspect.
+ *
+ * The flag takes tags, not zones, and a project whose tags are not all zones
+ * pays for it here: `[backend, readonly]`, where the second says the suite
+ * creates nothing, is advisory only if `readonly` is named too. Computed
+ * rather than typed — "every tag carried by the tests that answer for no zone
+ * I touched" — which is what a CI job does anyway.
  */
 function decide(
   outcome: RunOutcome,
@@ -761,8 +776,7 @@ function decide(
     }
   }
 
-  const named = new Set(advisory)
-  const isAdvisory = (test: TestOutcome): boolean => (test.tags ?? []).some((tag) => named.has(tag))
+  const isAdvisory = (test: TestOutcome): boolean => spares(test.tags, advisory)
   const advisoryTests = outcome.tests.filter(isAdvisory)
   const blockingRed = outcome.tests.filter((test) => !isAdvisory(test) && red(test))
   const advisoryRed = advisoryTests.filter(red)
@@ -797,6 +811,16 @@ function decide(
   }
 }
 
+/**
+ * What `run --json` prints once the run is over.
+ *
+ * The counts and the status are the whole outcome; per test it carries the
+ * identity and the failures and stops there. The alternative was the whole
+ * `TestOutcome` — every step, every result, every artifact — but that is the
+ * report, and the report is already on disk under `runDir`, in a form nothing
+ * here has to keep in step. This document is what a caller reads to decide
+ * what to do next.
+ */
 function summarise(outcome: RunOutcome, reportDir: string): Record<string, unknown> {
   return {
     status: outcome.status,

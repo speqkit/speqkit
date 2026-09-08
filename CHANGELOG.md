@@ -14,6 +14,46 @@ the project is on [semantic versioning](https://semver.org/) — pre-1.0, so a
 **minor** bump is where a breaking change is allowed to live, and a caret range
 on `0.x` pins the minor for exactly that reason.
 
+## [0.9.1] — 2026-09-08
+
+The flag 0.9.0 shipped, wired into the product it was written for, on the same
+day. The first suite that answered for two zones went the wrong way through it.
+
+### Fixed
+
+- **`--advisory` no longer spares a test that also answers for a zone nobody
+  named.** A test is advisory when *everything* it answers for is advisory;
+  one matching tag out of two used to be enough. The suite that found it is
+  tagged `[backend, menu]` — publishing is done by the core, "the guest can
+  see it" is checked on the menu app's page — and it is the only suite in that
+  project which opens the menu app at all. On a branch touching `apps/menu`
+  the run is `--advisory backend`, that tag was enough, and **every test in the
+  run became advisory**: a job green whatever happens, which is the failure
+  mode `gate plan` exists to prevent, reached one release later without a plan
+  to inspect. Untagged still blocks, so the safe default is unchanged, and the
+  console header and the exit code now read the rule from one place — a run
+  that prints `advisory` beside a test and then blocks on it is worse than
+  either answer.
+
+  The cost lands on tags that are not zones: `[backend, readonly]` is advisory
+  only when `readonly` is named too. That is the honest consequence of a flag
+  that takes tags and cannot tell one kind from another, it is now written in
+  the README, and the list it argues for is a computed one — *every tag
+  carried by the tests that answer for no zone I touched*.
+
+### Published with this release
+
+| Package | Version |
+| --- | --- |
+| `speqkit` | 0.9.1 |
+| `@speqkit/plugin-cli` | 0.10.0 |
+| `create-speqkit-plugin` | 0.8.1 |
+
+Everything else is unchanged from 0.9.0. `create-speqkit-plugin` moves only to
+keep the kernel version it pins into a new plugin in step with the kernel — a
+scaffold that pins a version nobody can install is the kind of stale a test in
+this repository is there to catch, and did.
+
 ## [0.9.0] — 2026-09-08
 
 Six items, and not one of them was found by reading the source. They came out
