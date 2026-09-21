@@ -22,7 +22,7 @@
     "speqkit-plugin"
   ],
   "dependencies": {
-    "yaml": "^2.6.1"
+    "yaml": "^2.9.1"
   },
   "peerDependencies": {
     "@speqkit/plugin-api": "workspace:^"
