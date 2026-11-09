@@ -33,7 +33,7 @@
   "devDependencies": {
     "@speqkit/plugin-api": "workspace:*",
     "@speqkit/test-kit": "workspace:*",
-    "playwright": "^1.62.1",
+    "playwright": "^1.65.0",
     "speqkit": "workspace:*"
   },
   "files": [

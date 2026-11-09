@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@speqkit/plugin-api": "workspace:*",
-    "yaml": "^2.6.1",
+    "yaml": "^2.9.1",
     "@speqkit/installer": "workspace:*"
   },
   "files": [
